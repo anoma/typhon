@@ -1,0 +1,113 @@
+#lang ivy1.6
+
+# Total ordering
+module total_order(r) = {
+    axiom r(X,X)                        # Reflexivity
+    axiom r(X, Y) & r(Y, Z) -> r(X, Z)  # Transitivity
+    axiom r(X, Y) & r(Y, X) -> X = Y    # Anti-symmetry
+    axiom r(X, Y) | r(Y, X)             # Totality
+}
+
+type node
+type value
+type quorum
+type round
+
+individual none: round
+relation le(X : round, Y : round)
+instantiate total_order(le)
+
+axiom [le_none] le(none, R)
+# AK: why is the assumption important for proving equivalence?
+
+relation member(N : node, Q : quorum)
+axiom [quorum]
+    forall Q1 : quorum, Q2 : quorum.
+        exists N : node. member(N, Q1) & member(N, Q2)
+
+relation one_b_max_vote(N : node, R0 : round, R2 : round, V : value)
+relation one_c_safe_value(R : round, V : value) # 1c
+relation two_a_proposal(R : round, V : value) # 2a
+relation vote(N:node, R:round, V:value) # 2b
+
+individual r : round
+individual q : quorum
+individual maxr : round
+individual v : value
+
+relation error
+init ~error
+
+action verify_announce_safe_value_rewrite = {
+    # assume auxiliary invariant
+    # proposals are unique per round
+    assume two_a_proposal(R, V1) & two_a_proposal(R, V2) -> V1 = V2;
+
+    # only vote for proposed values
+    assume vote(N, R, V) -> two_a_proposal(R, V);
+
+    # properties of one_b_max_vote
+    assume
+        one_b_max_vote(N, R2, none, V1) & ~le(R2, R0) ->
+        ~vote(N, R0, V2);
+    assume
+        one_b_max_vote(N, R, RMAX, V) & RMAX ~= none ->
+        ~le(R, RMAX) & vote(N, RMAX, V);
+    assume
+        one_b_max_vote(N, R, RMAX, V) & RMAX ~= none & ~le(R, ROTHER) & ~le(ROTHER, RMAX) ->
+        ~vote(N, ROTHER, VOTHER);
+
+    # properties of none
+    #assume ~one_b_max_vote(N, none, R, V);
+    #assume ~one_c_safe_value(none, V);
+    #assume ~two_a_proposal(none, V);
+    #assume ~vote(N, none, V);
+
+    # assume action conditions (forall exists, but stratified)
+    assume r ~= none;
+    assume
+        forall N : node.
+            member(N, q) ->
+            exists R : round, V : value. one_b_max_vote(N, r, R, V);
+
+    # check equivalence
+    if ~(
+         (
+            (maxr = none &
+             (forall N : node, MAXR : round, V : value.
+                member(N, q) & one_b_max_vote(N, r, MAXR, V) & MAXR ~= none -> le(r, MAXR))) |
+            (maxr ~= none &
+             one_c_safe_value(maxr, v) & ~le(r, maxr) &
+             # (i)
+             (forall N : node, R0 : round, MAXV : value.
+                member(N, q) & one_b_max_vote(N, r, R0, MAXV) ->
+                le(R0, maxr)) &
+             # (ii)
+             (forall N : node, MAXV : value.
+                member(N, q) & one_b_max_vote(N, r, maxr, MAXV) -> MAXV = v))
+         )
+         <->
+         (
+            (maxr = none &
+             (forall N : node, MAXR : round, V : value.
+                member(N, q) & vote(N, MAXR, V) -> le(r, MAXR))) |
+            (maxr ~= none &
+             one_c_safe_value(maxr, v) & ~le(r, maxr) &
+             # (i)
+             (forall N : node, R0 : round, MAXV : value.
+                member(N, q) & vote(N, R0, MAXV) & ~le(r, R0) ->
+                le(R0, maxr)) &
+             # (ii)
+             (forall N : node, MAXV : value.
+                member(N, q) & vote(N, maxr, MAXV) -> MAXV = v))
+         )
+        )
+    {
+        error := true
+    }
+}
+
+export verify_announce_safe_value_rewrite 
+
+conjecture [rewrite_correct] ~error
+

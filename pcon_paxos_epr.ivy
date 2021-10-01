@@ -1,0 +1,239 @@
+#lang ivy1.6
+
+# Total ordering
+module total_order(r) = {
+    axiom r(X,X)                        # Reflexivity
+    axiom r(X, Y) & r(Y, Z) -> r(X, Z)  # Transitivity
+    axiom r(X, Y) & r(Y, X) -> X = Y    # Anti-symmetry
+    axiom r(X, Y) | r(Y, X)             # Totality
+}
+
+type node
+type value
+type quorum
+type round
+
+individual none: round
+relation le(X : round, Y : round)
+instantiate total_order(le)
+
+axiom [le_none] le(none, R)
+
+relation member(N : node, Q : quorum)
+axiom [quorum]
+    forall Q1 : quorum, Q2 : quorum.
+        exists N : node. member(N, Q1) & member(N, Q2)
+
+relation one_a(R : round)
+relation one_b_max_vote(N : node, R1 : round, R2 : round, V : value)
+relation one_b(N : node, R : round) # := exists RMAX : round, V : value. one_b_max_vote(N, R, RMAX, V)
+relation one_c_safe_value(R : round, V : value) # 1c
+relation left_rnd(N : node, R : round) # := exists R2 : round, RMAX : round, V : value.
+                                             # ~le(R2,R) & one_b_max_vote(N, R2, RMAX, V)
+relation two_a_proposal(R : round, V : value) # 2a
+relation vote(N : node, R : round, V : value) # 2b
+relation decision(N : node, R : round, V : value) # got 2b from a quorum
+
+# initial states
+init ~one_a(R)
+init ~one_b_max_vote(N, R1, R2, V)
+init ~one_b(N, R)
+init ~one_c_safe_value(R, V)
+init ~left_rnd(N, R)
+init ~two_a_proposal(R, V)
+init ~vote(N, R, V)
+init ~decision(N, R, V)
+
+action send_1a = {
+    # a proposer selects a round and sends a message asking nodes to join the round
+    local r : round {
+        assume r ~= none;
+        one_a(r) := true
+    }
+}
+
+action join_round_1b = {
+    # acceptor n receives 1a message and answer with 1b message
+    local n : node, r : round {
+        assume r ~= none;
+        assume one_a(r);
+        assume ~left_rnd(n, r);
+
+        local maxr : round, v : value {
+            # find the maximal vote in a round less than r
+            assume
+                (maxr = none &
+                 forall MAXR : round, V : value. vote(n, MAXR, V) -> le(r, MAXR)) |
+                (maxr ~= none & ~le(r, maxr) & vote(n, maxr, v) &
+                 forall MAXR : round, V : value.
+                    ~le(r, MAXR) & vote(n, MAXR, V) -> le(MAXR, maxr));
+            # send the 1b message
+            one_b_max_vote(n, r, maxr, v) := true;
+            one_b(n, r) := true;
+            left_rnd(n, R) := left_rnd(n, R) | ~le(r, R)
+        }
+    }
+}
+
+action announce_safe_value_1c = {
+    # a proposer announces safe value after receiving 1b join confirmations from a quorum 
+    local r : round, q : quorum {
+        assume r ~= none;
+        assume forall N : node. member(N, q) -> one_b(N, r);
+
+        # pick a safe value and announce it
+        local maxr : round, sv : value {
+            # find the maximal max_vote in the quorum
+            assume
+                # (1) no acceptor of the quorum has voted in a ballot numbered less than b
+                (maxr = none &
+                 forall N : node, MAXR : round, V : value.
+                    member(N, q) & vote(N, MAXR, V) -> le(r, MAXR)) |
+                # (2) pick a value announced in an earlier round 
+                (maxr ~= none &
+                 one_c_safe_value(maxr, sv) & ~le(r, maxr) &
+                  # (i)
+                  (forall N : node, R0 : round, MAXV : value.
+                    member(N, q) & vote(N, R0, MAXV) & ~le(r, R0) -> le(R0, maxr)) &
+                  # (ii)
+                  (forall N : node, MAXV : value.
+                    member(N, q) & vote(N, maxr, MAXV) -> MAXV = sv));
+            one_c_safe_value(r, sv) := true
+        } 
+    }
+} 
+
+action propose_2a = {
+    # send a proposal for some announced candidate value
+    local r : round, v : value {
+        assume r ~= none;
+        assume one_c_safe_value(r, v);
+        assume ~two_a_proposal(r, V); # maybe not the best option
+        # propose value c
+        two_a_proposal(r, v) := true
+    }
+}
+
+action cast_vote_2b = {
+    # receive a 2a and send 2b
+    local n : node, v : value, r : round {
+        assume r ~= none;
+        assume ~left_rnd(n, r);
+        assume two_a_proposal(r, v);
+        vote(n, r, v) := true
+    }
+}
+
+action decide = {
+    # get 2b from a quorum
+    local n : node, r : round, v : value, q : quorum {
+        assume r ~= none;
+        assume member(N, q) -> vote(N, r, v);
+        decision(n, r, v) := true
+    }
+}
+
+export send_1a
+export join_round_1b
+export announce_safe_value_1c
+export propose_2a
+export cast_vote_2b
+export decide
+
+# safety property:
+conjecture [safety]
+    decision(N1, R1, V1) & decision(N2, R2, V2) -> V1 = V2
+
+# proposals are unique per round
+conjecture [2a_unique]
+    two_a_proposal(R, V1) & two_a_proposal(R, V2) -> V1 = V2
+
+# proposed value must be announced
+conjecture two_a_proposal(R, V) -> one_c_safe_value(R, V)
+
+# only vote for proposed values
+conjecture vote(N, R, V) -> two_a_proposal(R, V)
+
+# decisions come from quorums of votes
+conjecture
+    forall R : round, V : value, N0 : node.
+        decision(N0, R, V) ->
+        exists Q : quorum.
+            forall N : node. member(N, Q) -> vote(N, R, V)
+
+# proposed values are safe
+conjecture [2a_safe]
+    forall R1 : round, R2 : round, V1 : value, V2 : value, Q : quorum.
+        R1 ~= none & ~le(R2, R1) & two_a_proposal(R2, V2) & V1 ~= V2 ->
+        exists N : node.
+            member(N,Q) & left_rnd(N, R1) & ~vote(N, R1, V1)
+
+# announced values are safe
+conjecture [1c_safe]
+    forall R1 : round, R2 : round, V1 : value, V2 : value, Q : quorum.
+        R1 ~= none & ~le(R2, R1) & one_c_safe_value(R2, V2) & V1 ~= V2 ->
+        exists N : node.
+            member(N, Q) & left_rnd(N, R1) & ~vote(N, R1, V1)
+
+# properties of one_a
+conjecture one_b(N, R) -> one_a(R)
+conjecture one_b_max_vote(N, R, RMAX, V) & RMAX ~= none -> one_a(RMAX)
+
+# properties on one_b
+conjecture [1b_0]
+    one_b_max_vote(N, R, RMAX, V) -> one_b(N, R)
+
+conjecture [1b_left]
+    one_b(N, R2) & ~le(R2, R1) -> left_rnd(N, R1)
+
+# properties of one_b_max_vote
+conjecture [1b_1]
+    one_b_max_vote(N, R2, none, V1) & ~le(R2, R1) -> ~vote(N, R1, V2)
+
+conjecture [1b_2]
+    one_b_max_vote(N, R, RMAX, V) & RMAX ~= none ->
+    ~le(R, RMAX) & vote(N, RMAX, V)
+
+conjecture [1b_3]
+    one_b_max_vote(N, R, RMAX, V) & RMAX ~= none & ~le(R, ROTHER) & ~le(ROTHER, RMAX) ->
+    ~vote(N, ROTHER, VOTHER)
+
+# properties of none
+conjecture ~one_a(none)
+conjecture ~one_b_max_vote(N, none, R, V)
+conjecture ~one_b(N, none)
+conjecture ~one_c_safe_value(none, V)
+conjecture ~two_a_proposal(none, V)
+conjecture ~vote(N, none, V)
+
+# properties of left_rnd
+conjecture [left_rnd_1]
+    one_b_max_vote(N, R, RMAX, V) & ~le(R, R1) -> left_rnd(N, R1)
+
+# properties of one_c_safe_value
+conjecture [1c_0]
+    one_c_safe_value(R, V) -> R ~= none
+
+conjecture [1c_1]
+    one_c_safe_value(R, V) -> one_a(R)
+
+conjecture [one_c_later]
+    forall Q: quorum, R : round, ROTHER: round, V : value, VOTHER : value.
+        ~le(ROTHER, R) & (forall N : node. member(N, Q) -> vote(N, R, V)) ->
+        one_c_safe_value(R, V) & (one_c_safe_value(ROTHER, VOTHER) -> V = VOTHER)
+
+# (prelim) seems to be not valid
+#conjecture [one_c_two_values]
+#    forall R : round, V1 : value, V2 : value.
+#        R ~= none & V1 ~= V2 & one_c_safe_value(R, V1) & one_c_safe_value(R, V2) ->
+#        exists Q : quorum.
+#            forall N : node.
+#                member(N, Q) ->
+#                    one_b(N, R) &
+#                    (forall R1 : round, V: value. ~le(R, R1) -> ~vote(N, R1, V))
+#                  & (forall RMAX : round, V : value. one_b_max_vote(N, R, RMAX, V) -> RMAX = none)
+
+# restrict size of domain
+#axiom exists V1, V2. forall V : value. V = V1 | V = V2
+#axiom exists R1, R2, R3 . forall R : round. R = R1 | R = R2 | R = R3
+
