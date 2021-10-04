@@ -111,7 +111,7 @@ action join_round_1b = {
                 (maxr = none &
                  forall MAXR : round, V : value.
                     two_b_vote(self, MAXR, V) -> le(r, MAXR)) |
-                (maxr ~= none & ~le(r, maxr) & two_b_vote(self, maxr, v) &
+                (maxr ~= none & lt(maxr, r) & two_b_vote(self, maxr, v) &
                  forall MAXR : round, V : value.
                     lt(MAXR, r) & two_b_vote(self, MAXR, V) -> le(MAXR, maxr));
             if maxr ~= none
@@ -169,18 +169,18 @@ action send_2av = {
                 (maxr = none &
                  forall N : node.
                     bqmember(N, bq) ->
-                    exists v : value, rav : round, vav : round.
-                        known_one_b_max_vote(self, N, r, none, v, rav, vav)) |
+                    exists V : value, RAV : round, VAV : round.
+                        known_one_b_max_vote(self, N, r, none, V, RAV, VAV)) |
                 (maxr ~= none &
                  (forall N : node.
                     bqmember(N, bq) ->
-                    exists R : round, v : value, rav : round, vav : round.
-                        known_one_b_max_vote(self, N, R, v, rav, vav) & le(R, maxr) & (R = maxr -> v = sv)
+                    exists R : round, V : value, RAV : round, VAV : round.
+                        known_one_b_max_vote(self, N, R, V, RAV, VAV) & le(R, maxr) & (R = maxr -> V = sv)
                  ) &
                  (forall N : node.
                     wqmember(N, wq) ->
-                    exists R : round, v : value, rav : round.
-                        known_one_b_max_vote(self, N, R, v, rav, sv) & le(maxr, rav)
+                    exists R : round, V : value, RAV : round.
+                        known_one_b_max_vote(self, N, R, V, RAV, sv) & le(maxr, RAV)
                  ));
             two_av(self, r, sv) := true;
             log_two_av(self, RAV, VAV) := (log_two_av(self, RAV, VAV) & VAV ~= sv) | (RAV = r & VAV = sv)
