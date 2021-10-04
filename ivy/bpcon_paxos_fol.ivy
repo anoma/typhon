@@ -52,10 +52,10 @@ relation one_a(R : round)
 relation one_b_max_vote(N : node, R : round, RMAX : round, V : value, RAV : round, VAV : value)
 
 # known 1b messages received by node N0
-relation known_one_b_max_vote(N0 : node, N : node, R : node, RMAX : round, V : value, RAV : round, VAV : value)
+relation known_one_b_max_vote(N0 : node, N : node, R : round, RMAX : round, V : value, RAV : round, VAV : value)
 
 # 1c
-relation one_c_announce_value(R : round, V : value)
+relation one_c_announced_value(R : round, V : value)
 
 # 2av messages sent by node N in round R
 relation two_av(N : node, R : round, V : value)
@@ -126,12 +126,12 @@ action join_round_1b = {
 }
 
 action join_round_1b_fake = {
-    local n : node, r : round {
-        assume ~real(n);
+    local self : node, r : round {
+        assume ~real(self);
         assume r ~= none;
-        local maxr : round, v : value, rav : round, vav : round {
+        local maxr : round, v : value, rav : round, vav : value {
             assume rav ~= none;
-            one_b_max_vote(n, r, maxr, v, rav, vav) := true
+            one_b_max_vote(self, r, maxr, v, rav, vav) := true
         }
     }
 }
@@ -169,18 +169,20 @@ action send_2av = {
                 (maxr = none &
                  forall N : node.
                     bqmember(N, bq) ->
-                    exists V : value, RAV : round, VAV : round.
+                    exists V : value, RAV : round, VAV : value.
                         known_one_b_max_vote(self, N, r, none, V, RAV, VAV)) |
                 (maxr ~= none &
                  (forall N : node.
                     bqmember(N, bq) ->
-                    exists R : round, V : value, RAV : round, VAV : round.
-                        known_one_b_max_vote(self, N, R, V, RAV, VAV) & le(R, maxr) & (R = maxr -> V = sv)
+                    exists R : round, V : value, RAV : round, VAV : value.
+                        known_one_b_max_vote(self, N, r, R, V, RAV, VAV) & le(R, maxr) & (R = maxr -> V = sv)
+                        # TODO
                  ) &
                  (forall N : node.
                     wqmember(N, wq) ->
                     exists R : round, V : value, RAV : round.
-                        known_one_b_max_vote(self, N, R, V, RAV, sv) & le(maxr, RAV)
+                        known_one_b_max_vote(self, N, r, R, V, RAV, sv) & le(maxr, RAV)
+                        # TODO
                  ));
             two_av(self, r, sv) := true;
             log_two_av(self, RAV, VAV) := (log_two_av(self, RAV, VAV) & VAV ~= sv) | (RAV = r & VAV = sv)
@@ -192,7 +194,7 @@ action send_2av_fake = {
     local self : node, r : round, v : value {
         assume ~real(self);
         assume r ~= none;
-        two_av(self, r, v) = true
+        two_av(self, r, v) := true
     }
 }
 
@@ -200,7 +202,8 @@ action cast_vote_2b = {
     local self : node, r : round {
         assume real(self);
         assume r ~= none;
-        assume ~(exists R : round, RMAX : round, V : value. one_b_max_vote(n, R, RMAX, V) & lt(r, R));
+        assume ~(exists R : round, RMAX : round, V : value, RAV : round, VAV : value.
+                    one_b_max_vote(self, R, RMAX, V, RAV, VAV) & lt(r, R));
         local v : value, bq : byzquorum {
             assume bqmember(N, bq) -> log_two_av(N, r, v);
             two_b_vote(self, r, v) := true
@@ -212,7 +215,7 @@ action cast_vote_2b_fake = {
     local self : node, r : round, v : value {
         assume ~real(self);
         assume r ~= none;
-        two_b_vote(self, n, v) := true
+        two_b_vote(self, r, v) := true
     }
 }
 
@@ -220,7 +223,7 @@ action cast_vote_2b_fake = {
 action decide = {
     local l : learner, r : round, v : value, bq : byzquorum {
         assume r ~= none;
-        assume member(N, q) -> two_b_vote(N, r, v);
+        assume bqmember(N, bq) -> two_b_vote(N, r, v);
         decision(l, r, v) := true
     }
 }
@@ -248,14 +251,14 @@ conjecture [safety]
 #conjecture two_a_proposal(R, V) -> one_c_announced_value(R, V)
 
 # only vote for proposed values
-conjecture two_b_vote(N, R, V) -> two_a_proposal(R, V)
+#conjecture two_b_vote(N, R, V) -> two_a_proposal(R, V)
 
 # decisions come from quorums of votes
 conjecture
-    forall R : round, V : value, N0 : node.
-        decision(N0, R, V) ->
-        exists Q : quorum.
-            forall N : node. member(N, Q) -> two_b_vote(N, R, V)
+    forall R : round, V : value, L : learner.
+        decision(L, R, V) ->
+        exists Q : byzquorum.
+            forall N : node. bqmember(N, Q) -> two_b_vote(N, R, V)
 
 # proposed values are safe
 #conjecture [2a_safe]
