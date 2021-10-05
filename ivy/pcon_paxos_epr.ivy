@@ -211,9 +211,6 @@ conjecture [left_rnd_1]
     one_b_max_vote(N, R, RMAX, V) & ~le(R, R1) -> left_rnd(N, R1)
 
 # properties of one_c_safe_value
-conjecture [1c_0]
-    one_c_safe_value(R, V) -> R ~= none
-
 conjecture [1c_1]
     one_c_safe_value(R, V) -> one_a(R)
 
