@@ -22,6 +22,8 @@ instantiate total_order(le)
 relation lt(X : round, Y : round)
 axiom [lt] lt(X, Y) <-> ~le(Y, X)
 
+axiom [le_none] le(none, R)
+
 
 ############## Acceptors and quorums
 
@@ -37,7 +39,7 @@ axiom [weakquorum]
     forall WQ : weakquorum.
         exists N : node. wqmember(N, WQ) & real(N)
 
-# every byzquorum is a weak quorum TODO
+# every byzquorum is a weak quorum
 #axiom
 #    forall BQ : byzquorum. exists WQ : weakquorum.
 #        forall N : node. bqmember(N, BQ) <-> wqmember(N, WQ)
@@ -166,24 +168,32 @@ action send_2av = {
         local bq : byzquorum, wq : weakquorum, maxr : round, sv : value {
             assume one_c_announced_value(r, sv);
             assume
+                forall N : node.
+                    bqmember(N, bq) ->
+                    exists MAXR : round, V : value, RAV : round, VAV : value.
+                        known_one_b_max_vote(self, N, r, MAXR, V, RAV, VAV);
+            assume
+                # BP3a
                 (maxr = none &
-                 forall N : node.
-                    bqmember(N, bq) ->
-                    exists V : value, RAV : round, VAV : value.
-                        known_one_b_max_vote(self, N, r, none, V, RAV, VAV)) |
+                 forall N : node, MAXR : round, V : value, RAV : round, VAV : value.
+                    bqmember(N, bq) & known_one_b_max_vote(self, N, r, MAXR, V, RAV, VAV) ->
+                    MAXR = none
+                ) |
+                # BP3c
                 (maxr ~= none &
-                 (forall N : node.
-                    bqmember(N, bq) ->
-                    exists R : round, V : value, RAV : round, VAV : value.
-                        known_one_b_max_vote(self, N, r, R, V, RAV, VAV) & le(R, maxr) & (R = maxr -> V = sv)
-                        # TODO
+                 # (a)
+                 (forall N : node, MAXR : round, V : value, RAV : round, VAV : value.
+                    bqmember(N, bq) & known_one_b_max_vote(self, N, r, MAXR, V, RAV, VAV) ->
+                    le(R, maxr) & # (i)
+                    (R = maxr -> V = sv) # (ii)
                  ) &
+                 # (b)
                  (forall N : node.
                     wqmember(N, wq) ->
-                    exists R : round, V : value, RAV : round.
-                        known_one_b_max_vote(self, N, r, R, V, RAV, sv) & le(maxr, RAV)
-                        # TODO
-                 ));
+                    exists MAXR : round, V : value, RAV : round.
+                        known_one_b_max_vote(self, N, r, MAXR, V, RAV, sv) & le(maxr, RAV)
+                 )
+                );
             two_av(self, r, sv) := true;
             log_two_av(self, RAV, VAV) := (log_two_av(self, RAV, VAV) & VAV ~= sv) | (RAV = r & VAV = sv)
         }
