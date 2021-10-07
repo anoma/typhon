@@ -126,7 +126,7 @@ action join_round_1b = {
                 assume log_two_av(self, rav, vav);
             };
             # prevent sending message with different pair (maxr, v)
-            assume one_b_max_vote(self, r, MAXR, V, RAV, VAV) -> MAXR = maxr & V = v
+            assume one_b_max_vote(self, r, MAXR, V, RAV, VAV) -> MAXR = maxr & V = v;
             # send the 1b message
             one_b_max_vote(self, r, maxr, v, rav, vav) := true
         }
