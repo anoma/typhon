@@ -22,7 +22,7 @@ instantiate total_order(le)
 relation lt(X : round, Y : round)
 axiom [lt] lt(X, Y) <-> ~le(Y, X)
 
-axiom [le_none] le(none, R)  
+axiom [le_none] le(none, R)
 
 
 ############## Acceptors and quorums
@@ -44,6 +44,10 @@ axiom [weakquorum]
 #    forall BQ : byzquorum. exists WQ : weakquorum.
 #        forall N : node. bqmember(N, BQ) <-> wqmember(N, WQ)
 
+conjecture [byzquorum_has_real]
+    forall BQ : byzquorum.
+        exists N : node. bqmember(N, BQ) & real(N)
+
 
 ############## Messages
 
@@ -58,6 +62,7 @@ relation known_one_b_max_vote(N0 : node, N : node, R : round, RMAX : round, V : 
 
 # 1c
 relation one_c_announced_value(R : round, V : value)
+# TODO need sender?
 
 # 2av messages sent by node N in round R
 relation two_av(N : node, R : round, V : value)
@@ -134,6 +139,8 @@ action join_round_1b = {
                 # if the node has voted in a previous round, pick any entry in 2av history
                 assume log_two_av(self, rav, vav);
             };
+            # prevent sending message with different pair (maxr, v)
+            assume one_b_max_vote(self, r, MAXR, V, RAV, VAV) -> MAXR = maxr & V = v;
             # send the 1b message
             one_b_max_vote(self, r, maxr, v, rav, vav) := true;
             one_b(self, r) := true;
@@ -204,7 +211,7 @@ action send_2av = {
                         known_one_b_max_vote(self, N, r, R, V, RAV, sv) & le(maxr, RAV)
                  ));
             two_av(self, r, sv) := true;
-            log_two_av(self, RAV, VAV) := (log_two_av(self, RAV, VAV) & VAV ~= sv) | (RAV = r & VAV = sv)
+            log_two_av(N, RAV, VAV) := (log_two_av(N, RAV, VAV) & VAV ~= sv) | (N = self & RAV = r & VAV = sv)
         }
     }
 }
@@ -221,10 +228,9 @@ action cast_vote_2b = {
     local self : node, r : round {
         assume real(self);
         assume r ~= none;
-        assume ~(exists R : round, RMAX : round, V : value, RAV : round, VAV : value.
-                    one_b_max_vote(self, R, RMAX, V, RAV, VAV) & lt(r, R));
+        assume ~left_rnd(self, r);
         local v : value, bq : byzquorum {
-            assume bqmember(N, bq) -> log_two_av(N, r, v);
+            assume bqmember(N, bq) -> two_av(N, r, v);
             two_b_vote(self, r, v) := true
         }
     }
@@ -262,6 +268,13 @@ export decide
 #conjecture [safety]
 #    decision(L1, R1, V1) & decision(L2, R2, V2) -> V1 = V2
 
+# decisions come from quorums of votes
+#conjecture
+#    forall R : round, V : value, L : learner.
+#        decision(L, R, V) ->
+#        exists Q : byzquorum.
+#            forall N : node. bqmember(N, Q) -> two_b_vote(N, R, V)
+
 # proposals are unique per round
 #conjecture [2a_unique]
 #    two_a_proposal(R, V1) & two_a_proposal(R, V2) -> V1 = V2
@@ -283,13 +296,6 @@ export decide
 #            forall N1 : node.
 #                bqmember(N1, BQ) -> log_two_av(N, R, V)
 
-# decisions come from quorums of votes
-#conjecture
-#    forall R : round, V : value, L : learner.
-#        decision(L, R, V) ->
-#        exists Q : byzquorum.
-#            forall N : node. bqmember(N, Q) -> two_b_vote(N, R, V)
-
 # proposed values are safe
 #conjecture [2a_safe]
 #    forall R1 : round, R2 : round, V1 : value, V2 : value, Q : quorum.
@@ -304,9 +310,14 @@ export decide
 #        exists N : node, R3 : round, RMAX : round, V : value.
 #            member(N, Q) & ~le(R3, R1) & one_b_max_vote(N, R3, RMAX, V) & ~two_b_vote(N, R1, V1)
 
+
 # properties of one_a
 conjecture real(N) & one_b(N, R) -> one_a(R)
 conjecture real(N) & one_b_max_vote(N, R, RMAX, V, RAV, VAV) & RMAX ~= none -> one_a(RMAX)
+conjecture real(N) & two_b_vote(N, R, V) -> one_a(R)
+conjecture real(N) & two_av(N, R, V) -> one_a(R)
+conjecture real(N) & known_one_b_max_vote(SELF, N, R, RMAX, V, RAV, VAV) -> one_a(R)
+
 
 # properties on one_b
 conjecture [1b_0]
@@ -314,6 +325,7 @@ conjecture [1b_0]
 
 conjecture [1b_left]
     real(N) & one_b(N, R2) & lt(R1, R2) -> left_rnd(N, R1)
+
 
 # properties of one_b_max_vote
 conjecture [1b_1]
@@ -330,16 +342,36 @@ conjecture [1b_3]
 conjecture [learned_1b_packets_exist]
     real(N0) & known_one_b_max_vote(N0, N, R, RMAX, V, RAV, VAV) -> one_b_max_vote(N, R, RMAX, V, RAV, VAV) 
 
+#conjecture # follows from one_b_max_vote_valid
+#    real(N) &
+#    one_b_max_vote(N, R, MAXR1, V1, RAV1, VAV) &
+#    one_b_max_vote(N, R, MAXR2, V2, RAV2, VAV) &
+#    MAXR1 ~= none &
+#    MAXR2 ~= none -> RAV1 = RAV2
+
+#conjecture [one_b_max_vote_valid]
+#    real(N) & one_b_max_vote(N, R, RMAX, V, RAV, VAV) & RMAX ~= none -> two_av(N, RAV, VAV)
+
+
+# properties of two_av
 conjecture
-    real(N) & log_two_av(N, R, V1) & log_two_av(N, R, V2) -> V1 = V2
+    real(N) & log_two_av(N, R1, V) & log_two_av(N, R2, V) -> R1 = R2
+
+conjecture
+    real(N) & log_two_av(N, R, V) -> two_av(N, R, V)
+
+conjecture
+    real(N) & two_av(N, R, V) -> one_c_announced_value(R, V)
+
 
 # properties of none
 conjecture ~one_a(none)
-conjecture ~one_b_max_vote(N, none, R, V, RAV, VAV)
-conjecture ~one_b_max_vote(N, R0, R, V, none, VAV)
+conjecture ~one_b_max_vote(N, none, MAXR, V, RAV, VAV)
+###conjecture ~one_b_max_vote(N, R, MAXR, V, none, VAV)
 conjecture ~known_one_b_max_vote(N0, N, none, R, V, RAV, VAV)
-conjecture ~known_one_b_max_vote(N0, N, R0, R, V, none, VAV)
+###conjecture ~known_one_b_max_vote(N0, N, R0, R, V, none, VAV)
 conjecture ~one_b(N, none)
+conjecture ~one_c_announced_value(none, V)
 conjecture ~two_av(N, none, V)
 conjecture ~log_two_av(N, none, V)
 conjecture ~two_b_vote(N, none, V)
@@ -349,8 +381,6 @@ conjecture [left_rnd_1]
     real(N) & one_b_max_vote(N, R, RMAX, V, RAV, VAV) & lt(R1, R) -> left_rnd(N, R1)
 
 # properties of one_c_safe_value
-#conjecture [1c_1]
-#    one_c_safe_value(R, V) -> one_a(R)
 #
 #conjecture [one_c_later]
 #    forall Q: quorum, R : round, ROTHER: round, V : value, VOTHER : value.
