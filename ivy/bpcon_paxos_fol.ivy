@@ -44,6 +44,10 @@ axiom [weakquorum]
 #    forall BQ : byzquorum. exists WQ : weakquorum.
 #        forall N : node. bqmember(N, BQ) <-> wqmember(N, WQ)
 
+conjecture [byzquorum_has_real]
+    forall BQ : byzquorum.
+        exists N : node. bqmember(N, BQ) & real(N)
+
 
 ############## Messages
 
@@ -121,6 +125,8 @@ action join_round_1b = {
                 # if the node has voted in a previous round, pick any entry in 2av history
                 assume log_two_av(self, rav, vav);
             };
+            # prevent sending message with different pair (maxr, v)
+            assume one_b_max_vote(self, r, MAXR, V, RAV, VAV) -> MAXR = maxr & V = v
             # send the 1b message
             one_b_max_vote(self, r, maxr, v, rav, vav) := true
         }
@@ -215,7 +221,7 @@ action cast_vote_2b = {
         assume ~(exists R : round, RMAX : round, V : value, RAV : round, VAV : value.
                     one_b_max_vote(self, R, RMAX, V, RAV, VAV) & lt(r, R));
         local v : value, bq : byzquorum {
-            assume bqmember(N, bq) -> log_two_av(N, r, v);
+            assume bqmember(N, bq) -> two_av(N, r, v);
             two_b_vote(self, r, v) := true
         }
     }
