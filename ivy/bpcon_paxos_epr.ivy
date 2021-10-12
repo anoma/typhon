@@ -44,7 +44,7 @@ axiom [weakquorum]
 #    forall BQ : byzquorum. exists WQ : weakquorum.
 #        forall N : node. bqmember(N, BQ) <-> wqmember(N, WQ)
 
-conjecture [byzquorum_has_real]
+conjecture [byzquorum_is_a_weakquorum]
     forall BQ : byzquorum.
         exists N : node. bqmember(N, BQ) & real(N)
 
@@ -76,19 +76,24 @@ relation two_b_vote(N : node, R : round, V : value)
 # decided values: got 2b by from a quorum
 relation decision(L : learner, R : round, V : value)
 
-relation one_b(N : node, R : round) # := exists RMAX : round, V : value, RAV : round, VAV : value.
-                                            # one_b_max_vote(N, R, RMAX, V, RAV, VAV)
-relation left_rnd(N : node, R : round) # := exists R1 : round, RMAX : round, V : value, RAV : round, VAV : value.
-                                                # lt(R,R1) & one_b_max_vote(N, R1, RMAX, V, RAV, VAV)
+relation one_b(N : node, R : round)
+    # := exists RMAX : round, V : value, RAV : round, VAV : value.
+    #        one_b_max_vote(N, R, RMAX, V, RAV, VAV)
 
-relation safety_proof_for_value(SELF : node, N : node, R : round, PROOFR : round, VAV : value)
-                    # := exists MAXR : round, V : value. forall RAV : round.
-                    #    le(PROOFR, RAV) -> known_one_b_max_vote(SELF, N, R, MAXR, V, RAV, VAV)
+relation left_rnd(N : node, R : round)
+    # := (exists R1 : round, RMAX : round, V : value, RAV : round, VAV : value.
+    #        one_b_max_vote(N, R1, RMAX, V, RAV, VAV) & lt(R, R1)) |
+    #    (exists R : round, V : value. two_av(N, R, V) & lt(r, R))
 
-# := exists R1 : round, RMAX : round, V : value, RAV : round, VAV : value.
- # lt(R,R1) & known_one_b_max_vote(SELF, N, R1, RMAX, V, RAV, VAV) 
+relation safety_proof_for_value(N : node, R : round, RPROOF : round, VAV : value)
 
-#relation safety_proof_for_value(N, r, sv)
+relation known_safety_proof_for_value(SELF : node, N : node, R : round, RPROOF : round, VAV : value)
+    # := exists RMAX : round, V : value, RAV : round.
+    #        known_one_b_max_vote(SELF, N, R, RMAX, V, RAV, VAV) & lt(RPROOF, RAV)
+    # intended meaning:
+    # node SELF has received in round R a 1b message from node N such that it contained a proof
+    # for value VAV sent in some round later than RPROOF
+
 
 ############## Initial state
 
@@ -98,7 +103,8 @@ init ~known_one_b_max_vote(N0, N, R, RMAX, V, RAV, VAV)
 init ~one_c_announced_value(R, V)
 init ~two_av(N, R, V)
 init ~log_two_av(N, R, V)
-init ~safety_proof_for_value(SELF, N, RMAX, R, V)
+init ~safety_proof_for_value(N, R, RPROOF, V)
+init ~known_safety_proof_for_value(SELF, N, R, RPROOF, V)
 init ~two_b_vote(N, R, V)
 init ~decision(L, R, V)
 
@@ -132,19 +138,26 @@ action join_round_1b = {
                  forall MAXR : round, V : value.
                     two_b_vote(self, MAXR, V) -> le(r, MAXR)) |
                 (maxr ~= none & lt(maxr, r) & two_b_vote(self, maxr, v) &
-                 forall MAXR : round, V : value.
-                    lt(MAXR, r) & two_b_vote(self, MAXR, V) -> le(MAXR, maxr));
-            if maxr ~= none
-            {
-                # if the node has voted in a previous round, pick any entry in 2av history
-                assume log_two_av(self, rav, vav);
-            };
-            # prevent sending message with different pair (maxr, v)
+                 (forall MAXR : round, V : value.
+                    lt(MAXR, r) & two_b_vote(self, MAXR, V) -> le(MAXR, maxr)) &
+                 # if the node has voted in a previous round, pick any entry in 2av history,
+                 # if the 2av history is non-empty
+                 ((rav = none &
+                   forall RAV : round, VAV : value.
+                    log_two_av(self, RAV, VAV) -> le(r, RAV)) |
+                  (rav ~= none & log_two_av(self, rav, vav) & lt(rav, r)))
+                );
+            # prevent sending a message for a different pair (maxr, v)
             assume one_b_max_vote(self, r, MAXR, V, RAV, VAV) -> MAXR = maxr & V = v;
-            # send the 1b message
+            # send a 1b message
             one_b_max_vote(self, r, maxr, v, rav, vav) := true;
             one_b(self, r) := true;
-            left_rnd(self, R) := left_rnd(self, R) | ~le(r, R)
+            left_rnd(self, R) := left_rnd(self, R) | lt(R, r);
+            #safety_proof_for_value(N, R, RPROOF, V) :=
+            #    safety_proof_for_value(N, R, RPROOF, V) |
+            #    (N = self & R = r & V = vav & le(RPROOF, maxr))
+            safety_proof_for_value(self, r, RPROOF, vav) :=
+                safety_proof_for_value(self, r, RPROOF, vav) | le(RPROOF, maxr)
         }
     }
 }
@@ -167,7 +180,7 @@ action receive_1b = {
         local n : node, r : round, maxr : round, v : value, rav : round, vav : value {
             assume one_b_max_vote(n, r, maxr, v, rav, vav);
             known_one_b_max_vote(self, n, r, maxr, v, rav, vav) := true;
-            safety_proof_for_value(self, n, r, R, vav) := le(maxr, R)
+            known_safety_proof_for_value(self, n, r, R, vav) := safety_proof_for_value(n, r, R, vav)
         }
     }
 }
@@ -186,7 +199,7 @@ action send_2av = {
         assume real(self);
         assume r ~= none;
         assume ~left_rnd(self, r);
-        assume forall R : round, V : value. log_two_av(self, R, V) -> le(R, r);
+        # assume forall R : round, V : value. log_two_av(self, R, V) -> le(R, r);
         local bq : byzquorum, wq : weakquorum, maxr : round, sv : value {
             assume one_c_announced_value(r, sv);
             assume forall N : node. bqmember(N, bq) -> one_b(N, r);
@@ -206,12 +219,16 @@ action send_2av = {
                  # (b)
                  (forall N : node.
                     wqmember(N, wq) ->
-                    #safety_proof_for_value(self, N, r, maxr, sv)
-                    exists R : round, V : value, RAV : round.
-                        known_one_b_max_vote(self, N, r, R, V, RAV, sv) & le(maxr, RAV)
+                    known_safety_proof_for_value(self, N, r, maxr, sv)
+                    #exists R : round, V : value, RAV : round.
+                    #    known_one_b_max_vote(self, N, r, R, V, RAV, sv) & le(maxr, RAV)
                  ));
             two_av(self, r, sv) := true;
-            log_two_av(N, RAV, VAV) := (log_two_av(N, RAV, VAV) & VAV ~= sv) | (N = self & RAV = r & VAV = sv)
+            left_rnd(self, R) := left_rnd(self, R) | lt(R, r);
+            log_two_av(self, RAV, sv) := RAV = r
+            #log_two_av(N, RAV, VAV) :=
+            #    (log_two_av(N, RAV, VAV) & VAV ~= sv) |
+            #    (N = self & RAV = r & VAV = sv)
         }
     }
 }
@@ -340,7 +357,31 @@ conjecture [1b_3]
     ~two_b_vote(N, ROTHER, VOTHER)
 
 conjecture [learned_1b_packets_exist]
-    real(N0) & known_one_b_max_vote(N0, N, R, RMAX, V, RAV, VAV) -> one_b_max_vote(N, R, RMAX, V, RAV, VAV) 
+    real(N0) & known_one_b_max_vote(N0, N, R, RMAX, V, RAV, VAV) ->
+    one_b_max_vote(N, R, RMAX, V, RAV, VAV)
+
+conjecture [1b_one_value]
+    real(N) &
+    one_b_max_vote(N, R, RMAX1, V1, RAV1, VAV1) &
+    one_b_max_vote(N, R, RMAX2, V2, RAV2, VAV2) ->
+    RMAX1 = RMAX2 & V1 = V2
+
+#conjecture [1b_rav_none]
+#    real(N) & RMAX ~= none &
+#    one_b_max_vote(N, R, RMAX, V, none, VAV1) &
+#    one_b_max_vote(N, R, RMAX, V, RAV2, VAV2) ->
+#    RAV2 = none
+
+conjecture [learned_proofs]
+    real(N0) & known_safety_proof_for_value(N0, N, R, RPROOF, V) ->
+    safety_proof_for_value(N, R, RPROOF, V)
+
+conjecture
+    real(N) & safety_proof_for_value(N, R, RPROOF, V) -> one_b(N, R)
+
+# NOT EPR
+#conjecture
+#    real(N) & safety_proof_for_value(N, R, RPROOF, V) -> exists RAV : round. log_two_av(N, RAV, V)
 
 #conjecture # follows from one_b_max_vote_valid
 #    real(N) &
@@ -355,30 +396,41 @@ conjecture [learned_1b_packets_exist]
 
 # properties of two_av
 conjecture
+    real(N) & two_av(N, R, V) -> one_c_announced_value(R, V)
+
+
+# properties of log_two_av
+conjecture
     real(N) & log_two_av(N, R1, V) & log_two_av(N, R2, V) -> R1 = R2
 
 conjecture
     real(N) & log_two_av(N, R, V) -> two_av(N, R, V)
 
 conjecture
-    real(N) & two_av(N, R, V) -> one_c_announced_value(R, V)
+    real(N) & two_av(N, R1, V) & log_two_av(N, R2, V) -> le(R1, R2)
+
+conjecture
+    real(N) & log_two_av(N, R1, V) & lt(R1, R2) -> ~two_av(N, R2, V)
 
 
 # properties of none
 conjecture ~one_a(none)
 conjecture ~one_b_max_vote(N, none, MAXR, V, RAV, VAV)
-###conjecture ~one_b_max_vote(N, R, MAXR, V, none, VAV)
 conjecture ~known_one_b_max_vote(N0, N, none, R, V, RAV, VAV)
-###conjecture ~known_one_b_max_vote(N0, N, R0, R, V, none, VAV)
 conjecture ~one_b(N, none)
 conjecture ~one_c_announced_value(none, V)
 conjecture ~two_av(N, none, V)
 conjecture ~log_two_av(N, none, V)
 conjecture ~two_b_vote(N, none, V)
+conjecture ~safety_proof_for_value(N, none, RPROOF, V)
+conjecture ~known_safety_proof_for_value(SELF, N, none, RPROOF, V)
 
 # properties of left_rnd
 conjecture [left_rnd_1]
     real(N) & one_b_max_vote(N, R, RMAX, V, RAV, VAV) & lt(R1, R) -> left_rnd(N, R1)
+
+conjecture [left_rnd_2]
+    real(N) & two_av(N, R, V) & lt(R1, R) -> left_rnd(N, R1)
 
 # properties of one_c_safe_value
 #
