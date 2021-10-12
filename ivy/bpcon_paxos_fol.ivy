@@ -44,7 +44,7 @@ axiom [weakquorum]
 #    forall BQ : byzquorum. exists WQ : weakquorum.
 #        forall N : node. bqmember(N, BQ) <-> wqmember(N, WQ)
 
-conjecture [byzquorum_has_real]
+conjecture [byzquorum_is_a_weakquorum]
     forall BQ : byzquorum.
         exists N : node. bqmember(N, BQ) & real(N)
 
@@ -106,8 +106,8 @@ action join_round_1b = {
         assume r ~= none;
         assume one_a(r);
         assume ~(exists R : round, RMAX : round, V : value, RAV : round, VAV : value.
-                    one_b_max_vote(self, R, RMAX, V, RAV, VAV) & lt(r, R));
-               # & ~(exists R : round, V : value. two_av(self, R, V) & lt(r, R));
+                    one_b_max_vote(self, R, RMAX, V, RAV, VAV) & lt(r, R))
+               & ~(exists R : round, V : value. two_av(self, R, V) & lt(r, R)); # TODO maybe not need this
                # AK: allow re-entry for the action, since we want to allow
                # only one 2av message from self's log to be sent at a time.
 
@@ -118,16 +118,18 @@ action join_round_1b = {
                  forall MAXR : round, V : value.
                     two_b_vote(self, MAXR, V) -> le(r, MAXR)) |
                 (maxr ~= none & lt(maxr, r) & two_b_vote(self, maxr, v) &
-                 forall MAXR : round, V : value.
-                    lt(MAXR, r) & two_b_vote(self, MAXR, V) -> le(MAXR, maxr));
-            if maxr ~= none
-            {
-                # if the node has voted in a previous round, pick any entry in 2av history
-                assume log_two_av(self, rav, vav);
-            };
-            # prevent sending message with different pair (maxr, v)
+                 (forall MAXR : round, V : value.
+                    lt(MAXR, r) & two_b_vote(self, MAXR, V) -> le(MAXR, maxr)) &
+                 # if the node has voted in a previous round, pick any entry in 2av history,
+                 # if the 2av history is non-empty
+                 ((rav = none &
+                   forall RAV : round, VAV : value.
+                    log_two_av(self, RAV, VAV) -> le(r, RAV)) |
+                  (rav ~= none & log_two_av(self, rav, vav) & lt(rav, r)))
+                );
+            # prevent sending a message for a different pair (maxr, v)
             assume one_b_max_vote(self, r, MAXR, V, RAV, VAV) -> MAXR = maxr & V = v;
-            # send the 1b message
+            # send a 1b message
             one_b_max_vote(self, r, maxr, v, rav, vav) := true
         }
     }
@@ -169,8 +171,9 @@ action send_2av = {
         assume real(self);
         assume r ~= none;
         assume ~(exists R : round, RMAX : round, V : value, RAV : round, VAV : value.
-                    one_b_max_vote(self, R, RMAX, V, RAV, VAV) & lt(r, R));
-        assume forall R : round, V : value. log_two_av(self, R, V) -> le(R, r);
+                    one_b_max_vote(self, R, RMAX, V, RAV, VAV) & lt(r, R))
+               & ~(exists R : round, V : value. two_av(N, R, V) & lt(r, R));
+
         local bq : byzquorum, wq : weakquorum, maxr : round, sv : value {
             assume one_c_announced_value(r, sv);
             assume
@@ -201,7 +204,10 @@ action send_2av = {
                  )
                 );
             two_av(self, r, sv) := true;
-            log_two_av(self, RAV, VAV) := (log_two_av(self, RAV, VAV) & VAV ~= sv) | (RAV = r & VAV = sv)
+            log_two_av(self, RAV, sv) := RAV = r
+            #log_two_av(N, RAV, VAV) :=
+            #    (log_two_av(N, RAV, VAV) & VAV ~= sv) |
+            #    (N = self & RAV = r & VAV = sv)
         }
     }
 }
