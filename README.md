@@ -1,2 +1,3 @@
-# hpaxos
-Specification of Heterogeneous Paxos protocol
+# Heterogenous Paxos
+
+Specification of Heterogeneous Paxos protocol.
