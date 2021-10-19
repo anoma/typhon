@@ -1,0 +1,541 @@
+#lang ivy1.6
+
+# total ordering
+module total_order(r) = {
+    axiom r(X,X)                        # reflexivity
+    axiom r(X, Y) & r(Y, Z) -> r(X, Z)  # transitivity
+    axiom r(X, Y) & r(Y, X) -> X = Y    # anti-symmetry
+    axiom r(X, Y) | r(Y, X)             # totality
+}
+
+type node
+type learner
+type value
+type round
+type byzquorum
+#type weakquorum
+
+individual none: round
+relation le(X : round, Y : round)
+instantiate total_order(le)
+
+relation lt(X : round, Y : round)
+axiom [lt] lt(X, Y) <-> ~le(Y, X)
+
+axiom [le_none] le(none, R)
+
+
+############## Acceptors and quorums
+
+relation real(N : node) # real acceptors
+
+relation bqmember(N : node, Q : byzquorum)
+#relation wqmember(N : node, Q : weakquorum)
+
+axiom [byzquorum]
+    forall BQ1 : byzquorum, BQ2 : byzquorum.
+        exists N : node. bqmember(N, BQ1) & bqmember(N, BQ2) & real(N)
+
+#axiom [weakquorum]
+#    forall WQ : weakquorum.
+#        exists N : node. wqmember(N, WQ) & real(N)
+#
+
+conjecture [byzquorum_is_a_weakquorum]
+    forall BQ : byzquorum.
+        exists N : node. bqmember(N, BQ) & real(N)
+
+
+############## Learner graph
+
+relation trust_live(L : learner, BQ : byzquorum)
+relation safe(L1 : learner, L2 : learner, BQ : byzquorum)
+
+axiom [safe_sym]
+    safe(L1, L2, BQ) -> safe(L2, L1, BQ)
+
+# valid learner graph
+axiom [learner_graph_is_valid]
+    forall L1 : learner, L2 : learner, BQ1 : byzquorum, BQ2 : byzquorum, S : byzquorum.
+        trust_live(L1, BQ1) & trust_live(L2, BQ2) & safe(L1, L2, S) ->
+        exists N : node.
+            bqmember(N, BQ1) & bqmember(N, BQ2) & bqmember(N, S)
+
+# we assume that the learner graph is condensed
+axiom [learner_graph_is_condensed] 
+    safe(L1, L2, S) & safe(L2, L3, S) -> safe(L1, L3, S)
+
+# entanglement relation
+relation ent(L1 : learner, L2 : learner, S : byzquorum)
+
+axiom [ent_def]
+    forall L1 : learner, L2 : learner.
+        ent(L1, L2, S) <-> (safe(L1, L2, S) & forall N : node. bqmember(N, S) -> real(N))
+
+conjecture [ent_sym]
+    ent(L1, L2, S) -> ent(L2, L1, S)
+
+
+############## Messages
+
+# 1a message sent in round R
+relation one_a(R : round)
+
+# 1b messages sent by node N in round R
+relation one_b_max_vote(L : learner, N : node, R : round, RMAX : round, V : value, RAV : round, VAV : value)
+
+# known 1b messages received by node N0
+relation known_one_b_max_vote(N0 : node, L : learner, N : node, R : round, RMAX : round, V : value, RAV : round, VAV : value)
+
+# 1c messages serving for value announcement
+relation one_c_announced_value(L : learner, R : round, V : value)
+
+# 2av messages sent by node N in round R
+relation two_av(L : learner, N : node, R : round, V : value)
+
+# voted values, 2b messages
+relation two_b_vote(L : learner, N : node, R : round, V : value)
+
+# decided values: got 2b by from a quorum
+relation decision(L : learner, R : round, V : value)
+
+
+############## Instrumentation relations
+
+relation one_b(L : learner, N : node, R : round)
+    # := exists RMAX : round, V : value, RAV : round, VAV : value.
+    #        one_b_max_vote(L : learner, N, R, RMAX, V, RAV, VAV)
+
+relation left_rnd(L : learner, N : node, R : round)
+    # := (exists R1 : round, RMAX : round, V : value, RAV : round, VAV : value.
+    #        one_b_max_vote(L, N, R1, RMAX, V, RAV, VAV) & lt(R, R1))
+
+relation left_rnd_elsewhere(N : node, R : round)
+    # := (exists L : learner, R1 : round, RMAX : round, V : value, RAV : round, VAV : value.
+    #        one_b_max_vote(L, N, R1, RMAX, V, RAV, VAV) & lt(R, R1))
+
+relation safety_proof_for_value(L : learner, N : node, R : round, RAV : round, VAV : value)
+    # := exists RMAX : round, V : value, RAV : round.
+    #        one_b_max_vote(L, N, R, RMAX, V, RAV, VAV)
+    # intended meaning:
+    # in round R, there exists a 1b message from node N such that it contained
+    # a proof of safety for value VAV sent in round RAV
+
+relation known_safety_proof_for_value(SELF : node, L : learner, N : node, R : round, RAV : round, VAV : value)
+    # := exists RMAX : round, V : value, RAV : round.
+    #        known_one_b_max_vote(L, SELF, N, R, RMAX, V, RAV, VAV)
+    # intended meaning:
+    # node SELF has received a 1b message in round R sent by node N such that it contained
+    # a proof for value VAV sent in round RAV
+
+# 2av messages sent by node N in round R in some learner instance
+relation two_av_elsewhere(N : node, R : round, V : value)
+
+# voted values in some learner instance, 2b messages
+relation two_b_vote_elsewhere(N : node, R : round, V : value)
+
+############## Initial state
+
+init ~one_a(R)
+init ~one_b_max_vote(L, N, R, RMAX, V, RAV, VAV)
+init ~known_one_b_max_vote(N0, L, N, R, RMAX, V, RAV, VAV)
+init ~one_c_announced_value(L, R, V)
+init ~two_av(L, N, R, V)
+init ~two_b_vote(L, N, R, V)
+init ~decision(L, R, V)
+
+init ~one_b(L, N, R)
+init ~left_rnd(L, N, R)
+init ~left_rnd_elsewhere(N, R)
+init ~safety_proof_for_value(L, N, R, RAV, V)
+init ~known_safety_proof_for_value(SELF, L, N, R, RAV, V)
+init ~two_av_elsewhere(N, R, V)
+init ~two_b_vote_elsewhere(N, R, V)
+
+
+############## Actions
+
+action init_round_1a = {
+    # a proposer selects a round and sends a message asking nodes to join the round
+    # a fake proposer can always start a new round
+    local l : learner, r : round {
+        assume r ~= none;
+        one_a(r) := true
+    }
+}
+
+action join_round_1b = {
+    # acceptor receives 1a message and answer with 1b message
+    local l : learner, self : node, r : round {
+        assume real(self);
+        assume r ~= none;
+        assume one_a(r);
+        # AK: strange since 2av restricts on ~left_rnd_elsewhere
+        #assume ~left_rnd(l, self, r);
+        assume ~left_rnd_elsewhere(self, r);
+
+        local maxr : round, v : value, rav : round, vav : value, lmax : learner, lav : learner {
+            # find the maximal vote in a round less than r among all instances
+            assume
+                (
+                 maxr = none &
+                 (forall MAXR : round, V : value.
+                    two_b_vote_elsewhere(self, MAXR, V) -> le(r, MAXR)) &
+                 forall MAXR : round, V : value, L : learner.
+                    two_b_vote(L, self, MAXR, V) -> le(r, MAXR)
+                ) |
+                (
+                 maxr ~= none &
+                 lt(maxr, r) & two_b_vote(lmax, self, maxr, v) &
+                 (forall MAXR : round, V : value.
+                    lt(MAXR, r) & two_b_vote_elsewhere(self, MAXR, V) -> le(MAXR, maxr)) &
+                 (forall MAXR : round, V : value, L : learner.
+                    lt(MAXR, r) & two_b_vote(L, self, MAXR, V) -> le(MAXR, maxr)) &
+                 # if the node has voted in a previous round and the 2av history is not empty,
+                 # pick any entry in the 2av history
+                 ((
+                   rav = none &
+                   (forall RAV : round, VAV : value.
+                    two_av_elsewhere(self, RAV, VAV) -> le(r, RAV)) &
+                   (forall RAV : round, VAV : value, L : learner.
+                    two_av(L, self, RAV, VAV) -> le(r, RAV))
+                  ) |
+                  (
+                   rav ~= none &
+                   lt(rav, r) & two_av(lav, self, rav, vav) &
+                   forall RAV : round, L : learner.
+                    two_av(L, self, RAV, vav) -> le(RAV, rav)
+                  ))
+                );
+            # prevent sending a message for a different pair (maxr, v)
+            assume one_b_max_vote(L, self, r, MAXR, V, RAV, VAV) -> MAXR = maxr & V = v;
+            # send a 1b message
+            one_b_max_vote(l, self, r, maxr, v, rav, vav) := true;
+            # instrumentation:
+            one_b(l, self, r) := true;
+            left_rnd(l, self, R) := left_rnd(l, self, R) | lt(R, r);
+            left_rnd_elsewhere(self, R) := left_rnd_elsewhere(self, R) | lt(R, r);
+            if maxr ~= none & rav ~= none {
+                safety_proof_for_value(l, self, r, rav, vav) := true
+            }
+        }
+    }
+}
+
+action join_round_1b_fake = {
+    local l : learner, self : node, r : round {
+        assume ~real(self);
+        assume r ~= none;
+        local maxr : round, v : value, rav : round, vav : value {
+            assume rav ~= none;
+            one_b_max_vote(l, self, r, maxr, v, rav, vav) := true
+        }
+    }
+}
+
+# receive 1b packet and write it into local log
+action receive_1b = {
+    local self : node {
+        assume real(self);
+        local l : learner, n : node, r : round, maxr : round, v : value, rav : round, vav : value {
+            assume one_b_max_vote(l, n, r, maxr, v, rav, vav);
+            known_one_b_max_vote(self, l, n, r, maxr, v, rav, vav) := true;
+            known_safety_proof_for_value(self, l, n, r, R, vav) := safety_proof_for_value(l, n, r, R, vav)
+        }
+    }
+}
+
+# announce any value
+action announce_value_1c = {
+    local l : learner, r : round, v : value {
+        assume r ~= none;
+        one_c_announced_value(l, r, v) := true
+    }
+}
+
+# send 2av
+action send_2av = {
+    local l : learner, self : node, r : round {
+        assume real(self);
+        assume r ~= none;
+        #assume ~left_rnd(l, self, r);
+        assume ~left_rnd_elsewhere(self, r);
+        assume ~two_av(l, self, r, V);
+
+        local bq : byzquorum, bq_weak : byzquorum, maxr : round, sv : value, lmax : learner {
+            assume one_c_announced_value(l, r, sv);
+            assume trust_live(l, bq);
+            assume trust_live(l, bq_weak);
+            assume forall N : node. bqmember(N, bq) -> one_b(l, N, r);
+            assume
+                # BP3a
+                (
+                 maxr = none &
+                 #(forall N : node, MAXR : round, V : value.
+                 #   bqmember(N, bq) & two_b_vote_elsewhere(N, MAXR, V) -> le(r, MAXR)) &
+                 #forall L : learner, N : node, MAXR : round, V : value.
+                 #   bqmember(N, bq) & two_b_vote(L, N, MAXR, V) -> le(r, MAXR)
+                 forall N : node, MAXR : round, V : value.
+                    bqmember(N, bq) & two_b_vote(l, N, MAXR, V) -> le(r, MAXR)
+                ) |
+                # BP3c
+                (
+                 maxr ~= none &
+                 lt(maxr, r) & # NB: we do not need this condition in BPCon
+                 # (a)
+                 #(forall N : node, R1 : round, V : value.
+                 #   bqmember(N, bq) & two_b_vote_elsewhere(N, R1, V) & lt(R1, r) ->
+                 #   le(R1, maxr) # (i)
+                 #   & (R1 = maxr -> V = sv) # (ii)
+                 #) &
+                 #(forall L : learner, N : node, R1 : round, V : value.
+                 #   bqmember(N, bq) & two_b_vote(L, N, R1, V) & lt(R1, r) ->
+                 #   le(R1, maxr) # (i)
+                 #   & (R1 = maxr -> V = sv) # (ii)
+                 #) &
+                 (forall N : node, R1 : round, V : value.
+                    bqmember(N, bq) & two_b_vote(l, N, R1, V) & lt(R1, r) ->
+                    le(R1, maxr) # (i)
+                    & (R1 = maxr -> V = sv) # (ii)
+                 ) &
+                 # (b)
+                 (forall N : node.
+                    bqmember(N, bq_weak) ->
+                    known_safety_proof_for_value(self, l, N, r, maxr, sv)
+                    # abbreviates:
+                    #exists MAXR : round, V : value.
+                    #    known_one_b_max_vote(self, l, N, r, MAXR, V, maxr, sv)
+                 ));
+            two_av(l, self, r, sv) := true;
+            # instrumentation:
+            two_av_elsewhere(self, r, sv) := true
+        }
+    }
+}
+
+action send_2av_fake = {
+    local l : learner, self : node, r : round, v : value {
+        assume ~real(self);
+        assume r ~= none;
+        two_av(l, self, r, v) := true
+    }
+}
+
+action cast_vote_2b = {
+    local l : learner, self : node, r : round {
+        assume real(self);
+        assume r ~= none;
+        assume ~left_rnd(l, self, r); # or not left_rnd_elsewhere?
+        local v : value, bq : byzquorum {
+            assume trust_live(l, bq);
+            assume bqmember(N, bq) -> two_av(l, N, r, v);
+            two_b_vote(l, self, r, v) := true;
+            two_b_vote_elsewhere(self, r, v) := true
+        }
+    }
+}
+
+action cast_vote_2b_fake = {
+    local l : learner, self : node, r : round, v : value {
+        assume ~real(self);
+        assume r ~= none;
+        two_b_vote(l, self, r, v) := true;
+        two_b_vote_elsewhere(self, r, v) := true
+    }
+}
+
+# learner decides on a value if received 2b from a byzquorum
+action decide = {
+    local l : learner, r : round, v : value, bq : byzquorum {
+        assume r ~= none;
+        assume trust_live(l, bq);
+        assume bqmember(N, bq) -> two_b_vote(l, N, r, v);
+        decision(l, r, v) := true
+    }
+}
+
+export init_round_1a
+export join_round_1b
+export join_round_1b_fake
+export receive_1b
+export announce_value_1c
+export send_2av
+export send_2av_fake
+export cast_vote_2b
+export cast_vote_2b_fake
+export decide
+
+
+############## Invariants
+
+# safety property
+#conjecture [safety]
+#    ent(L1, L2, S) & decision(L1, R1, V1) & decision(L2, R2, V2) -> V1 = V2
+
+# decisions come from quorums of votes
+conjecture [decision_byzquorum]
+    forall R : round, V : value, L : learner.
+        decision(L, R, V) ->
+        exists Q : byzquorum.
+            trust_live(L, Q) &
+            forall N : node. bqmember(N, Q) -> two_b_vote(L, N, R, V)
+
+# 2av votes come from a byzquotum for a proposed value
+conjecture
+    forall L : learner, N : node, R : round, V : value.
+        real(N) & two_b_vote(L, N, R, V) ->
+        exists BQ : byzquorum.
+            trust_live(L, BQ) &
+            forall N1 : node.
+                bqmember(N1, BQ) -> two_av(L, N1, R, V)
+
+# proposed values are safe
+#conjecture [2av_safe]
+#    forall L : learner, N2 : node, R1 : round, R2 : round, V1 : value, V2 : value, BQ : byzquorum.
+#        real(N2) & trust_live(L, BQ) & two_av(L, N2, R2, V2) & lt(R1, R2) & V1 ~= V2 ->
+#        exists N1 : node.
+#            real(N1) & bqmember(N1, BQ) & left_rnd(L, N1, R1) & ~two_b_vote(L, N1, R1, V1)
+
+
+# proposals are unique per round
+conjecture [2av_unique]
+    real(N) & two_av(L, N, R, V1) & two_av(L, N, R, V2) -> V1 = V2
+
+#conjecture [2av_try]
+#    real(N) & two_av_elsewhere(N, R, V1) & two_av_elsewhere(N, R, V2) -> V1 = V2
+
+# properties of one_a
+conjecture real(N) & one_b(L, N, R) -> one_a(R)
+conjecture real(N) & one_b_max_vote(L, N, R, RMAX, V, RAV, VAV) & RMAX ~= none -> one_a(RMAX)
+conjecture real(N) & two_b_vote(L, N, R, V) -> one_a(R)
+conjecture real(N) & two_b_vote_elsewhere(N, R, V) -> one_a(R)
+conjecture real(N) & two_av(L, N, R, V) -> one_a(R)
+conjecture real(N) & two_av_elsewhere(N, R, V) -> one_a(R)
+conjecture real(N) & known_one_b_max_vote(SELF, L, N, R, RMAX, V, RAV, VAV) -> one_a(R)
+
+# properties of two_b_vote_elsewhere
+conjecture real(N) & two_b_vote(L, N, R, V) -> two_b_vote_elsewhere(N, R, V)
+
+# properties on one_b
+conjecture [1b_0]
+    real(N) & one_b_max_vote(L, N, R, RMAX, V, RAV, VAV) -> one_b(L, N, R)
+
+conjecture [1b_left]
+    real(N) & one_b(L, N, R2) & lt(R1, R2) -> left_rnd(L, N, R1)
+
+
+# properties of one_b_max_vote
+conjecture [1b_1]
+    real(N) &
+    one_b_max_vote(L, N, R2, none, V1, RAV, VAV) & ~le(R2, R1) ->
+    ~two_b_vote(L, N, R1, V2)
+
+conjecture [1b_2]
+    real(N) &
+    one_b_max_vote(L, N, R, RMAX, V, RAV, VAV) & RMAX ~= none ->
+    lt(RMAX, R) & two_b_vote_elsewhere(N, RMAX, V)
+
+conjecture [1b_3]
+    real(N) &
+    one_b_max_vote(L, N, R, RMAX, V, RAV, VAV) & RMAX ~= none & lt(RMAX, ROTHER) & lt(ROTHER, R) ->
+    ~two_b_vote(L, N, ROTHER, VOTHER)
+
+conjecture [1b_4]
+    real(N) &
+    one_b_max_vote(L, N, R, RMAX, V, RAV, VAV) & RMAX ~= none ->
+    lt(RAV, R) & (RAV ~= none -> two_av_elsewhere(N, RAV, VAV))
+
+conjecture [1b_maxr_v]
+    real(N) &
+    one_b_max_vote(L, N, R, RMAX1, V1, RAV1, VAV1) &
+    one_b_max_vote(L, N, R, RMAX2, V2, RAV2, VAV2) ->
+    RMAX1 = RMAX2 & V1 = V2
+
+conjecture [1b_rav_none]
+    real(N) & RMAX ~= none &
+    one_b_max_vote(L, N, R, RMAX, V, none, VAV1) &
+    one_b_max_vote(L, N, R, RMAX, V, RAV2, VAV2) ->
+    RAV2 = none
+
+
+# properties of one_b_max_vote
+conjecture [learned_1b_packets_exist]
+    real(N0) &
+    known_one_b_max_vote(N0, L, N, R, RMAX, V, RAV, VAV) ->
+    one_b_max_vote(L, N, R, RMAX, V, RAV, VAV)
+
+conjecture [1b_rav_none_1]
+    real(N) & RMAX ~= none &
+    one_b_max_vote(L, N, R, RMAX, V, none, VAV) &
+    lt(RAV2, R) ->
+    ~two_av_elsewhere(N, RAV2, VAV2)
+
+conjecture [1b_safety_proof_for_value]
+    real(N) & RMAX ~= none &
+    one_b_max_vote(L, N, R, RMAX, V, none, VAV) &
+    lt(RAV2, R) ->
+    ~safety_proof_for_value(L1, N, R, RAV2, VAV2)
+
+
+# properties of left_rnd
+conjecture [left_rnd_elsewhere]
+    left_rnd(L, N, R) -> left_rnd_elsewhere(N, R)
+
+conjecture [left_rnd_1]
+    real(N) & one_b_max_vote(L, N, R, RMAX, V, RAV, VAV) & lt(R1, R) -> left_rnd(L, N, R1)
+
+# BROKEN: see BPCon
+#conjecture [left_rnd_2]
+#    real(N) & two_av(L, N, R, V) & lt(R1, R) -> left_rnd(L, N, R1)
+
+
+# properties of safety proofs
+conjecture [learned_proofs]
+    real(N0) & known_safety_proof_for_value(N0, L, N, R, RAV, VAV) ->
+    safety_proof_for_value(L, N, R, RAV, VAV)
+
+conjecture [safety_proof_for_value_1]
+    real(N) & safety_proof_for_value(L, N, R, RAV, V) -> one_b(L, N, R)
+
+conjecture [safety_proof_for_value_2]
+    real(N) & safety_proof_for_value(L, N, R, RAV, V) ->
+    two_av_elsewhere(N, RAV, V)
+    # abbreviates:
+    # exists L1 : learner. two_av(L1, N, RAV, V)
+
+
+# properties of two_av
+conjecture
+    real(N) & two_av(L, N, R, V) -> one_c_announced_value(L, R, V)
+
+conjecture [one_b_max_vote_valid]
+    real(N) &
+    one_b_max_vote(L, N, R, RMAX, V, RAV, VAV) &
+    RMAX ~= none & RAV ~= none ->
+    two_av_elsewhere(N, RAV, VAV)
+
+conjecture [2av_elsewhere]
+    real(N) & two_av(L, N, R, V) -> two_av_elsewhere(N, R, V)
+
+
+# properties of none
+conjecture ~one_a(none)
+conjecture ~one_b_max_vote(L, N, none, MAXR, V, RAV, VAV)
+conjecture ~known_one_b_max_vote(N0, L, N, none, R, V, RAV, VAV)
+conjecture ~one_b(L, N, none)
+conjecture ~one_c_announced_value(L, none, V)
+conjecture ~two_av(L, N, none, V)
+conjecture ~two_b_vote(L, N, none, V)
+conjecture ~safety_proof_for_value(L, N, none, RPROOF, V)
+conjecture ~safety_proof_for_value(L, N, R, none, V)
+conjecture ~known_safety_proof_for_value(SELF, L, N, none, RAV, V)
+conjecture ~known_safety_proof_for_value(SELF, L, N, R, none, V)
+
+
+# restrict size of domain
+#axiom exists V1. forall V : value. V = V1
+axiom exists V1, V2. forall V : value. V = V1 | V = V2
+#axiom exists R1, R2, R3 . forall R : round. R = R1 | R = R2 | R = R3
+axiom exists R1, R2, R3, R4 . forall R : round. R = R1 | R = R2 | R = R3 | R = R4
+
+
