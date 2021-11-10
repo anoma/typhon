@@ -1,11 +1,11 @@
 #lang ivy1.6
 
-# Total ordering
+# total ordering
 module total_order(r) = {
-    axiom r(X,X)                        # Reflexivity
-    axiom r(X, Y) & r(Y, Z) -> r(X, Z)  # Transitivity
-    axiom r(X, Y) & r(Y, X) -> X = Y    # Anti-symmetry
-    axiom r(X, Y) | r(Y, X)             # Totality
+    axiom r(X,X)                        # reflexivity
+    axiom r(X, Y) & r(Y, Z) -> r(X, Z)  # transitivity
+    axiom r(X, Y) & r(Y, X) -> X = Y    # antisymmetry
+    axiom r(X, Y) | r(Y, X)             # totality
 }
 
 type node
