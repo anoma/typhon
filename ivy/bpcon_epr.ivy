@@ -199,10 +199,10 @@ action send_2av = {
         assume r ~= none;
         assume ~left_rnd(self, r);
         assume ~two_av(self, r, V);
-        assume forall N : node. bqmember(N, bq) -> one_b(N, r);
 
         local bq : byzquorum, wq : weakquorum, maxr : round, sv : value {
             assume one_c_announced_value(r, sv);
+            assume forall N : node. bqmember(N, bq) -> one_b(N, r);
             assume
                 # BP3a
                 (
