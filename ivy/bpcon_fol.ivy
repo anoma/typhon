@@ -2,9 +2,9 @@
 
 # total ordering
 module total_order(r) = {
-    axiom r(X, X)                        # reflexivity
+    axiom r(X, X)                       # reflexivity
     axiom r(X, Y) & r(Y, Z) -> r(X, Z)  # transitivity
-    axiom r(X, Y) & r(Y, X) -> X = Y    # anti-symmetry
+    axiom r(X, Y) & r(Y, X) -> X = Y    # antisymmetry
     axiom r(X, Y) | r(Y, X)             # totality
 }
 
@@ -167,14 +167,14 @@ action send_2av = {
                     one_b_max_vote(self, R, RMAX, V, RAV, VAV) & lt(r, R));
                # & ~(exists R : round, V : value. two_av(N, R, V) & lt(r, R));
         assume ~two_av(self, r, V);
+        assume
+            forall N : node.
+                bqmember(N, bq) ->
+                exists MAXR : round, V : value, RAV : round, VAV : value.
+                    known_one_b_max_vote(self, N, r, MAXR, V, RAV, VAV);
 
         local bq : byzquorum, wq : weakquorum, maxr : round, sv : value {
             assume one_c_announced_value(r, sv);
-            assume
-                forall N : node.
-                    bqmember(N, bq) ->
-                    exists MAXR : round, V : value, RAV : round, VAV : value.
-                        known_one_b_max_vote(self, N, r, MAXR, V, RAV, VAV);
             assume
                 # BP3a
                 (
