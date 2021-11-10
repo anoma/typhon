@@ -2,9 +2,9 @@
 
 # total ordering
 module total_order(r) = {
-    axiom r(X, X)                        # reflexivity
+    axiom r(X, X)                       # reflexivity
     axiom r(X, Y) & r(Y, Z) -> r(X, Z)  # transitivity
-    axiom r(X, Y) & r(Y, X) -> X = Y    # anti-symmetry
+    axiom r(X, Y) & r(Y, X) -> X = Y    # antisymmetry
     axiom r(X, Y) | r(Y, X)             # totality
 }
 
@@ -199,10 +199,10 @@ action send_2av = {
         assume r ~= none;
         assume ~left_rnd(self, r);
         assume ~two_av(self, r, V);
+        assume forall N : node. bqmember(N, bq) -> one_b(N, r);
 
         local bq : byzquorum, wq : weakquorum, maxr : round, sv : value {
             assume one_c_announced_value(r, sv);
-            assume forall N : node. bqmember(N, bq) -> one_b(N, r);
             assume
                 # BP3a
                 (
@@ -300,9 +300,10 @@ conjecture [decision_byzquorum]
 
 # 2b votes come from a byzquorum
 conjecture
-    real(N) & two_b_vote(N, R, V) ->
-    exists BQ : byzquorum.
-        forall N1 : node. bqmember(N1, BQ) -> two_av(N1, R, V)
+    forall N : node, R : round, V : value.
+        real(N) & two_b_vote(N, R, V) ->
+        exists BQ : byzquorum.
+            forall N1 : node. bqmember(N1, BQ) -> two_av(N1, R, V)
 
 # only vote for proposed values
 conjecture
@@ -344,7 +345,7 @@ conjecture [1b_left]
 # properties of one_b_max_vote
 conjecture [1b_1]
     real(N) &
-    one_b_max_vote(N, R2, none, V1, RAV, VAV) & ~le(R2, R1) ->
+    one_b_max_vote(N, R2, none, V1, RAV, VAV) & lt(R1, R2) ->
     ~two_b_vote(N, R1, V2)
 
 conjecture [1b_2]
@@ -354,7 +355,8 @@ conjecture [1b_2]
 
 conjecture [1b_3]
     real(N) &
-    one_b_max_vote(N, R, RMAX, V, RAV, VAV) & RMAX ~= none & lt(RMAX, ROTHER) & lt(ROTHER, R) ->
+    one_b_max_vote(N, R, RMAX, V, RAV, VAV) & RMAX ~= none &
+    lt(RMAX, ROTHER) & lt(ROTHER, R) ->
     ~two_b_vote(N, ROTHER, VOTHER)
 
 conjecture [1b_4]
