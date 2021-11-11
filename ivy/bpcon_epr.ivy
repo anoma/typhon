@@ -35,6 +35,7 @@ relation wqmember(N : node, Q : weakquorum)
 axiom [byzquorum]
     forall BQ1 : byzquorum, BQ2 : byzquorum.
         exists N : node. bqmember(N, BQ1) & bqmember(N, BQ2) & real(N)
+
 axiom [weakquorum]
     forall WQ : weakquorum.
         exists N : node. wqmember(N, WQ) & real(N)
