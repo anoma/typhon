@@ -328,8 +328,8 @@ action cast_vote_2b = {
     local l : learner, self : node, r : round {
         assume real(self);
         assume r ~= none;
-        assume ~left_rnd(L, self, r); # follows from the next
         assume ~left_rnd_anywhere(self, r);
+        #assume ~left_rnd(L, self, r); # follows from the previous
         local v : value, bq : byzquorum {
             assume trust_live(l, bq);
             assume bqmember(N, bq) -> two_av(l, N, r, v);
