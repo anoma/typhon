@@ -13,7 +13,7 @@ type learner
 type value
 type round
 type byzquorum
-#type weakquorum
+type weakquorum
 
 individual none: round
 relation le(X : round, Y : round)
@@ -30,16 +30,15 @@ axiom [le_none] le(none, R)
 relation real(N : node) # real acceptors
 
 relation bqmember(N : node, Q : byzquorum)
-#relation wqmember(N : node, Q : weakquorum)
+relation wqmember(N : node, Q : weakquorum)
 
 axiom [byzquorum]
     forall BQ1 : byzquorum, BQ2 : byzquorum.
         exists N : node. bqmember(N, BQ1) & bqmember(N, BQ2) & real(N)
 
-#axiom [weakquorum]
-#    forall WQ : weakquorum.
-#        exists N : node. wqmember(N, WQ) & real(N)
-#
+axiom [weakquorum]
+    forall WQ : weakquorum.
+        exists N : node. wqmember(N, WQ) & real(N)
 
 conjecture [byzquorum_is_a_weakquorum]
     forall BQ : byzquorum.
@@ -76,12 +75,14 @@ axiom [ent_def]
 conjecture [ent_sym]
     ent(L1, L2, S) -> ent(L2, L1, S)
 
-# accurate node
+conjecture [ent_trans]
+    ent(L1, L2, S) & ent(L2, L3, S) -> ent(L1, L3, S)
 
+# accurate node is entangled with itself
 relation acc(L : learner, BQ : byzquorum)
 
 axiom [acc_def]
-    forall L : learner, S : byzquorum. (acc(L, S) <-> ent(L, L, S))
+    forall L : learner, S : byzquorum. acc(L, S) <-> ent(L, L, S)
 
 ############## Messages
 
@@ -249,7 +250,8 @@ action receive_1b = {
         local l : learner, n : node, r : round, maxr : round, v : value, rav : round, vav : value {
             assume one_b_max_vote(l, n, r, maxr, v, rav, vav);
             known_one_b_max_vote(self, l, n, r, maxr, v, rav, vav) := true;
-            known_safety_proof_for_value(self, n, r, R, vav) := safety_proof_for_value(n, r, R, vav)
+            known_safety_proof_for_value(self, n, r, rav, vav) :=
+                safety_proof_for_value(n, r, rav, vav)
         }
     }
 }
@@ -274,19 +276,16 @@ action send_2av = {
         local sv : value {
             assume two_av(L, self, r, V) -> V = sv;
 
-            local bq : byzquorum, bq_weak : byzquorum, maxr : round, lmax : learner {
+            local bq : byzquorum, wq : weakquorum, maxr : round, lmax : learner {
                 assume one_c_announced_value(l, r, sv);
                 assume trust_live(l, bq);
-                assume trust_live(l, bq_weak);
                 assume forall N : node. bqmember(N, bq) -> one_b(l, N, r);
                 assume
                     # BP3a
                     (
                      maxr = none &
-                     (forall L : learner, N : node, MAXR : round, V : value.
-                        bqmember(N, bq) & two_b_vote(L, N, MAXR, V) -> le(r, MAXR))
-                     #forall N : node, MAXR : round, V : value.
-                     #   bqmember(N, bq) & two_b_vote(l, N, MAXR, V) -> le(r, MAXR)
+                     forall L : learner, N : node, MAXR : round, V : value.
+                        bqmember(N, bq) & two_b_vote(L, N, MAXR, V) -> le(r, MAXR)
                     ) |
                     # BP3c
                     (
@@ -298,19 +297,15 @@ action send_2av = {
                         le(R1, maxr) # (i)
                         & (R1 = maxr -> V = sv) # (ii)
                      ) &
-                     #(forall N : node, R1 : round, V : value.
-                     #   bqmember(N, bq) & two_b_vote(l, N, R1, V) & lt(R1, r) ->
-                     #   le(R1, maxr) # (i)
-                     #   & (R1 = maxr -> V = sv) # (ii)
-                     #) &
                      # (b)
                      (forall N : node.
-                        bqmember(N, bq_weak) ->
+                        wqmember(N, wq) ->
                         known_safety_proof_for_value(self, N, r, maxr, sv)
                         # abbreviates:
                         # exists L : learner, MAXR : round, V : value.
                         #     known_one_b_max_vote(self, L, N, r, MAXR, V, maxr, sv)
-                     ));
+                     )
+                    );
                 two_av(l, self, r, sv) := true;
                 # instrumentation:
                 two_av_anywhere(self, r, sv) := true
@@ -333,8 +328,7 @@ action cast_vote_2b = {
     local l : learner, self : node, r : round {
         assume real(self);
         assume r ~= none;
-        #assume ~left_rnd(l, self, r);
-        assume ~left_rnd(L, self, r);
+        assume ~left_rnd(L, self, r); # follows from the next
         assume ~left_rnd_anywhere(self, r);
         local v : value, bq : byzquorum {
             assume trust_live(l, bq);
@@ -349,8 +343,7 @@ action cast_vote_2b_fake = {
     local l : learner, self : node, r : round, v : value {
         assume ~real(self);
         assume r ~= none;
-        two_b_vote(l, self, r, v) := true;
-        two_b_vote_anywhere(self, r, v) := true
+        two_b_vote(l, self, r, v) := true
     }
 }
 
@@ -461,9 +454,7 @@ conjecture
 #            real(N1) & bqmember(N1, BQ) & left_rnd_anywhere(N1, R1)
 
 conjecture [2av_anywhere_safe_2_heterogen]
-    forall L1 : learner, #L2 : learner,
-        N2 : node, R1 : round, R2 : round, V1 : value, V2 : value, BQ : byzquorum. #, S : byzquorum.
-        #ent(L1, L2, S) &
+    forall L1 : learner, N2 : node, R1 : round, R2 : round, V1 : value, V2 : value, BQ : byzquorum.
         trust_live(L1, BQ) &
         real(N2) &
         two_av_anywhere(N2, R2, V2) & lt(R1, R2) & V1 ~= V2 ->
@@ -487,7 +478,7 @@ conjecture real(N) & two_av_anywhere(N, R, V) -> one_a(R)
 conjecture real(N) & known_one_b_max_vote(SELF, L, N, R, RMAX, V, RAV, VAV) -> one_a(R)
 
 # properties of two_b_vote_anywhere
-conjecture two_b_vote(L, N, R, V) -> two_b_vote_anywhere(N, R, V)
+conjecture real(N) & two_b_vote(L, N, R, V) -> two_b_vote_anywhere(N, R, V)
 
 # properties on one_b
 conjecture [1b_0]
@@ -499,7 +490,7 @@ conjecture [1b_left]
 # properties of one_b_max_vote
 conjecture [1b_1]
     real(N) &
-    one_b_max_vote(L, N, R2, none, V1, RAV, VAV) & ~le(R2, R1) ->
+    one_b_max_vote(L, N, R2, none, V1, RAV, VAV) & lt(R1, R2) ->
     ~two_b_vote(L, N, R1, V2)
 
 conjecture [1b_2]
@@ -599,7 +590,7 @@ conjecture ~decision(L, none, V)
 conjecture ~safety_proof_for_value(N, none, RPROOF, V)
 conjecture ~safety_proof_for_value(N, R, none, V)
 conjecture ~known_safety_proof_for_value(SELF, N, none, RAV, V)
-conjecture ~known_safety_proof_for_value(SELF, N, R, none, V)
+#conjecture ~known_safety_proof_for_value(SELF, N, R, none, V)
 
 
 # restrict size of domain
