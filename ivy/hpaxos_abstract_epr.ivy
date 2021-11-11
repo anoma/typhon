@@ -36,6 +36,7 @@ axiom [real_def] real(N) <-> bqmember(N, safe)
 
 # quorum subset relation
 relation subset(BQ1 : byzquorum, BQ2 : byzquorum)
+
 axiom [subset_def]
     forall BQ1 : byzquorum, BQ2 : byzquorum.
         subset(BQ1, BQ2) <-> (forall N : node. bqmember(N, BQ1) -> bqmember(N, BQ2))
