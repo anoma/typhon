@@ -460,10 +460,10 @@ conjecture [1b_left]
     real(N) & one_b(L, N, R2) & lt(R1, R2) -> left_rnd(L, N, R1)
 
 # properties of one_b_max_vote
-conjecture [1b_1] # TODO
-    real(N) & ent(L, L0) &
-    one_b_max_vote(L, N, R2, none, V2, RAV, VAV) & lt(R1, R2) ->
-    ~two_b_vote(L, N, R1, V1) # should be able to use L0 here
+conjecture [1b_1]
+    real(N) & ent(L1, L2) &
+    one_b_max_vote(L1, N, R2, none, V2, RAV, VAV) & lt(R1, R2) ->
+    ~two_b_vote(L2, N, R1, V1)
 
 conjecture [1b_2]
     real(N) & ent(L1, L2) &
