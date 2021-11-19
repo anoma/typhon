@@ -218,10 +218,10 @@ action send_2av = {
                # & ~(R : round, V : value. two_av(l, N, R, V) & lt(r, R));
 
         local sv : value {
+            assume one_c_announced_value(l, r, sv);
             assume two_av(L, self, r, V) -> V = sv;
 
             local bq : byzquorum, wq : weakquorum, maxr : round, lmax : learner {
-                assume one_c_announced_value(l, r, sv);
                 assume trust_live(l, bq);
                 assume
                     forall N : node.
