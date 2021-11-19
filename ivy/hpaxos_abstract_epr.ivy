@@ -294,9 +294,9 @@ action send_2av = {
             assume
                 #ent(l, L) & # not required for safety
                 two_av(L, self, r, V) -> V = sv;
+            assume one_c_announced_value(l, r, sv);
 
             local bq : byzquorum, wq : byzquorum, maxr : round, lmax : learner {
-                assume one_c_announced_value(l, r, sv);
                 assume trust_live(l, bq);
                 assume trust_weak(l, wq);
                 assume forall N : node. bqmember(N, bq) -> one_b(l, N, r);
