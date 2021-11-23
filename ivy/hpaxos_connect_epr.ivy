@@ -515,12 +515,12 @@ conjecture
 axiom [compliant_2av_message_spec]
     forall L : learner, RAV : round, VAV : value.
         compliant_2av_message(L, RAV, VAV) ->
-        forall L1 : learner, R1 : round, V1 : value, BQ : byzquorum.
-            trust_live(L1, BQ) &
-            ent(L1, L1) &
-            connected(L1, L) & lt(R1, R) & V1 ~= VAV ->
+        forall R1 : round, V1 : value, BQ : byzquorum.
+            trust_live(L, BQ) &
+            ent(L, L) &
+            lt(R1, RAV) & V1 ~= VAV ->
             exists N1 : node.
-                real(N1) & bqmember(N1, BQ) & left_rnd_connected(L1, N1, R1) & ~two_b_vote(L1, N1, R1, V1)
+                real(N1) & bqmember(N1, BQ) & left_rnd_connected(L, N1, R1) & ~two_b_vote(L, N1, R1, V1)
 
 axiom [compliant_2av_message_connected]
     forall L1 : learner, RAV : round, VAV : value.
