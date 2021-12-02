@@ -520,7 +520,10 @@ axiom [compliant_2av_message_spec]
             ent(L, L) &
             lt(R1, RAV) & V1 ~= VAV ->
             exists N1 : node.
-                real(N1) & bqmember(N1, BQ) & left_rnd_connected(L, N1, R1) & ~two_b_vote(L, N1, R1, V1)
+                real(N1) &
+                bqmember(N1, BQ) &
+                left_rnd_connected(L, N1, R1) &
+                ~two_b_vote(L, N1, R1, V1)
 
 axiom [compliant_2av_message_connected]
     forall L1 : learner, RAV : round, VAV : value.
