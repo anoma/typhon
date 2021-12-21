@@ -257,9 +257,9 @@ action join_round_1b = {
                   ))
                 );
             # prevent sending a message for a different pair (maxr, v)
-            assume
-                one_b_max_vote_proposal(L, self, r, MAXR, V, RAV, VAV) ->
-                MAXR = maxr & V = v;
+            #assume
+            #    one_b_max_vote_proposal(L, self, r, MAXR, V, RAV, VAV) ->
+            #    MAXR = maxr & V = v;
             # send a 1b message
             one_b_max_vote_proposal(l, self, r, maxr, v, rav, vav) := true;
             # instrumentation:
@@ -547,11 +547,11 @@ conjecture [1b_4]
     one_b_max_vote_proposal(L, N, R, RMAX, V, RAV, VAV) ->
     lt(RAV, R) & (RAV ~= none -> two_av(L, N, RAV, VAV))
 
-conjecture [1b_maxr_v]
-    real(N) &
-    one_b_max_vote_proposal(L, N, R, RMAX1, V1, RAV1, VAV1) &
-    one_b_max_vote_proposal(L, N, R, RMAX2, V2, RAV2, VAV2) ->
-    RMAX1 = RMAX2 & V1 = V2
+#conjecture [1b_maxr_v]
+#    real(N) &
+#    one_b_max_vote_proposal(L, N, R, RMAX1, V1, RAV1, VAV1) &
+#    one_b_max_vote_proposal(L, N, R, RMAX2, V2, RAV2, VAV2) ->
+#    RMAX1 = RMAX2 & V1 = V2
 
 conjecture [1b_max_vote_1]
     real(N) &
