@@ -93,37 +93,6 @@ conjecture [ent_sym]
 conjecture [ent_trans]
     ent(L1, L2) & ent(L2, L3) -> ent(L1, L3)
 
-# accurate node is entangled with itself
-#relation acc(L : learner)
-
-#axiom [acc_def]
-#    acc(L) <-> ent(L, L)
-
-# overapproximation of entanglement
-#relation connected(L1 : learner, L2 : learner)
-
-#axiom [connected_def]
-#    connected(L1, L2) <->
-#        (exists S : byzquorum.
-#            trust_safe(L1, L2, S) & forall N. bqmember(N, S) -> ~caught(N))
-
-#axiom [disconnected_def]
-#    disconnected(L1, L2) <->
-#        (forall S : byzquorum.
-#            trust_safe(L1, L2, S) -> exists N. bqmember(N, S) & caught(N))
-
-#conjecture [connected_sym]
-#    connected(L1, L2) -> connected(L2, L1)
-
-# proving this would require union on byzquorum
-#axiom [connected_trans]
-#    connected(L1, L2) & connected(L2, L3) -> connected(L1, L3)
-
-#conjecture connected(L1, L2) <-> ~disconnected(L1, L2)
-
-#conjecture [ent_connected]
-#    ent(L1, L2) -> connected(L1, L2)
-
 
 ############## Messages
 
