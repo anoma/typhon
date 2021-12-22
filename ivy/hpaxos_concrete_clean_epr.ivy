@@ -433,6 +433,12 @@ conjecture [2av_unique_hetero]
     two_av(L1, N, R, V1) & two_av(L2, N, R, V2) ->
     V1 = V2
 
+# INVALID
+#conjecture [two_av_round_irrel]
+#    real(N) &
+#    two_av(L, N, R1, V1) & two_av(L, N, R2, V2) ->
+#    V1 = V2
+
 # properties of one_a
 conjecture
     real(N) &
