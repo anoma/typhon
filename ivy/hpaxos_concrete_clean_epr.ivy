@@ -211,8 +211,6 @@ action join_round_1b = {
         assume r ~= none;
         assume one_a(r);
         assume ~left_rnd(l, self, r);
-        #assume ~left_rnd(L, self, r);
-        #assume ~left_rnd_clique(l, self, r);
 
         local maxr : round, v : value, rav : round, vav : value, lmax : learner {
             # find the maximal vote in a round less than r among all instances
@@ -220,23 +218,19 @@ action join_round_1b = {
                 (
                  maxr = none &
                  forall MAXR : round, V : value, L : learner.
-                    #ent(l, L) & # not required for safety
                     two_b_vote(L, self, MAXR, V) -> le(r, MAXR)
                 ) |
                 (
                  maxr ~= none &
                  lt(maxr, r) &
                  two_b_vote(lmax, self, maxr, v) &
-                 #connected(l, lmax) & # REQUIRED FOR SAFETY
                  (forall MAXR : round, V : value, L : learner.
-                    #ent(l, L) & # not required for safety
                     lt(MAXR, r) & two_b_vote(L, self, MAXR, V) -> le(MAXR, maxr)) &
                  # if the node has voted in a previous round and the 2av history is not empty,
                  # pick any entry in the 2av history of the CURRENT instance
                  ((
                    rav = none &
                    (forall RAV : round, VAV : value.
-                    #ent(l, L) & # not required for safety
                     two_av(l, self, RAV, VAV) -> le(r, RAV))
                   ) |
                   (
@@ -244,7 +238,6 @@ action join_round_1b = {
                    lt(rav, r) &
                    two_av(l, self, rav, vav) &
                    forall RAV : round, S : byzquorum.
-                    #ent(l, L) & # not required for safety
                     two_av(l, self, RAV, vav) -> le(RAV, rav)
                   ))
                 );
@@ -261,8 +254,6 @@ action join_round_1b = {
             one_b(l, self, r) := true;
             one_b_max_vote(l, self, r, maxr, v) := true;
             left_rnd(l, self, R) := left_rnd(l, self, R) | lt(R, r);
-            #left_rnd_clique(L, self, R) :=
-            #    left_rnd_clique(L, self, R) | (lt(R, r) & ent(l, L));
             left_rnd_anywhere(self, R) :=
                 left_rnd_anywhere(self, R) | lt(R, r);
             if maxr ~= none & rav ~= none {
@@ -298,14 +289,10 @@ action propose_2av = {
         assume r ~= none;
         assume one_a(r);
         assume ~left_rnd(l, self, r);
-        #assume ~left_rnd(L, self, r);
 
         local sv : value {
             assume one_c_announced_value(l, r, sv);
-            assume
-                #ent(l, L) & # not required for safety
-                #connected(l, L) &
-                two_av(L, self, r, V) -> V = sv;
+            assume two_av(L, self, r, V) -> V = sv;
 
             local bq : byzquorum, wq : byzquorum, rav : round, lmax : learner {
                 assume trust_live(l, bq);
@@ -317,7 +304,6 @@ action propose_2av = {
                     (
                      rav = none &
                      (forall L : learner, N : node, MAXR : round, V : value.
-                        #ent(l, L) & # not required for safety
                         bqmember(N, bq) & two_b_vote(L, N, MAXR, V) -> le(r, MAXR))
                     ) |
                     # BP3c
@@ -326,7 +312,6 @@ action propose_2av = {
                      lt(rav, r) & # NB: we do not need this condition in BPCon
                      # (a)
                      (forall L : learner, N : node, R1 : round, V : value, S : byzquorum.
-                        #ent(l, L) & # not required for safety
                         bqmember(N, bq) & two_b_vote(L, N, R1, V) & lt(R1, r) ->
                         le(R1, rav) # (i)
                         & (R1 = rav -> V = sv) # (ii)
@@ -576,19 +561,17 @@ conjecture [1b_proposal_rav_none]
     one_b_proposal(L, N, R, RAV2, VAV2) ->
     RAV2 ~= none
 
-# INVALID
-#conjecture [1b_rav_none_1]
-#    real(N) & RMAX ~= none &
-#    one_b_max_vote_proposal(L, N, R, RMAX, V, none, VAV) &
-#    lt(RAV2, R) ->
-#    ~two_av_anywhere(N, RAV2, VAV2)
+conjecture [1b_max_vote_proposal_none_1]
+    real(N) & RMAX ~= none &
+    one_b_max_vote_proposal(L, N, R, RMAX, V, none, VAV) &
+    lt(RAV2, R) ->
+    ~two_av(L, N, RAV2, VAV2)
 
-# INVALID
-#conjecture [1b_safety_proof_for_value]
-#    real(N) & RMAX ~= none &
-#    one_b_max_vote_proposal(L, N, R, RMAX, V, none, VAV) &
-#    lt(RAV2, R) ->
-#    ~one_b_proposal(L, N, R, RAV2, VAV2)
+conjecture [1b_max_vote_proposal_none_2]
+    real(N) & RMAX ~= none &
+    one_b_max_vote_proposal(L, N, R, RMAX, V, none, VAV) &
+    lt(RAV2, R) ->
+    ~one_b_proposal(L, N, R, RAV2, VAV2)
 
 # properties of left_rnd
 conjecture [left_rnd_1b_max_vote_proposal]
