@@ -245,12 +245,12 @@ action join_round_1b = {
             assume
                 one_b_max_vote_proposal(l, self, r, MAXR, V, RAV, VAV) ->
                 MAXR = maxr & V = v;
-            # send a 1b message
-            one_b_max_vote_proposal(l, self, r, maxr, v, rav, vav) := true;
-            # instrumentation:
             assume
                 one_b_max_vote(l, self, r, MAXR, V) ->
                 MAXR = maxr & V = v;
+            # send a 1b message
+            one_b_max_vote_proposal(l, self, r, maxr, v, rav, vav) := true;
+            # instrumentation:
             one_b(l, self, r) := true;
             one_b_max_vote(l, self, r, maxr, v) := true;
             left_rnd(l, self, R) := left_rnd(l, self, R) | lt(R, r);
@@ -500,7 +500,7 @@ conjecture [1b_1]
 
 conjecture [1b_2]
     real(N) &
-    one_b_max_vote_proposal(L1, N, R, RMAX, V, RAV, VAV) & RMAX ~= none ->
+    one_b_max_vote_proposal(L, N, R, RMAX, V, RAV, VAV) & RMAX ~= none ->
     lt(RMAX, R) & two_b_vote_anywhere(N, RMAX, V)
 
 conjecture [1b_3]
@@ -528,7 +528,7 @@ conjecture [1b_max_vote_1]
 
 conjecture [1b_max_vote_2]
     real(N) &
-    one_b_max_vote(L1, N, R, RMAX, V) & RMAX ~= none ->
+    one_b_max_vote(L, N, R, RMAX, V) & RMAX ~= none ->
     lt(RMAX, R) & two_b_vote_anywhere(N, RMAX, V)
 
 conjecture [1b_max_vote_3]
