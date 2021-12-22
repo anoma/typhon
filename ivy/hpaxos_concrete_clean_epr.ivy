@@ -205,9 +205,7 @@ action join_round_1b = {
                   (
                    rav ~= none &
                    lt(rav, r) &
-                   two_av(l, self, rav, vav) &
-                   forall RAV : round, S : byzquorum.
-                    two_av(l, self, RAV, vav) -> le(RAV, rav)
+                   two_av(l, self, rav, vav)
                   ))
                 );
             # prevent sending a message for a different pair (maxr, v)
@@ -278,7 +276,7 @@ action propose_2av = {
                     # BP3c
                     (
                      rav ~= none &
-                     lt(rav, r) & # NB: we do not need this condition in BPCon
+                     lt(rav, r) & # NB: formally, we do not need this condition
                      # (a)
                      (forall L : learner, N : node, R1 : round, V : value, S : byzquorum.
                         bqmember(N, bq) & two_b_vote(L, N, R1, V) & lt(R1, r) ->
@@ -431,7 +429,7 @@ conjecture [2av_unique]
     V1 = V2
 
 conjecture [2av_unique_hetero]
-    real(N) & ent(L1, L2) &
+    real(N) & #ent(L1, L2) &
     two_av(L1, N, R, V1) & two_av(L2, N, R, V2) ->
     V1 = V2
 
