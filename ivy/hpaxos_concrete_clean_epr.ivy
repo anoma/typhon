@@ -121,9 +121,6 @@ conjecture [ent_trans]
 
 #conjecture connected(L1, L2) <-> ~disconnected(L1, L2)
 
-#conjecture [real_nodes_do_not_cheat]
-#    real(N) -> ~caught(N)
-
 #conjecture [ent_connected]
 #    ent(L1, L2) -> connected(L1, L2)
 
@@ -156,31 +153,28 @@ relation compliant_2av_message(L : learner, R : round, V : value)
 
 relation one_b(L : learner, N : node, R : round)
     # := exists RMAX : round, V : value, RAV : round, VAV : value.
-    #        one_b_max_vote_proposal(L : learner, N, R, RMAX, V, RAV, VAV)
+    #        one_b_max_vote_proposal(L, N, R, RMAX, V, RAV, VAV)
 
 relation one_b_max_vote(L : learner, N : node, R : round, RMAX : round, V : value)
     # := exists RAV : round, VAV : value.
-    #        one_b_max_vote_proposal(L : learner, N, R, RMAX, V, RAV, VAV)
+    #        one_b_max_vote_proposal(L, N, R, RMAX, V, RAV, VAV)
 
 relation one_b_proposal(L : learner, N : node, R : round, RAV : round, VAV: value)
     # := exists RMAX : round, V : value.
-    #        one_b_max_vote_proposal(L : learner, N, R, RMAX, V, RAV, VAV)
+    #        one_b_max_vote_proposal(L, N, R, RMAX, V, RAV, VAV)
 
 relation left_rnd(L : learner, N : node, R : round)
     # := exists L : learner, R1 : round, RMAX : round, V : value, RAV : round, VAV : value.
-    #        one_b_max_vote(L, N, R1, RMAX, V, RAV, VAV) & lt(R, R1))
+    #        one_b_max_vote_proposal(L, N, R1, RMAX, V, RAV, VAV) & lt(R, R1))
 
-relation left_rnd_clique(L : learner, N : node, R : round)
+relation left_rnd_anywhere(N : node, R : round)
     # := (exists L1 : learner, R1 : round, RMAX : round, V : value, RAV : round, VAV : value.
-    #        ent(L, L1) & one_b_max_vote(L1, N, R1, RMAX, V, RAV, VAV) & lt(R, R1))
-
-relation left_rnd_anywhere(N : node, R : round) # TODO
-
-# 2av messages sent by node N in round R in some learner instance
-relation two_av_clique(L : learner, N : node, R : round, V : value)
+    #        one_b_max_vote_proposal(L1, N, R1, RMAX, V, RAV, VAV) & lt(R, R1))
 
 # voted values in some learner instance, 2b messages
-relation two_b_vote_anywhere(N : node, R : round, V : value) # TODO
+relation two_b_vote_anywhere(N : node, R : round, V : value)
+    # := (exists L1 : learner. two_b_vote(L1, N, R, V))
+
 
 ############## Initial state
 
@@ -195,9 +189,7 @@ init ~one_b(L, N, R)
 init ~one_b_max_vote(L, N, R, RMAX, V)
 init ~one_b_proposal(L, N, R, RAV, VAV)
 init ~left_rnd(L, N, R)
-init ~left_rnd_clique(L, N, R)
 init ~left_rnd_anywhere(N, R)
-init ~two_av_clique(L, N, R, V)
 init ~two_b_vote_anywhere(N, R, V)
 
 
@@ -257,20 +249,20 @@ action join_round_1b = {
                   ))
                 );
             # prevent sending a message for a different pair (maxr, v)
-            #assume
-            #    one_b_max_vote_proposal(L, self, r, MAXR, V, RAV, VAV) ->
-            #    MAXR = maxr & V = v;
+            assume
+                one_b_max_vote_proposal(l, self, r, MAXR, V, RAV, VAV) ->
+                MAXR = maxr & V = v;
             # send a 1b message
             one_b_max_vote_proposal(l, self, r, maxr, v, rav, vav) := true;
             # instrumentation:
             assume
-                one_b_max_vote(L, self, r, MAXR, V) ->
+                one_b_max_vote(l, self, r, MAXR, V) ->
                 MAXR = maxr & V = v;
             one_b(l, self, r) := true;
             one_b_max_vote(l, self, r, maxr, v) := true;
             left_rnd(l, self, R) := left_rnd(l, self, R) | lt(R, r);
-            left_rnd_clique(L, self, R) :=
-                left_rnd_clique(L, self, R) | (lt(R, r) & ent(l, L));
+            #left_rnd_clique(L, self, R) :=
+            #    left_rnd_clique(L, self, R) | (lt(R, r) & ent(l, L));
             left_rnd_anywhere(self, R) :=
                 left_rnd_anywhere(self, R) | lt(R, r);
             if maxr ~= none & rav ~= none {
@@ -307,7 +299,6 @@ action propose_2av = {
         assume one_a(r);
         assume ~left_rnd(l, self, r);
         #assume ~left_rnd(L, self, r);
-        #assume ~left_rnd_clique(self, r);
 
         local sv : value {
             assume one_c_announced_value(l, r, sv);
@@ -347,9 +338,6 @@ action propose_2av = {
                         one_b_proposal(l, N, r, rav, sv))
                     );
                 two_av(l, self, r, sv) := true;
-                # instrumentation:
-                two_av_clique(L, self, r, sv) :=
-                    two_av_clique(L, self, r, sv) | ent(l, L);
             }
         }
     }
@@ -473,14 +461,13 @@ conjecture [two_av_one_b]
 conjecture [2av_anywhere_safe_2_heterogen]
     forall L1 : learner, L2 : learner,
         N2 : node, R1 : round, R2 : round, V1 : value, V2 : value, BQ : byzquorum.
-        #ent(L1, L2) &
+        ent(L1, L2) &
         trust_live(L1, BQ) &
         real(N2) &
-        two_av_clique(L1, N2, R2, V2) & lt(R1, R2) & V1 ~= V2 ->
+        two_av(L2, N2, R2, V2) & lt(R1, R2) & V1 ~= V2 ->
         exists N1 : node.
             real(N1) & bqmember(N1, BQ) &
-            #left_rnd_anywhere(N1, R1) &
-            left_rnd_clique(L1, N1, R1) &
+            left_rnd_anywhere(N1, R1) &
             ~two_b_vote(L1, N1, R1, V1) 
 
 # proposals are unique per round
@@ -505,7 +492,6 @@ conjecture
     one_b_max_vote(L, N, R, RMAX, V) -> one_a(RMAX)
 conjecture real(N) & two_b_vote(L, N, R, V) -> one_a(R)
 conjecture real(N) & two_av(L, N, R, V) -> one_a(R)
-conjecture real(N) & two_av_clique(L, N, R, V) -> one_a(R)
 
 # properties on one_b
 conjecture [1b_0]
@@ -514,9 +500,6 @@ conjecture [1b_0]
 
 conjecture [left_rnd_le]
     real(N) & left_rnd(L, N, R2) & le(R1, R2) -> left_rnd(L, N, R1)
-
-conjecture [left_rnd_clique_le]
-    real(N) & left_rnd_clique(L, N, R2) & le(R1, R2) -> left_rnd_clique(L, N, R1)
 
 conjecture [left_rnd_anywhere_le]
     real(N) & left_rnd_anywhere(N, R2) & le(R1, R2) -> left_rnd_anywhere(N, R1)
@@ -547,11 +530,11 @@ conjecture [1b_4]
     one_b_max_vote_proposal(L, N, R, RMAX, V, RAV, VAV) ->
     lt(RAV, R) & (RAV ~= none -> two_av(L, N, RAV, VAV))
 
-#conjecture [1b_maxr_v]
-#    real(N) &
-#    one_b_max_vote_proposal(L, N, R, RMAX1, V1, RAV1, VAV1) &
-#    one_b_max_vote_proposal(L, N, R, RMAX2, V2, RAV2, VAV2) ->
-#    RMAX1 = RMAX2 & V1 = V2
+conjecture [1b_maxr_v]
+    real(N) &
+    one_b_max_vote_proposal(L, N, R, RMAX1, V1, RAV1, VAV1) &
+    one_b_max_vote_proposal(L, N, R, RMAX2, V2, RAV2, VAV2) ->
+    RMAX1 = RMAX2 & V1 = V2
 
 conjecture [1b_max_vote_1]
     real(N) &
@@ -640,35 +623,11 @@ conjecture [1b_proposal_valid]
     RAV ~= none ->
     two_av(L, N, RAV, VAV)
 
-# clique properties
-conjecture [left_rnd_clique]
-    real(N) & ent(L1, L2) &
-    left_rnd_clique(L1, N, R) ->
-    left_rnd_clique(L2, N, R)
-
-conjecture [2av_clique]
-    real(N) & ent(L1, L2) &
-    two_av_clique(L1, N, R, V) ->
-    two_av_clique(L2, N, R, V)
-
-conjecture [left_rnd_to_clique]
-    real(N) & ent(L1, L2) &
-    left_rnd(L1, N, R) ->
-    left_rnd_clique(L2, N, R)
-
-conjecture [2av_to_clique]
-    real(N) & ent(L1, L2) &
-    two_av(L1, N, R, V) ->
-    two_av_clique(L2, N, R, V)
-
 conjecture [left_rnd_to_anywhere]
     real(N) & left_rnd(L1, N, R) -> left_rnd_anywhere(N, R)
 
 conjecture [2b_to_anywhere]
     real(N) & two_b_vote(L1, N, R, V) -> two_b_vote_anywhere(N, R, V)
-
-conjecture [left_rnd_clique_anywhere]
-    real(N) & left_rnd_clique(L, N, R) -> left_rnd_anywhere(N, R)
 
 # properties of none
 conjecture ~one_a(none)
@@ -679,7 +638,6 @@ conjecture ~one_b_proposal(L, N, R, none, VAV)
 conjecture ~one_b(L, N, none)
 conjecture ~one_c_announced_value(L, none, V)
 conjecture ~two_av(L, N, none, V)
-conjecture ~two_av_clique(L, N, none, V)
 conjecture ~two_b_vote(L, N, none, V)
 conjecture ~two_b_vote_anywhere(N, none, V)
 conjecture ~decision(L, none, V)
