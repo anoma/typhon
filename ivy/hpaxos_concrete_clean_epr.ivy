@@ -183,7 +183,7 @@ action join_round_1b = {
         assume ~left_rnd(l, self, r);
 
         local maxr : round, v : value, rav : round, vav : value, lmax : learner {
-            # find the maximal vote in a round less than r among all instances
+            # find a maximal vote in a round less than r among all instances
             assume
                 (
                  maxr = none &
