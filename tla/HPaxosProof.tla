@@ -420,4 +420,6 @@ Safety ==
     \A <<L1, L2>> \in Ent : \A B1, B2 \in Ballot : \A V1, V2 \in Value :
         V1 \in decision[L1, B1] /\ V2 \in decision[L2, B2] => V1 = V2
 
+THEOREM Spec => []Safety
+
 ==============================================================================
