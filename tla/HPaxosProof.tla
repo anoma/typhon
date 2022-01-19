@@ -93,6 +93,9 @@ BMessage ==
         votesSent = [a \in Acceptor |-> {}],
         2avSent = [l \in Learner, a \in Acceptor |-> {}],
         received = [l \in Learner, a \in Acceptor |-> {}],
+        connected = [a \in Acceptor |-> {}],
+        receivedByLearner = [l \in Learner |-> {}],
+        decision = [l \in Learner, b \in Ballot |-> {}],
         msgs = {}
 
     define {
@@ -213,11 +216,35 @@ BMessage ==
         }
     }
 
+    macro LearnerReceive(b)
+    {
+        with (m \in sentMsgs("2b", self, b))
+        {
+            receivedByLearner[self] := receivedByLearner[self] \cup {m}
+        }
+    }
+
     macro FakingAcceptor()
     {
         with (m \in { mm \in 1bMessage \cup 2avMessage \cup 2bMessage : mm.acc = self })
         {
             SendMessage(m)
+        }
+    }
+
+    macro Decide(b)
+    {
+        with (
+            v \in {vv \in Value :
+                    \E Q \in ByzQuorum :
+                        /\ [lr |-> self, q |-> Q] \in TrustLive
+                        /\ \A aa \in Q :
+                            \E m \in {mm \in receivedByLearner[self] : mm.bal = b} :
+                                /\ m.val = vv
+                                /\ m.acc = aa}
+        )
+        {
+            decision[self, b] := decision[self, b] \cup {v}
         }
     }
 
@@ -243,14 +270,21 @@ BMessage ==
         }
     }
 
-    process (facceptor \in FakeAcceptor) {
+    process (facceptor \in FakeAcceptor)
+    {
         facc : while (TRUE) { FakingAcceptor() }
+    }
+
+    process (learner \in Learner)
+    {
+        lrn : while (TRUE) { with (b \in Ballot) { Decide(b) } }
     }
 }
 ****************************************************************************)
 
-\* BEGIN TRANSLATION (chksum(pcal) = "8b0767cd" /\ chksum(tla) = "61a62904")
-VARIABLES maxBal, votesSent, 2avSent, received, msgs
+\* BEGIN TRANSLATION (chksum(pcal) = "2c60bdbe" /\ chksum(tla) = "e7f49c68")
+VARIABLES maxBal, votesSent, 2avSent, received, connected, receivedByLearner, 
+          decision, msgs
 
 (* define statement *)
 sentMsgs(type, lr, bal) ==
@@ -291,73 +325,99 @@ KnowsSafeAt(l, ac, b, v) ==
                                 /\ p.val = v
 
 
-vars == << maxBal, votesSent, 2avSent, received, msgs >>
+vars == << maxBal, votesSent, 2avSent, received, connected, receivedByLearner, 
+           decision, msgs >>
 
-ProcSet == (Ballot) \cup (SafeAcceptor) \cup (FakeAcceptor)
+ProcSet == (Ballot) \cup (SafeAcceptor) \cup (FakeAcceptor) \cup (Learner)
 
 Init == (* Global variables *)
         /\ maxBal = [l \in Learner, a \in Acceptor |-> -1]
         /\ votesSent = [a \in Acceptor |-> {}]
         /\ 2avSent = [l \in Learner, a \in Acceptor |-> {}]
         /\ received = [l \in Learner, a \in Acceptor |-> {}]
+        /\ connected = [a \in Acceptor |-> {}]
+        /\ receivedByLearner = [l \in Learner |-> {}]
+        /\ decision = [l \in Learner, b \in Ballot |-> {}]
         /\ msgs = {}
 
 leader(self) == /\ \E l \in Learner:
                      \/ /\ msgs' = (msgs \cup { ([type |-> "1a", lr |-> l, bal |-> self]) })
                      \/ /\ \E m \in [type : {"1c"}, lr : {l}, bal : {self}, val : Value]:
                              msgs' = (msgs \cup { m })
-                /\ UNCHANGED << maxBal, votesSent, 2avSent, received >>
+                /\ UNCHANGED << maxBal, votesSent, 2avSent, received, 
+                                connected, receivedByLearner, decision >>
 
-acceptor(self) == \E b \in Ballot:
-                    \E l \in Learner:
-                      \/ /\ /\ maxBal[l, self] <= b
-                            /\ initializedBallot(l, b)
-                         /\ maxBal' = [maxBal EXCEPT ![l, self] = b]
-                         /\ msgs' = (msgs \cup { ([
-                                                      type |-> "1b",
-                                                      lr |-> l,
-                                                      acc |-> self,
-                                                      bal |-> b,
-                                                      votes |-> {p \in votesSent[self] : p.bal < b},
-                                                      proposals |-> {p \in 2avSent[l, self] : p.bal < b}
-                                                  ]) })
-                         /\ UNCHANGED <<votesSent, 2avSent, received>>
-                      \/ /\ /\ maxBal[l, self] =< b
-                            /\ initializedBallot(l, b)
-                         /\ \E v \in   { va \in announcedValues(l, b) :
-                                     /\ \A L \in Learner :
-                                        \A P \in {p \in 2avSent[L, self] : p.bal = b} :
-                                             P.val = va
-                                     /\ KnowsSafeAt(l, self, b, va) }:
-                              /\ msgs' = (msgs \cup { ([type |-> "2av", lr |-> l, acc |-> self, bal |-> b, val |-> v]) })
-                              /\ 2avSent' = [2avSent EXCEPT ![l, self] = 2avSent[l, self] \cup { [bal |-> b, val |-> v] }]
-                         /\ UNCHANGED <<maxBal, votesSent, received>>
-                      \/ /\ \A L \in Learner : maxBal[L, self] <= b
-                         /\ \E v \in {vv \in Value :
-                                       \E Q \in ByzQuorum :
-                                           /\ [lr |-> l, q |-> Q] \in TrustLive
-                                           /\ \A aa \in Q :
-                                               \E m \in {mm \in received[l, self] :
-                                                           /\ mm.type = "2av"
-                                                           /\ mm.bal = b} :
-                                                   /\ m.val = vv
-                                                   /\ m.acc = aa}:
-                              /\ msgs' = (msgs \cup { ([type |-> "2b", lr |-> l, acc |-> self, bal |-> b, val |-> v]) })
-                              /\ votesSent' = [votesSent EXCEPT ![self] = votesSent[self] \cup {[bal |-> b, val |-> v]}]
-                         /\ UNCHANGED <<maxBal, 2avSent, received>>
-                      \/ /\ \E m \in sentMsgs("1b", l, b) \cup sentMsgs("2av", l, b):
-                              received' = [received EXCEPT ![l, self] = received[l, self] \cup { m }]
-                         /\ UNCHANGED <<maxBal, votesSent, 2avSent, msgs>>
+acceptor(self) == /\ \E b \in Ballot:
+                       \E l \in Learner:
+                         \/ /\ /\ maxBal[l, self] <= b
+                               /\ initializedBallot(l, b)
+                            /\ maxBal' = [maxBal EXCEPT ![l, self] = b]
+                            /\ msgs' = (msgs \cup { ([
+                                                         type |-> "1b",
+                                                         lr |-> l,
+                                                         acc |-> self,
+                                                         bal |-> b,
+                                                         votes |-> {p \in votesSent[self] : p.bal < b},
+                                                         proposals |-> {p \in 2avSent[l, self] : p.bal < b}
+                                                     ]) })
+                            /\ UNCHANGED <<votesSent, 2avSent, received>>
+                         \/ /\ /\ maxBal[l, self] =< b
+                               /\ initializedBallot(l, b)
+                            /\ \E v \in   { va \in announcedValues(l, b) :
+                                        /\ \A L \in Learner :
+                                           \A P \in {p \in 2avSent[L, self] : p.bal = b} :
+                                                P.val = va
+                                        /\ KnowsSafeAt(l, self, b, va) }:
+                                 /\ msgs' = (msgs \cup { ([type |-> "2av", lr |-> l, acc |-> self, bal |-> b, val |-> v]) })
+                                 /\ 2avSent' = [2avSent EXCEPT ![l, self] = 2avSent[l, self] \cup { [bal |-> b, val |-> v] }]
+                            /\ UNCHANGED <<maxBal, votesSent, received>>
+                         \/ /\ \A L \in Learner : maxBal[L, self] <= b
+                            /\ \E v \in {vv \in Value :
+                                          \E Q \in ByzQuorum :
+                                              /\ [lr |-> l, q |-> Q] \in TrustLive
+                                              /\ \A aa \in Q :
+                                                  \E m \in {mm \in received[l, self] :
+                                                              /\ mm.type = "2av"
+                                                              /\ mm.bal = b} :
+                                                      /\ m.val = vv
+                                                      /\ m.acc = aa}:
+                                 /\ msgs' = (msgs \cup { ([type |-> "2b", lr |-> l, acc |-> self, bal |-> b, val |-> v]) })
+                                 /\ votesSent' = [votesSent EXCEPT ![self] = votesSent[self] \cup {[bal |-> b, val |-> v]}]
+                            /\ UNCHANGED <<maxBal, 2avSent, received>>
+                         \/ /\ \E m \in sentMsgs("1b", l, b) \cup sentMsgs("2av", l, b):
+                                 received' = [received EXCEPT ![l, self] = received[l, self] \cup { m }]
+                            /\ UNCHANGED <<maxBal, votesSent, 2avSent, msgs>>
+                  /\ UNCHANGED << connected, receivedByLearner, decision >>
 
 facceptor(self) == /\ \E m \in { mm \in 1bMessage \cup 2avMessage \cup 2bMessage : mm.acc = self }:
                         msgs' = (msgs \cup { m })
-                   /\ UNCHANGED << maxBal, votesSent, 2avSent, received >>
+                   /\ UNCHANGED << maxBal, votesSent, 2avSent, received, 
+                                   connected, receivedByLearner, decision >>
+
+learner(self) == /\ \E b \in Ballot:
+                      \E v \in {vv \in Value :
+                                 \E Q \in ByzQuorum :
+                                     /\ [lr |-> self, q |-> Q] \in TrustLive
+                                     /\ \A aa \in Q :
+                                         \E m \in {mm \in receivedByLearner[self] : mm.bal = b} :
+                                             /\ m.val = vv
+                                             /\ m.acc = aa}:
+                        decision' = [decision EXCEPT ![self, b] = decision[self, b] \cup {v}]
+                 /\ UNCHANGED << maxBal, votesSent, 2avSent, received, 
+                                 connected, receivedByLearner, msgs >>
 
 Next == (\E self \in Ballot: leader(self))
            \/ (\E self \in SafeAcceptor: acceptor(self))
            \/ (\E self \in FakeAcceptor: facceptor(self))
+           \/ (\E self \in Learner: learner(self))
 
 Spec == Init /\ [][Next]_vars
 
 \* END TRANSLATION
+-----------------------------------------------------------------------------
+
+Safety ==
+    \A <<L1, L2>> \in Ent : \A B1, B2 \in Ballot : \A V1, V2 \in Value :
+        V1 \in decision[L1, B1] /\ V2 \in decision[L2, B2] => V1 = V2
+
 ==============================================================================
