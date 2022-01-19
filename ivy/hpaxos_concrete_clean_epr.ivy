@@ -77,7 +77,7 @@ axiom [learner_graph_is_valid]
 #            exists N : node.
 #                bqmember(N, S) & bqmember(N, W))
 
-# not required for safety
+# not required for safety # TODO
 #axiom [weakquorum_subset]
 #    subset(W1, W2) & trust_weak(L, W1) -> trust_weak(L, W2)
 
@@ -92,6 +92,12 @@ conjecture [ent_sym]
 
 conjecture [ent_trans]
     ent(L1, L2) & ent(L2, L3) -> ent(L1, L3)
+
+# overapproximation of entanglement
+relation connected(N : node, L1 : learner, L2 : learner)
+
+axiom [ent_connected]
+    ent(L1, L2) -> connected(N, L1, L2)
 
 
 ############## Messages
@@ -258,6 +264,7 @@ action propose_2av = {
         assume r ~= none;
         assume one_a(r);
         assume ~left_rnd(l, self, r);
+        assume connected(self, l, l);
 
         local sv : value {
             assume one_c_announced_value(l, r, sv);
@@ -273,6 +280,7 @@ action propose_2av = {
                     (
                      rav = none &
                      (forall L : learner, N : node, MAXR : round, V : value.
+                        connected(self, L, l) &
                         bqmember(N, bq) & two_b_vote(L, N, MAXR, V) -> le(r, MAXR))
                     ) |
                     # BP3c
@@ -281,6 +289,7 @@ action propose_2av = {
                      lt(rav, r) & # NB: formally, we do not need this condition
                      # (a)
                      (forall L : learner, N : node, R1 : round, V : value, S : byzquorum.
+                        connected(self, L, l) &
                         bqmember(N, bq) & two_b_vote(L, N, R1, V) & lt(R1, r) ->
                         le(R1, rav) # (i)
                         & (R1 = rav -> V = sv) # (ii)
@@ -311,6 +320,7 @@ action cast_vote_2b = {
         assume r ~= none;
         assume one_a(r);
         assume ~left_rnd_anywhere(self, r);
+        #assume connected(self, l, l);
 
         local v : value, bq : byzquorum {
             assume trust_live(l, bq);
