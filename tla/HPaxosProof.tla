@@ -66,7 +66,7 @@ ASSUME EntanglementAssumption ==
         lr   : Learner,
         acc  : Acceptor,
         bal  : Ballot,
-        votes : SUBSET [bal : Ballot, val : Value],
+        votes : SUBSET [lr : Learner, bal : Ballot, val : Value],
         proposals : SUBSET [bal : Ballot, val : Value]
     ]
 
@@ -116,7 +116,7 @@ BMessage ==
                     /\ \A a \in BQ :
                         \E m \in S :
                             /\ m.acc = a
-                            /\ \A p \in m.votes :
+                            /\ \A p \in {pp \in m.votes : <<pp.lr, l>> \in connected[ac]} :
                                     b <= p.bal
                 \/ \E c \in 0..(b-1):
                     /\ \E BQ \in ByzQuorum :
@@ -124,7 +124,7 @@ BMessage ==
                         /\ \A a \in BQ :
                             \E m \in S :
                                 /\ m.acc = a
-                                /\ \A p \in m.votes :
+                                /\ \A p \in {pp \in m.votes : <<pp.lr, l>> \in connected[ac]} :
                                     /\ p.bal =< c
                                     /\ (p.bal = c) => (p.val = v)
                     /\ \E WQ \in ByzQuorum :
@@ -204,7 +204,7 @@ BMessage ==
             SendMessage(
                 [type |-> "2b", lr |-> l, acc |-> self, bal |-> b, val |-> v]
             ) ;
-            votesSent[self] := votesSent[self] \cup {[bal |-> b, val |-> v]}
+            votesSent[self] := votesSent[self] \cup {[lr |-> l, bal |-> b, val |-> v]}
         }
     }
 
@@ -291,7 +291,7 @@ BMessage ==
 }
 ****************************************************************************)
 
-\* BEGIN TRANSLATION (chksum(pcal) = "9f8ff25e" /\ chksum(tla) = "b2e248e5")
+\* BEGIN TRANSLATION (chksum(pcal) = "fded1496" /\ chksum(tla) = "8e415219")
 VARIABLES maxBal, votesSent, 2avSent, received, connected, receivedByLearner, 
           decision, msgs
 
@@ -313,7 +313,7 @@ KnowsSafeAt(l, ac, b, v) ==
             /\ \A a \in BQ :
                 \E m \in S :
                     /\ m.acc = a
-                    /\ \A p \in m.votes :
+                    /\ \A p \in {pp \in m.votes : <<pp.lr, l>> \in connected[ac]} :
                             b <= p.bal
         \/ \E c \in 0..(b-1):
             /\ \E BQ \in ByzQuorum :
@@ -321,7 +321,7 @@ KnowsSafeAt(l, ac, b, v) ==
                 /\ \A a \in BQ :
                     \E m \in S :
                         /\ m.acc = a
-                        /\ \A p \in m.votes :
+                        /\ \A p \in {pp \in m.votes : <<pp.lr, l>> \in connected[ac]} :
                             /\ p.bal =< c
                             /\ (p.bal = c) => (p.val = v)
             /\ \E WQ \in ByzQuorum :
@@ -391,7 +391,7 @@ acceptor(self) == /\ \E b \in Ballot:
                                                       /\ m.val = vv
                                                       /\ m.acc = aa}:
                                  /\ msgs' = (msgs \cup { ([type |-> "2b", lr |-> l, acc |-> self, bal |-> b, val |-> v]) })
-                                 /\ votesSent' = [votesSent EXCEPT ![self] = votesSent[self] \cup {[bal |-> b, val |-> v]}]
+                                 /\ votesSent' = [votesSent EXCEPT ![self] = votesSent[self] \cup {[lr |-> l, bal |-> b, val |-> v]}]
                             /\ UNCHANGED <<maxBal, 2avSent, received, connected>>
                          \/ /\ \E m \in sentMsgs("1b", l, b) \cup sentMsgs("2av", l, b):
                                  received' = [received EXCEPT ![l, self] = received[l, self] \cup { m }]
