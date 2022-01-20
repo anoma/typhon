@@ -248,6 +248,14 @@ BMessage ==
         }
     }
 
+    macro LearnDisconnected()
+    {
+        with (P \in SUBSET {LL \in Learner \X Learner : LL \notin Ent})
+        {
+            connected[self] := connected[self] \ P
+        }
+    }
+
     process (leader \in Ballot)
     {
         ldr: while (TRUE)
@@ -266,6 +274,7 @@ BMessage ==
                     or Phase2av(l, b)
                     or Phase2b(l, b)
                     or Receive(l, b)
+                    or LearnDisconnected()
             }
         }
     }
@@ -282,7 +291,7 @@ BMessage ==
 }
 ****************************************************************************)
 
-\* BEGIN TRANSLATION (chksum(pcal) = "2c60bdbe" /\ chksum(tla) = "e7f49c68")
+\* BEGIN TRANSLATION (chksum(pcal) = "9f8ff25e" /\ chksum(tla) = "b2e248e5")
 VARIABLES maxBal, votesSent, 2avSent, received, connected, receivedByLearner, 
           decision, msgs
 
@@ -360,7 +369,7 @@ acceptor(self) == /\ \E b \in Ballot:
                                                          votes |-> {p \in votesSent[self] : p.bal < b},
                                                          proposals |-> {p \in 2avSent[l, self] : p.bal < b}
                                                      ]) })
-                            /\ UNCHANGED <<votesSent, 2avSent, received>>
+                            /\ UNCHANGED <<votesSent, 2avSent, received, connected>>
                          \/ /\ /\ maxBal[l, self] =< b
                                /\ initializedBallot(l, b)
                             /\ \E v \in   { va \in announcedValues(l, b) :
@@ -370,7 +379,7 @@ acceptor(self) == /\ \E b \in Ballot:
                                         /\ KnowsSafeAt(l, self, b, va) }:
                                  /\ msgs' = (msgs \cup { ([type |-> "2av", lr |-> l, acc |-> self, bal |-> b, val |-> v]) })
                                  /\ 2avSent' = [2avSent EXCEPT ![l, self] = 2avSent[l, self] \cup { [bal |-> b, val |-> v] }]
-                            /\ UNCHANGED <<maxBal, votesSent, received>>
+                            /\ UNCHANGED <<maxBal, votesSent, received, connected>>
                          \/ /\ \A L \in Learner : maxBal[L, self] <= b
                             /\ \E v \in {vv \in Value :
                                           \E Q \in ByzQuorum :
@@ -383,11 +392,14 @@ acceptor(self) == /\ \E b \in Ballot:
                                                       /\ m.acc = aa}:
                                  /\ msgs' = (msgs \cup { ([type |-> "2b", lr |-> l, acc |-> self, bal |-> b, val |-> v]) })
                                  /\ votesSent' = [votesSent EXCEPT ![self] = votesSent[self] \cup {[bal |-> b, val |-> v]}]
-                            /\ UNCHANGED <<maxBal, 2avSent, received>>
+                            /\ UNCHANGED <<maxBal, 2avSent, received, connected>>
                          \/ /\ \E m \in sentMsgs("1b", l, b) \cup sentMsgs("2av", l, b):
                                  received' = [received EXCEPT ![l, self] = received[l, self] \cup { m }]
-                            /\ UNCHANGED <<maxBal, votesSent, 2avSent, msgs>>
-                  /\ UNCHANGED << connected, receivedByLearner, decision >>
+                            /\ UNCHANGED <<maxBal, votesSent, 2avSent, connected, msgs>>
+                         \/ /\ \E P \in SUBSET {LL \in Learner \X Learner : LL \notin Ent}:
+                                 connected' = [connected EXCEPT ![self] = connected[self] \ P]
+                            /\ UNCHANGED <<maxBal, votesSent, 2avSent, received, msgs>>
+                  /\ UNCHANGED << receivedByLearner, decision >>
 
 facceptor(self) == /\ \E m \in { mm \in 1bMessage \cup 2avMessage \cup 2bMessage : mm.acc = self }:
                         msgs' = (msgs \cup { m })
