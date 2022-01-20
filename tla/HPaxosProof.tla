@@ -125,7 +125,7 @@ BMessage ==
                             \E m \in S :
                                 /\ m.acc = a
                                 /\ \A p \in {pp \in m.votes : <<pp.lr, l>> \in connected[ac]} :
-                                    /\ p.bal =< c
+                                    /\ p.bal <= c
                                     /\ (p.bal = c) => (p.val = v)
                     /\ \E WQ \in ByzQuorum :
                         /\ [lr |-> l, q |-> WQ] \in TrustLive
@@ -291,7 +291,7 @@ BMessage ==
 }
 ****************************************************************************)
 
-\* BEGIN TRANSLATION (chksum(pcal) = "fded1496" /\ chksum(tla) = "8e415219")
+\* BEGIN TRANSLATION (chksum(pcal) = "557b65dc" /\ chksum(tla) = "6efe7a8b")
 VARIABLES maxBal, votesSent, 2avSent, received, connected, receivedByLearner, 
           decision, msgs
 
@@ -322,7 +322,7 @@ KnowsSafeAt(l, ac, b, v) ==
                     \E m \in S :
                         /\ m.acc = a
                         /\ \A p \in {pp \in m.votes : <<pp.lr, l>> \in connected[ac]} :
-                            /\ p.bal =< c
+                            /\ p.bal <= c
                             /\ (p.bal = c) => (p.val = v)
             /\ \E WQ \in ByzQuorum :
                 /\ [lr |-> l, q |-> WQ] \in TrustLive
