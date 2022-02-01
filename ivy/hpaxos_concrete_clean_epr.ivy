@@ -264,7 +264,6 @@ action propose_2av = {
         assume r ~= none;
         assume one_a(r);
         assume ~left_rnd(l, self, r);
-        assume connected(self, l, l);
 
         local sv : value {
             assume one_c_announced_value(l, r, sv);
