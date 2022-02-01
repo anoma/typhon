@@ -180,7 +180,7 @@ action receive_1b = {
         local n : node, r : round, maxr : round, v : value, rav : round, vav : value {
             assume one_b_max_vote(n, r, maxr, v, rav, vav);
             known_one_b_max_vote(self, n, r, maxr, v, rav, vav) := true;
-            known_safety_proof_for_value(self, n, r, R, vav) := safety_proof_for_value(n, r, R, vav)
+            known_safety_proof_for_value(self, n, r, RAV, vav) := safety_proof_for_value(n, r, RAV, vav)
         }
     }
 }
@@ -201,35 +201,35 @@ action send_2av = {
         assume ~left_rnd(self, r);
         assume ~two_av(self, r, V);
 
-        local bq : byzquorum, wq : weakquorum, maxr : round, sv : value {
+        local bq : byzquorum, wq : weakquorum, rav : round, sv : value {
             assume one_c_announced_value(r, sv);
             assume forall N : node. bqmember(N, bq) -> one_b(N, r);
             assume
                 # BP3a
                 (
-                 maxr = none &
+                 rav = none &
                  forall N : node, MAXR : round, V : value.
                     bqmember(N, bq) & two_b_vote(N, MAXR, V) -> le(r, MAXR)
                 ) |
                 # BP3c
                 (
-                 maxr ~= none &
-                 lt(maxr, r) & # formally, we do not need this condition
+                 rav ~= none &
+                 lt(rav, r) & # formally, we do not need this condition
                  # (a)
                  (
                   forall N : node, R1 : round, V : value.
                     bqmember(N, bq) & two_b_vote(N, R1, V) & lt(R1, r) ->
-                    le(R1, maxr) # (i)
-                    & (R1 = maxr -> V = sv) # (ii)
+                    le(R1, rav) # (i)
+                    & (R1 = rav -> V = sv) # (ii)
                  ) &
                  # (b)
                  (
                   forall N : node.
                     wqmember(N, wq) ->
-                    known_safety_proof_for_value(self, N, r, maxr, sv)
+                    known_safety_proof_for_value(self, N, r, rav, sv)
                     # abbreviates:
                     # exists MAXR : round, V : value.
-                    #     known_one_b_max_vote(self, N, r, MAXR, V, maxr, sv)
+                    #     known_one_b_max_vote(self, N, r, MAXR, V, rav, sv)
                  )
                 );
             two_av(self, r, sv) := true
@@ -317,10 +317,11 @@ conjecture
 # proposed values are safe
 conjecture [2av_safe]
     forall N2 : node, R1 : round, R2 : round, V1 : value, V2 : value, BQ : byzquorum.
-        real(N2) & two_av(N2, R2, V2) & lt(R1, R2) & V1 ~= V2 ->
+        real(N2) & two_av(N2, R2, V2) &
+        lt(R1, R2) & V1 ~= V2 ->
         exists N1 : node.
-            real(N1) & bqmember(N1, BQ) & left_rnd(N1, R1) & ~two_b_vote(N1, R1, V1)
-
+            real(N1) & bqmember(N1, BQ) &
+            left_rnd(N1, R1) & ~two_b_vote(N1, R1, V1)
 
 # proposals are unique per round
 conjecture [2av_unique]
@@ -337,10 +338,12 @@ conjecture real(N) & known_one_b_max_vote(SELF, N, R, RMAX, V, RAV, VAV) -> one_
 
 # properties on one_b
 conjecture [1b_0]
-    real(N) & one_b_max_vote(N, R, RMAX, V, RAV, VAV) -> one_b(N, R)
+    real(N) &
+    one_b_max_vote(N, R, RMAX, V, RAV, VAV) -> one_b(N, R)
 
 conjecture [1b_left]
-    real(N) & one_b(N, R2) & lt(R1, R2) -> left_rnd(N, R1)
+    real(N) &
+    one_b(N, R2) & lt(R1, R2) -> left_rnd(N, R1)
 
 
 # properties of one_b_max_vote
@@ -400,7 +403,8 @@ conjecture [1b_safety_proof_for_value]
 
 # properties of left_rnd
 conjecture [left_rnd_1]
-    real(N) & one_b_max_vote(N, R, RMAX, V, RAV, VAV) & lt(R1, R) -> left_rnd(N, R1)
+    real(N) &
+    one_b_max_vote(N, R, RMAX, V, RAV, VAV) & lt(R1, R) -> left_rnd(N, R1)
 
 # only true if we do not allow to re-enter send_2av action when two_av in a higher round have been sent
 #conjecture [left_rnd_2]
