@@ -1,0 +1,43 @@
+Example 1
+
+X is an adversarial node
+
+trust_live
+
+A [V, X] 0
+B [V, U]
+C [W, X, U] 1
+
+trust_safe
+
+A - B [[V], [U, X]]
+A - C [[X], [V, U]]
+B - C [[U], [V, X]]
+
+
+
+Example 2
+
+trust_live
+
+A [V, X, Y], [V, X, Z], [V, Y, Z]
+      0
+
+B [V, X, Y], [V, X, Z], [V, Y, Z]
+                           should be 0
+
+C [U, X, Y], [U, X, Z], [U, Y, Z]
+                           should be 1
+
+D [U, X, Y], [U, X, Z], [U, Y, Z]
+                 1
+
+trust_safe
+
+A - B [[V], [X, Y, Z]]
+C - D [[U], [X, Y, Z]]
+A - C [[X, Y, Z]]
+A - D [[X, Y, Z]]
+B - C [[X, Y, Z]]
+B - D [[X, Y, Z]]
+
