@@ -1,5 +1,5 @@
 ---------------------------- MODULE HPaxosProof -----------------------------
-EXTENDS Integers, FiniteSets, TLAPS
+EXTENDS Integers, FiniteSets, Functions, TLAPS
 
 -----------------------------------------------------------------------------
 Ballot == Nat
@@ -16,6 +16,10 @@ CONSTANTS Acceptor,
 ASSUME SafeAcceptorAssumption ==
         /\ SafeAcceptor \cap FakeAcceptor = {}
         /\ SafeAcceptor \cup FakeAcceptor = Acceptor
+        
+LEMMA SafeAcceptorSubsetAcceptor ==
+    SafeAcceptor \subseteq Acceptor
+BY SafeAcceptorAssumption
 
 ASSUME BQAssumption ==
         /\ \A Q \in ByzQuorum : Q \subseteq Acceptor
@@ -80,13 +84,13 @@ Message ==
 --algorithm HPaxos {
 
     variables
-        maxBal  = [l \in Learner, a \in Acceptor |-> -1],
+        maxBal  = [l \in Learner |-> [a \in Acceptor |-> -1]],
         votesSent = [a \in Acceptor |-> {}],
-        2avSent = [l \in Learner, a \in Acceptor |-> {}],
-        received = [l \in Learner, a \in Acceptor |-> {}],
+        2avSent = [l \in Learner |-> [a \in Acceptor |-> {}]],
+        received = [l \in Learner |-> [a \in Acceptor |-> {}]],
         connected = [a \in Acceptor |-> {}],
         receivedByLearner = [l \in Learner |-> {}],
-        decision = [l \in Learner, b \in Ballot |-> {}],
+        decision = [l \in Learner |-> [b \in Ballot |-> {}]],
         msgs = {}
 
     define {     
@@ -97,7 +101,7 @@ Message ==
             { m \in msgs: m.type = type /\ m.bal = bal }
 
         initializedBallot(lr, bal) == sentMsgs("1a", lr, bal) # {}
-        (*announcements(lr, bal) == sentMsgs("1c", lr, bal)*)
+        
         announcedValues(lr, bal) == { m.val : m \in sentMsgs("1c", lr, bal) }
         
         VotedForIn(lr, ac, bal, v) ==
@@ -147,7 +151,7 @@ Message ==
     
     macro Phase1b(l, b)
     {
-        when /\ maxBal[l, self] <= b
+        when /\ maxBal[l][self] <= b
              /\ initializedBallot(l, b) ;
         maxBal[l, self] := b ;
         SendMessage(
@@ -157,7 +161,7 @@ Message ==
                 acc |-> self,
                 bal |-> b,
                 votes |-> {p \in votesSent[self] : p.bal < b},
-                proposals |-> {p \in 2avSent[l, self] : p.bal < b}
+                proposals |-> {p \in 2avSent[l][self] : p.bal < b}
             ]
         )
     }
@@ -172,30 +176,30 @@ Message ==
     
     macro Phase2av(l, b)
     {
-        when /\ maxBal[l, self] =< b
+        when /\ maxBal[l][self] =< b
              /\ initializedBallot(l, b) ;
         with (v \in { va \in announcedValues(l, b) :
                         /\ \A L \in Learner :
-                           \A P \in {p \in 2avSent[L, self] : p.bal = b} :
+                           \A P \in {p \in 2avSent[L][self] : p.bal = b} :
                                 P.val = va
                         /\ KnowsSafeAt(l, self, b, va) })
         {
             SendMessage(
                 [type |-> "2av", lr |-> l, acc |-> self, bal |-> b, val |-> v]
             ) ;
-            2avSent[l, self] :=
-                2avSent[l, self] \cup { [bal |-> b, val |-> v] }
+            2avSent[l][self] :=
+                2avSent[l][self] \cup { [bal |-> b, val |-> v] }
         }
     }
 
     macro Phase2b(l, b)
     {
-        when \A L \in Learner : maxBal[L, self] <= b ;
+        when \A L \in Learner : maxBal[L][self] <= b ;
         with (v \in {vv \in Value :
                         \E Q \in ByzQuorum :
                             /\ [lr |-> l, q |-> Q] \in TrustLive
                             /\ \A aa \in Q :
-                                \E m \in {mm \in received[l, self] :
+                                \E m \in {mm \in received[l][self] :
                                             /\ mm.type = "2av"
                                             /\ mm.bal = b} :
                                     /\ m.val = vv
@@ -212,7 +216,7 @@ Message ==
     {
         with (m \in sentMsgs("1b", l, b) \cup sentMsgs("2av", l, b))
         {
-            received[l, self] := received[l, self] \cup { m }
+            received[l][self] := received[l][self] \cup { m }
         }
     }
 
@@ -240,7 +244,7 @@ Message ==
     {
         with (v \in {vv \in Value : ChosenIn(self, b, vv)})
         {
-            decision[self, b] := decision[self, b] \cup {v}
+            decision[self][b] := decision[self][b] \cup {v}
         }
     }
 
@@ -290,7 +294,7 @@ Message ==
 }
 ****************************************************************************)
 
-\* BEGIN TRANSLATION (chksum(pcal) = "8dddfd0c" /\ chksum(tla) = "62a261a5")
+\* BEGIN TRANSLATION (chksum(pcal) = "a34a34b1" /\ chksum(tla) = "a5d3cc9b")
 VARIABLES maxBal, votesSent, 2avSent, received, connected, receivedByLearner, 
           decision, msgs
 
@@ -352,13 +356,13 @@ vars == << maxBal, votesSent, 2avSent, received, connected, receivedByLearner,
 ProcSet == (Ballot) \cup (SafeAcceptor) \cup (FakeAcceptor) \cup (Learner)
 
 Init == (* Global variables *)
-        /\ maxBal = [l \in Learner, a \in Acceptor |-> -1]
+        /\ maxBal = [l \in Learner |-> [a \in Acceptor |-> -1]]
         /\ votesSent = [a \in Acceptor |-> {}]
-        /\ 2avSent = [l \in Learner, a \in Acceptor |-> {}]
-        /\ received = [l \in Learner, a \in Acceptor |-> {}]
+        /\ 2avSent = [l \in Learner |-> [a \in Acceptor |-> {}]]
+        /\ received = [l \in Learner |-> [a \in Acceptor |-> {}]]
         /\ connected = [a \in Acceptor |-> {}]
         /\ receivedByLearner = [l \in Learner |-> {}]
-        /\ decision = [l \in Learner, b \in Ballot |-> {}]
+        /\ decision = [l \in Learner |-> [b \in Ballot |-> {}]]
         /\ msgs = {}
 
 leader(self) == /\ \E l \in Learner:
@@ -370,7 +374,7 @@ leader(self) == /\ \E l \in Learner:
 
 acceptor(self) == /\ \E b \in Ballot:
                        \E l \in Learner:
-                         \/ /\ /\ maxBal[l, self] <= b
+                         \/ /\ /\ maxBal[l][self] <= b
                                /\ initializedBallot(l, b)
                             /\ maxBal' = [maxBal EXCEPT ![l, self] = b]
                             /\ msgs' = (msgs \cup { ([
@@ -379,25 +383,25 @@ acceptor(self) == /\ \E b \in Ballot:
                                                          acc |-> self,
                                                          bal |-> b,
                                                          votes |-> {p \in votesSent[self] : p.bal < b},
-                                                         proposals |-> {p \in 2avSent[l, self] : p.bal < b}
+                                                         proposals |-> {p \in 2avSent[l][self] : p.bal < b}
                                                      ]) })
                             /\ UNCHANGED <<votesSent, 2avSent, received, connected>>
-                         \/ /\ /\ maxBal[l, self] =< b
+                         \/ /\ /\ maxBal[l][self] =< b
                                /\ initializedBallot(l, b)
                             /\ \E v \in { va \in announcedValues(l, b) :
                                             /\ \A L \in Learner :
-                                               \A P \in {p \in 2avSent[L, self] : p.bal = b} :
+                                               \A P \in {p \in 2avSent[L][self] : p.bal = b} :
                                                     P.val = va
                                             /\ KnowsSafeAt(l, self, b, va) }:
                                  /\ msgs' = (msgs \cup { ([type |-> "2av", lr |-> l, acc |-> self, bal |-> b, val |-> v]) })
-                                 /\ 2avSent' = [2avSent EXCEPT ![l, self] = 2avSent[l, self] \cup { [bal |-> b, val |-> v] }]
+                                 /\ 2avSent' = [2avSent EXCEPT ![l][self] = 2avSent[l][self] \cup { [bal |-> b, val |-> v] }]
                             /\ UNCHANGED <<maxBal, votesSent, received, connected>>
-                         \/ /\ \A L \in Learner : maxBal[L, self] <= b
+                         \/ /\ \A L \in Learner : maxBal[L][self] <= b
                             /\ \E v \in {vv \in Value :
                                             \E Q \in ByzQuorum :
                                                 /\ [lr |-> l, q |-> Q] \in TrustLive
                                                 /\ \A aa \in Q :
-                                                    \E m \in {mm \in received[l, self] :
+                                                    \E m \in {mm \in received[l][self] :
                                                                 /\ mm.type = "2av"
                                                                 /\ mm.bal = b} :
                                                         /\ m.val = vv
@@ -406,7 +410,7 @@ acceptor(self) == /\ \E b \in Ballot:
                                  /\ votesSent' = [votesSent EXCEPT ![self] = votesSent[self] \cup {[lr |-> l, bal |-> b, val |-> v]}]
                             /\ UNCHANGED <<maxBal, 2avSent, received, connected>>
                          \/ /\ \E m \in sentMsgs("1b", l, b) \cup sentMsgs("2av", l, b):
-                                 received' = [received EXCEPT ![l, self] = received[l, self] \cup { m }]
+                                 received' = [received EXCEPT ![l][self] = received[l][self] \cup { m }]
                             /\ UNCHANGED <<maxBal, votesSent, 2avSent, connected, msgs>>
                          \/ /\ \E P \in SUBSET {LL \in Learner \X Learner : LL \notin Ent}:
                                  connected' = [connected EXCEPT ![self] = connected[self] \ P]
@@ -424,7 +428,7 @@ facceptor(self) == /\ \E m \in { mm \in Message :
 
 learner(self) == /\ \E b \in Ballot:
                       \E v \in {vv \in Value : ChosenIn(self, b, vv)}:
-                        decision' = [decision EXCEPT ![self, b] = decision[self, b] \cup {v}]
+                        decision' = [decision EXCEPT ![self][b] = decision[self][b] \cup {v}]
                  /\ UNCHANGED << maxBal, votesSent, 2avSent, received, 
                                  connected, receivedByLearner, msgs >>
 
@@ -440,13 +444,63 @@ Spec == Init /\ [][Next]_vars
 
 TypeOK ==
     /\ msgs \in SUBSET Message
+    /\ votesSent \in [Acceptor -> SUBSET [lr : Learner, bal : Ballot, val : Value]]
+    /\ 2avSent \in [Learner -> [Acceptor -> SUBSET [bal : Ballot, val : Value]]]
+    (*
+        2avSent = [l \in Learner, a \in Acceptor |-> {}],
+        received = [l \in Learner, a \in Acceptor |-> {}],
+        connected = [a \in Acceptor |-> {}],
+        receivedByLearner = [l \in Learner |-> {}],
+        decision = [l \in Learner, b \in Ballot |-> {}],
+    *)
+
+Inv == TypeOK
+
+LEMMA NextInvariant == Inv /\ Next => Inv'
+<1> SUFFICES ASSUME Inv, Next PROVE Inv'
+  <1>1. ASSUME NEW self \in Ballot, leader(self)
+        PROVE Inv' BY <1>1 DEF leader, Inv, Next, TypeOK, Message
+  <1>2. ASSUME NEW self \in SafeAcceptor, acceptor(self)
+        PROVE Inv'
+        <2>1. USE DEF Inv
+        <2>2. 2avSent' \in [Learner -> [Acceptor -> SUBSET [bal : Ballot, val : Value]]]
+        <3> QED BY <1>2, SafeAcceptorSubsetAcceptor DEF acceptor, Inv, Next, TypeOK, Message
+        <2>3. votesSent' \in [Acceptor -> SUBSET [lr : Learner, bal : Ballot, val : Value]]
+        <3> QED BY <1>2, SafeAcceptorSubsetAcceptor DEF acceptor, Inv, Next, TypeOK, Message
+        \* <2>3. 2avSent \in [Learner -> [Acceptor -> SUBSET [bal : Ballot, val : Value]]]
+        <2>4. msgs' \in SUBSET Message
+        <3> QED BY <1>2, SafeAcceptorSubsetAcceptor DEF acceptor, Inv, Next, TypeOK, Message
+        <2> QED BY <1>2, SafeAcceptorSubsetAcceptor DEF acceptor, Inv, Next, TypeOK, Message
+  <1>3. ASSUME NEW self \in FakeAcceptor, facceptor(self)
+        PROVE Inv' BY <1>3 DEF facceptor, Inv, Next, TypeOK, Message
+  <1>4. ASSUME NEW self \in Learner, learner(self)
+        PROVE Inv' BY <1>4 DEF learner, Inv, Next, TypeOK, Message
+<1> QED BY <1>1, <1>2, <1>3, <1>4 DEF Next
+
+
+(*LEMMA Invariant == Spec => []Inv
+<1> USE DEF Ballot
+<1>1. Init => Inv BY DEF Init, Inv, TypeOK
+<1>2. Inv /\ [Next]_vars => Inv' 
+  <2> SUFFICES ASSUME Inv /\ [Next]_vars
+               PROVE  Inv'
+    OBVIOUS
+  <2> USE DEF Inv, Next, TypeOK
+    <2>1. CASE Next
+      BY <2>1 DEF Inv
+    <2>2. CASE UNCHANGED vars
+      BY <2>2 DEF Inv
+    <2>3. QED
+      BY <2>1, <2>2
+<1> QED BY DEF Init*)
+
 
 Safety == (* safety *)
     \A L1, L2 \in Learner: \A B1, B2 \in Ballot : \A V1, V2 \in Value :
         <<L1, L2>> \in Ent /\
         V1 \in decision[L1, B1] /\ V2 \in decision[L2, B2] => V1 = V2
 
-THEOREM LearnerGraphAssumption /\ EntanglementAssumption /\ Spec => []Safety
+THEOREM SafetyResult == Spec => []Safety
     OBVIOUS
 
 ==============================================================================
