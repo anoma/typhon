@@ -1,0 +1,215 @@
+#lang ivy1.6
+
+# total ordering
+module total_order(r) = {
+    axiom r(X,X)                        # reflexivity
+    axiom r(X, Y) & r(Y, Z) -> r(X, Z)  # transitivity
+    axiom r(X, Y) & r(Y, X) -> X = Y    # anti-symmetry
+    axiom r(X, Y) | r(Y, X)             # totality
+}
+
+type node
+type learner
+type value
+type round
+type byzquorum
+type weakquorum
+
+individual none: round
+relation le(X : round, Y : round)
+instantiate total_order(le)
+
+relation lt(X : round, Y : round)
+axiom [lt] lt(X, Y) <-> ~le(Y, X)
+
+axiom [le_none] le(none, R)
+# AK: why is the assumption important for proving equivalence?
+
+relation real(N : node) # real acceptors
+
+relation bqmember(N : node, Q : byzquorum)
+relation wqmember(N : node, Q : weakquorum)
+
+axiom [byzquorum]
+    forall BQ1 : byzquorum, BQ2 : byzquorum.
+        exists N : node. bqmember(N, BQ1) & bqmember(N, BQ2) & real(N)
+axiom [weakquorum]
+    forall WQ : weakquorum.
+        exists N : node. wqmember(N, WQ) & real(N)
+
+relation one_b_max_vote(N : node, R : round, RMAX : round, V : value, RAV : round, VAV : value)
+relation known_one_b_max_vote(N0 : node, N : node, R : round, RMAX : round, V : value, RAV : round, VAV : value)
+relation one_c_announced_value(R : round, V : value)
+relation two_av(N : node, R : round, V : value)
+relation two_b_vote(N : node, R : round, V : value)
+relation known_safety_proof_for_value(SELF : node, N : node, R : round, RAV : round, VAV : value)
+
+individual self : node
+individual r : round
+individual bq : byzquorum
+individual wq : weakquorum
+individual maxr : round
+individual sv : value
+
+relation error
+init ~error
+
+action verify_send_2av_rewrite = {
+    # assume auxiliary invariants
+
+    #assume
+    #    forall N : node, R : round, V : value.
+    #        real(N) & two_b_vote(N, R, V) ->
+    #        exists BQ : byzquorum.
+    #            forall N1 : node. bqmember(N1, BQ) -> two_av(N1, R, V);
+
+    assume # [2av_unique]
+        real(N) & two_av(N, R, V1) & two_av(N, R, V2) -> V1 = V2;
+
+    # properties of one_b_max_vote
+    assume # [1b_1]
+        real(N) &
+        one_b_max_vote(N, R2, none, V1, RAV, VAV) & lt(R1, R2) ->
+        ~two_b_vote(N, R1, V2);
+
+    assume # [1b_2]
+        real(N) &
+        one_b_max_vote(N, R, RMAX, V, RAV, VAV) & RMAX ~= none ->
+        lt(RMAX, R) & two_b_vote(N, RMAX, V);
+
+    assume # [1b_3]
+        real(N) &
+        one_b_max_vote(N, R, RMAX, V, RAV, VAV) & RMAX ~= none &
+        lt(RMAX, ROTHER) & lt(ROTHER, R) ->
+        ~two_b_vote(N, ROTHER, VOTHER);
+
+    assume # [1b_4]
+        real(N) &
+        one_b_max_vote(N, R, RMAX, V, RAV, VAV) & RMAX ~= none ->
+        lt(RAV, R) & (RAV ~= none -> two_av(N, RAV, VAV));
+
+    assume # [learned_1b_packets_exist]
+        real(N0) &
+        known_one_b_max_vote(N0, N, R, RMAX, V, RAV, VAV) ->
+        one_b_max_vote(N, R, RMAX, V, RAV, VAV);
+
+    assume # [1b_rav_none]
+        real(N) & RMAX ~= none &
+        one_b_max_vote(N, R, RMAX, V, none, VAV1) &
+        one_b_max_vote(N, R, RMAX, V, RAV2, VAV2) ->
+        RAV2 = none;
+
+    assume # [1b_rav_none_1]
+        real(N) & RMAX ~= none &
+        one_b_max_vote(N, R, RMAX, V, none, VAV) &
+        lt(RAV2, R) ->
+        ~two_av(N, RAV2, VAV2);
+
+    #assume # [1b_safety_proof_for_value]
+    #    real(N) & RMAX ~= none &
+    #    one_b_max_vote(N, R, RMAX, V, none, VAV) &
+    #    lt(RAV2, R) ->
+    #    ~safety_proof_for_value(N, R, RAV2, VAV2);
+
+    assume # [one_b_max_vote_valid]
+        real(N) &
+        one_b_max_vote(N, R, RMAX, V, RAV, VAV) &
+        RMAX ~= none & RAV ~= none ->
+        two_av(N, RAV, VAV);
+
+
+    # properties of none
+    assume ~one_b_max_vote(N, none, MAXR, V, RAV, VAV);
+    assume ~one_c_announced_value(none, V);
+    assume ~two_av(N, none, V);
+    assume ~two_b_vote(N, none, V);
+
+    # assume action conditions
+    assume real(self);
+    assume r ~= none;
+    assume ~(exists R : round, RMAX : round, V : value, RAV : round, VAV : value.
+                one_b_max_vote(self, R, RMAX, V, RAV, VAV) & lt(r, R));
+           #& ~(exists R : round, V : value. two_av(N, R, V) & lt(r, R));
+    assume ~two_av(self, r, V);
+    #assume forall N : node. bqmember(N, bq) -> one_b(N, r);
+    assume
+        forall N : node.
+            bqmember(N, bq) ->
+            exists MAXR : round, V : value, RAV : round, VAV : value.
+                known_one_b_max_vote(self, N, r, MAXR, V, RAV, VAV);
+    assume one_c_announced_value(r, sv);
+
+    # check equivalence
+    if ~(
+         (
+                # BP3a
+                (
+                 maxr = none &
+                 forall N : node, MAXR : round, V : value, RAV : round, VAV : value.
+                    bqmember(N, bq) & known_one_b_max_vote(self, N, r, MAXR, V, RAV, VAV) ->
+                    MAXR = none
+                )
+                #|
+                # BP3c
+                #(
+                # maxr ~= none &
+                # lt(maxr, r) & # formally, we do not need this condition
+                # # (a)
+                # (
+                #  forall N : node, MAXR : round, V : value, RAV : round, VAV : value.
+                #    bqmember(N, bq) & known_one_b_max_vote(self, N, r, MAXR, V, RAV, VAV) ->
+                #    le(MAXR, maxr) & # (i)
+                #    (MAXR = maxr -> V = sv) # (ii)
+                # ) &
+                # # (b)
+                # (
+                #  forall N : node.
+                #    wqmember(N, wq) ->
+                #    known_safety_proof_for_value(self, N, r, maxr, sv)
+                #    # cannot prove the original
+                #    #exists MAXR : round, V : value.
+                #    #    known_one_b_max_vote(self, N, r, MAXR, V, maxr, sv)
+                # )
+                #)
+         )
+         ->
+         (
+                # BP3a
+                (
+                 maxr = none &
+                 forall N : node, MAXR : round, V : value.
+                    bqmember(N, bq) & two_b_vote(N, MAXR, V) -> le(r, MAXR)
+                )
+                #|
+                # BP3c
+                #(
+                # maxr ~= none &
+                # lt(maxr, r) & # formally, we do not need this condition
+                # # (a)
+                # (
+                #  forall N : node, R1 : round, V : value.
+                #    bqmember(N, bq) & two_b_vote(N, R1, V) & lt(R1, r) ->
+                #    le(R1, maxr) # (i)
+                #    & (R1 = maxr -> V = sv) # (ii)
+                # ) &
+                # # (b)
+                # (
+                #  forall N : node.
+                #    wqmember(N, wq) ->
+                #    known_safety_proof_for_value(self, N, r, maxr, sv)
+                #    # abbreviates:
+                #    # exists MAXR : round, V : value.
+                #    #     known_one_b_max_vote(self, N, r, MAXR, V, maxr, sv)
+                # )
+                #)
+         )
+        )
+    {
+        error := true
+    }
+}
+
+export verify_send_2av_rewrite
+
+conjecture [rewrite_correct] ~error
+
