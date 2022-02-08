@@ -291,19 +291,6 @@ TypeOK ==
     /\ receivedByLearner \in [Learner -> SUBSET Message]
     /\ decision \in [Learner \X Ballot -> SUBSET Value]
 
-\*ReceivedSpec ==
-\*    received \in
-\*        {M \in [Learner \X Acceptor ->
-\*                SUBSET {mm \in msgs : mm.type = "1b" \/ mm.type = "2av"}] :
-\*            \A L \in Learner : \A A \in Acceptor : \A mm \in Message:
-\*                <<L, A>> \in DOMAIN M /\ mm \in M[<<L, A>>] => mm.lrn = L}
-\*
-\*ReceivedByLearnerSpec ==
-\*    receivedByLearner \in
-\*        {M \in [Learner -> SUBSET {mm \in msgs : mm.type = "2b"}] :
-\*            \A L \in Learner : \A mm \in Message :
-\*                L \in DOMAIN M /\ mm \in M[L] => mm.lrn = L}
-
 ReceivedSpec ==
     /\ received \in [Learner \X Acceptor ->
                         SUBSET {mm \in msgs : mm.type = "1b" \/ mm.type = "2av"}]
@@ -495,7 +482,6 @@ PROOF
   BY <1>5 DEF LearnerAction, LearnerRecv, LearnerDecide, ReceivedSpec, TypeOK, Next
 <1>6. QED
   BY <1>1, <1>2, <1>3, <1>4, <1>5 DEF Next
-
 
 LEMMA ReceivedByLearnerSpecInvariant ==
     TypeOK /\ ReceivedByLearnerSpec /\ Next => ReceivedByLearnerSpec'
