@@ -238,7 +238,7 @@ FakeSend(a) ==
 
 LearnerDecide(l, b) ==
     /\ \E v \in {vv \in Value : ChosenIn(l, b, vv)}:
-        decision' = [decision EXCEPT ![l][b] = decision[l][b] \cup {v}]
+        decision' = [decision EXCEPT ![l, b] = decision[l, b] \cup {v}]
     /\ UNCHANGED << msgs, maxBal, votesSent, 2avSent, received, 
                         connected, receivedByLearner >>
 
@@ -281,22 +281,29 @@ Spec == Init /\ [][Next]_vars
 
 \* END TRANSLATION
 -----------------------------------------------------------------------------
-
 TypeOK ==
     /\ msgs \in SUBSET Message
     /\ maxBal \in [Learner \X Acceptor -> Ballot]
     /\ votesSent \in [Acceptor -> SUBSET [lr : Learner, bal : Ballot, val : Value]]
     /\ 2avSent \in [Learner \X Acceptor -> SUBSET [bal : Ballot, val : Value]]
     /\ connected \in [Acceptor -> SUBSET (Learner \X Learner)]
-    /\ received \in {M \in
-            [Learner \X Acceptor ->
+    /\ received \in [Learner \X Acceptor -> SUBSET Message]
+    /\ receivedByLearner \in [Learner -> SUBSET Message]
+    /\ decision \in [Learner \X Ballot -> SUBSET Value]
+
+ReceivedInv ==
+    received \in
+        {M \in [Learner \X Acceptor ->
                 SUBSET {mm \in msgs : mm.type = "1b" \/ mm.type = "2av"}] :
             \A L \in Learner : \A A \in Acceptor : \A mm \in Message:
                 <<L, A>> \in DOMAIN M /\ mm \in M[<<L, A>>] => mm.lrn = L}
-    (*
-        receivedByLearner = [l \in Learner |-> {}],
-        decision = [l \in Learner, b \in Ballot |-> {}],
-    *)
+
+ReceivedByLearnerInv ==
+    receivedByLearner \in
+        {M \in [Learner |->
+            SUBSET {mm \in msgs : mm.type = "2b"}] :
+            \A L \in Learner : \A mm \in Message :
+                L \in DOMAIN M /\ mm \in M[L] => mm.lrn = L}
 
 Inv == TypeOK
 
@@ -348,12 +355,12 @@ LEMMA TypeOKInvariant == TypeOK /\ Next => TypeOK'
                PROVE  TypeOK'
     BY <1>2 DEF AcceptorSendAction
   <2>1. CASE Phase1b(lrn, bal, acc)
-    (*<3>1.(votesSent
+    <3>1.(votesSent
            \in [Acceptor -> SUBSET [lr : Learner, bal : Ballot, val : Value]])'
-    BY <1>2, <2>1 DEF AcceptorSendAction, Phase1b, Phase2av, Phase2b, Send, TypeOK, Message*)
-    (*<3>2. (2avSent
+            BY <1>2, <2>1 DEF AcceptorSendAction, Phase1b, Phase2av, Phase2b, Send, TypeOK, Message
+    <3>2. (2avSent
            \in [Learner \X Acceptor -> SUBSET [bal : Ballot, val : Value]])'
-           BY <1>2, <2>1 DEF AcceptorSendAction, Phase1b, Phase2av, Phase2b, Send, TypeOK, Message*)
+            BY <1>2, <2>1 DEF AcceptorSendAction, Phase1b, Phase2av, Phase2b, Send, TypeOK, Message
     <3>3. msgs' \in SUBSET Message
       <4>1. {p \in votesSent[acc] : p.bal < bal}
                 \in SUBSET [lr : Learner, bal : Ballot, val : Value] BY DEF TypeOK 
@@ -364,8 +371,8 @@ LEMMA TypeOKInvariant == TypeOK /\ Next => TypeOK'
                    proposals |-> {p \in 2avSent[lrn, acc] : p.bal < bal}] \in Message
             BY <4>1, <4>2 DEF Message
       <4>4. QED BY <2>1, <4>1, <4>2, <4>3 DEF Phase1b, Send, TypeOK, Message
-    (*<3>4a. received' = received BY <2>1 DEF Phase1b
-    <3>4b. (received
+    \*<3>4a. received' = received BY <2>1 DEF Phase1b
+    (*<3>4b. (received
            \in {M \in
                   [Learner \X Acceptor ->
                      SUBSET {mm \in msgs : mm.type = "1b" \/ mm.type = "2av"}] :
@@ -374,12 +381,12 @@ LEMMA TypeOKInvariant == TypeOK /\ Next => TypeOK'
                         \A mm \in Message :
                            <<L, A>> \in DOMAIN M /\ mm \in M[<<L, A>>]
                            => mm.lrn = L})'
-           BY <2>1 DEF Phase1b, TypeOK, Send
-    <3>4c. connected' \in [Acceptor -> SUBSET (Learner \X Learner)]
-            BY <2>1, <1>2 DEF Phase1b, Phase2av, Phase2b, Send, TypeOK, Message
-    <3>4d. maxBal' \in [Learner \X Acceptor -> Ballot]
-            BY <2>1, <1>2 DEF Phase1b, Phase2av, Phase2b, Send, TypeOK, Message*)
-    <3>4. QED BY <2>1 (*<3>1, <3>2,*) , <3>3 (*, <3>4a, <3>4b, <3>4c, <3>4d, Isa*) DEF Phase1b, TypeOK, Send
+           BY <2>1 DEF Phase1b, TypeOK, Send*)
+\*    <3>4c. connected' \in [Acceptor -> SUBSET (Learner \X Learner)]
+\*            BY <2>1, <1>2 DEF Phase1b, Phase2av, Phase2b, Send, TypeOK, Message
+\*    <3>4d. maxBal' \in [Learner \X Acceptor -> Ballot]
+\*            BY <2>1, <1>2 DEF Phase1b, Phase2av, Phase2b, Send, TypeOK, Message
+    <3>4. QED BY <2>1, <3>1, <3>2, <3>3 (*, <3>4a, <3>4b, <3>4c, <3>4d*) DEF Phase1b, TypeOK, Send
   <2>2. CASE Phase2av(lrn, bal, acc)
     <3> SUFFICES ASSUME NEW v \in { va \in announcedValues(lrn, bal) :
                                       /\ \A L \in Learner :
@@ -464,7 +471,8 @@ LEMMA TypeOKInvariant == TypeOK /\ Next => TypeOK'
                                        receivedByLearner, decision >>
                PROVE  TypeOK'
     BY <1>3 DEF AcceptorReceiveAction, Recv
-  <2>1. received
+  <2>1. received' \in [Learner \X Acceptor -> SUBSET Message] BY DEF TypeOK
+  (*<2>1. received
            \in [Learner \X Acceptor ->
                      SUBSET {mm \in msgs : mm.type = "1b" \/ mm.type = "2av"}]
             BY DEF TypeOK
@@ -479,13 +487,21 @@ LEMMA TypeOKInvariant == TypeOK /\ Next => TypeOK'
   <2>6. \A L \in Learner : \A A \in Acceptor : \A mm \in Message :
             <<L, A>> \in DOMAIN received' /\ mm \in received'[<<L, A>>] =>
             mm.lrn = L
-        BY <2>2
+        BY <2>2*)
   <2>7. QED
-    BY <1>3, <2>4, <2>6 DEF AcceptorReceiveAction, Recv, TypeOK, Message  
+    BY <1>3, <2>1 (*, <2>4, <2>6*) DEF AcceptorReceiveAction, Recv, TypeOK  
 <1>4. CASE AcceptorDisconnectAction
     BY <1>4 DEF AcceptorDisconnectAction, Disconnect, TypeOK, Message    
 <1>5. CASE LearnerAction
-    BY <1>5 DEF LearnerAction, LearnerRecv, LearnerDecide, TypeOK, Message
+  <2> SUFFICES ASSUME NEW lrn \in Learner,
+                      NEW bal \in Ballot,
+                      \/ LearnerDecide(lrn, bal)
+                      \/ LearnerRecv(lrn)
+               PROVE  TypeOK'
+    BY <1>5 DEF LearnerAction
+  <2>1. CASE LearnerDecide(lrn, bal) BY <2>1 DEF LearnerDecide, TypeOK
+  <2>2. CASE LearnerRecv(lrn) BY <2>2 DEF LearnerRecv, TypeOK      
+  <2>5. QED BY <2>1, <2>2
 <1>6. QED
     BY <1>1, <1>2, <1>3, <1>4, <1>5 DEF Next
 
