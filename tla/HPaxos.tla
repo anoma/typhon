@@ -358,7 +358,7 @@ LEMMA TypeOKInvariant == TypeOK /\ Next => TypeOK'
       BY <2>2 DEF Phase2av
     <3>2. msgs' \in SUBSET Message
         <4>0. [type |-> "2av", lr |-> lrn, acc |-> acc, bal |-> bal,
-                   val |-> v] \in Message BY (*<3>1*) DEF Message
+                   val |-> v] \in Message BY DEF Message
         <4>1. QED BY <4>0 DEF Message, Send, TypeOK
     <3>4. (2avSent \in [Acceptor -> SUBSET [bal : Ballot, val : Value]])'
         <4>0. [bal |-> bal, val |-> v] \in [bal : Ballot, val : Value]
