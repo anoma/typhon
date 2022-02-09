@@ -82,12 +82,6 @@ VARIABLES maxBal,
           decision,
           msgs
 
-sentMsgs(type, lr, bal) ==
-    {m \in msgs: m.type = type /\ m.lr = lr /\ m.bal = bal}
-    
-sentMsgsAnywhere(type, bal) ==
-    {m \in msgs: m.type = type /\ m.bal = bal}
-
 initializedBallot(lr, bal) ==
     \E m \in msgs : m.type = "1a" /\ m.lr = lr /\ m.bal = bal
 
@@ -303,8 +297,6 @@ MsgInv1b(m) ==
         <<L, B, V>> \in m.votes => VotedForIn(m.lr, m.acc, m.bal, m.val)
     /\ \A B \in Ballot, V \in Value :
         <<B, V>> \in m.proposals => ProposedIn(B, V)
-    \*/\ \A b2\in Ballots, s\in Slots, v \in Values: b2 \in MaxBallotInSlot(m.voted, s)+1..m.bal-1 =>
-    \*        ~ VotedForIn(m.from, b2, s, v)
 
 MsgInv2av(m) ==
     TRUE \* TODO
@@ -313,34 +305,6 @@ MsgInv2b(m) ==
     TRUE \* TODO
 
 Inv == TypeOK
-
-LEMMA Test ==
-    ASSUME NEW CONSTANT S, NEW CONSTANT P(_)
-    PROVE {s \in S : P(s)} \subseteq S
-OBVIOUS
-
-LEMMA Test1 ==
-    ASSUME NEW CONSTANT A \in Acceptor, NEW CONSTANT B \in Ballot,
-        votesSent \in [Acceptor -> SUBSET [lr : Learner, bal : Ballot, val : Value]]
-    PROVE {p \in votesSent[A] : p.bal < B} \in SUBSET [lr : Learner, bal : Ballot, val : Value]
-OBVIOUS
-
-LEMMA Test2 ==
-    ASSUME NEW CONSTANT L \in Learner, NEW CONSTANT A \in Acceptor, NEW CONSTANT B \in Ballot,
-        2avSent \in [Learner \X Acceptor -> SUBSET [bal : Ballot, val : Value]]
-    PROVE {p \in 2avSent[L, A] : p.bal < B} \in SUBSET [bal : Ballot, val : Value]
-OBVIOUS
-
-LEMMA Test3 ==
-    ASSUME NEW CONSTANT A, NEW CONSTANT B, NEW CONSTANT S, A \in SUBSET S, B \in SUBSET S
-    PROVE A \ B \in SUBSET S
-OBVIOUS
-
-LEMMA Test4 ==
-    ASSUME NEW CONSTANT A, NEW CONSTANT B, NEW CONSTANT M \in [A -> B], NEW CONSTANT a \in A
-    PROVE M[a] \in B
-OBVIOUS
-
 
 LEMMA TypeOKInvariant == TypeOK /\ Next => TypeOK'
 <1> SUFFICES ASSUME TypeOK, Next PROVE TypeOK' OBVIOUS
