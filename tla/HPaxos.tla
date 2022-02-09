@@ -84,10 +84,15 @@ VARIABLES maxBal,
 
 sentMsgs(type, lr, bal) ==
     {m \in msgs: m.type = type /\ m.lr = lr /\ m.bal = bal}
+    
+sentMsgsAnywhere(type, bal) ==
+    {m \in msgs: m.type = type /\ m.bal = bal}
 
-initializedBallot(lr, bal) == sentMsgs("1a", lr, bal) # {}
+initializedBallot(lr, bal) ==
+    \E m \in msgs : m.type = "1a" /\ m.lr = lr /\ m.bal = bal
 
-announcedValues(lr, bal) == { m.val : m \in sentMsgs("1c", lr, bal) }
+announcedValue(lr, bal, val) ==
+    \E m \in msgs : m.type = "1c" /\ m.bal = bal /\ m.val = val
 
 
 ChosenIn(lr, bal, v) ==
@@ -145,13 +150,11 @@ Send(m) == msgs' = msgs \cup {m}
 
 Phase1a(l, b) ==
     /\ Send([type |-> "1a", lr |-> l, bal |-> b])
-    /\ UNCHANGED << maxBal, votesSent, 2avSent, received, 
-                        connected, receivedByLearner, decision >>
+    /\ UNCHANGED << maxBal, votesSent, 2avSent, received, connected, receivedByLearner, decision >>
 
 Phase1c(l, b, v) ==
     /\ Send([type |-> "1c", lr |-> l, bal |-> b, val |-> v])
-    /\ UNCHANGED << maxBal, votesSent, 2avSent, received, 
-                        connected, receivedByLearner, decision >>
+    /\ UNCHANGED << maxBal, votesSent, 2avSent, received, connected, receivedByLearner, decision >>
 
 Phase1b(l, b, a) ==
     /\ maxBal[l, a] <= b
@@ -165,20 +168,18 @@ Phase1b(l, b, a) ==
          votes |-> {p \in votesSent[a] : p.bal < b},
          proposals |-> {p \in 2avSent[a] : p.bal < b}
        ])
-    /\ UNCHANGED << votesSent, 2avSent, received, connected,
-                        receivedByLearner, decision >>
+    /\ UNCHANGED << votesSent, 2avSent, received, connected, receivedByLearner, decision >>
 
 Phase2av(l, b, a) ==
     /\ maxBal[l, a] <= b
     /\ initializedBallot(l, b)
-    /\ \E v \in { va \in announcedValues(l, b) :
-                    /\ \A P \in {p \in 2avSent[a] : p.bal = b} : P.val = va \* TODO spec for uniqueness of values
-                    /\ KnowsSafeAt(l, a, b, va) } :
-         /\ Send([type |-> "2av", lr |-> l, acc |-> a, bal |-> b, val |-> v])
-         /\ 2avSent' =
-                [2avSent EXCEPT ![a] = 2avSent[a] \cup { [bal |-> b, val |-> v] }]
-    /\ UNCHANGED << maxBal, votesSent, received, connected,
-                        receivedByLearner, decision >>
+    /\ \E v \in Value :
+        /\ announcedValue(l, b, v)
+        /\ \A P \in {p \in 2avSent[a] : p.bal = b} : P.val = v \* TODO spec: uniqueness of values
+        /\ KnowsSafeAt(l, a, b, v)
+        /\ Send([type |-> "2av", lr |-> l, acc |-> a, bal |-> b, val |-> v])
+        /\ 2avSent' = [2avSent EXCEPT ![a] = 2avSent[a] \cup { [bal |-> b, val |-> v] }]
+    /\ UNCHANGED << maxBal, votesSent, received, connected, receivedByLearner, decision >>
 
 Phase2b(l, b, a) ==
     /\ \A L \in Learner : maxBal[L][a] <= b
@@ -207,7 +208,7 @@ Recv(l, a) ==
                         receivedByLearner, decision >>
 
 Disconnect(a) ==
-    /\ \E P \in SUBSET {LL \in Learner \X Learner : LL \notin Ent} :
+    /\ \E P \in SUBSET { LL \in Learner \X Learner : LL \notin Ent } :
         connected' = [connected EXCEPT ![a] = connected[a] \ P]
     /\ UNCHANGED << msgs, maxBal, votesSent, 2avSent, received,
                         receivedByLearner, decision >>
@@ -269,7 +270,10 @@ Spec == Init /\ [][Next]_vars
 -----------------------------------------------------------------------------
 
 VotedForIn(lr, acc, bal, val) ==
-    \E m \in sentMsgs("2b", lr, bal): m.acc = acc /\ m.val = val
+    \E m \in msgs : m.type = "2b" /\ m.lr =  lr /\ m.acc = acc /\ m.bal = bal /\ m.val = val
+
+ProposedIn(bal, val) ==
+    \E m \in msgs : m.type = "2av" /\ m.bal = bal /\ m.val = val
 
 -----------------------------------------------------------------------------
 TypeOK ==
@@ -296,13 +300,17 @@ ReceivedByLearnerSpec ==
 MsgInv1b(m) ==
     /\ m.bal \leq maxBal[m.acc]
     /\ \A L \in Learner, B \in Ballot, V \in Value :
-         << L, B, V >> \in m.votes => VotedForIn(m.lr, m.acc, m.bal, m.val)
-    /\ m.proposals \* TODO
+        <<L, B, V>> \in m.votes => VotedForIn(m.lr, m.acc, m.bal, m.val)
+    /\ \A B \in Ballot, V \in Value :
+        <<B, V>> \in m.proposals => ProposedIn(B, V)
     \*/\ \A b2\in Ballots, s\in Slots, v \in Values: b2 \in MaxBallotInSlot(m.voted, s)+1..m.bal-1 =>
     \*        ~ VotedForIn(m.from, b2, s, v)
 
-
-
+MsgInv2av(m) ==
+    TRUE \* TODO
+    
+MsgInv2b(m) ==
+    TRUE \* TODO
 
 Inv == TypeOK
 
@@ -322,11 +330,6 @@ LEMMA Test2 ==
         2avSent \in [Learner \X Acceptor -> SUBSET [bal : Ballot, val : Value]]
     PROVE {p \in 2avSent[L, A] : p.bal < B} \in SUBSET [bal : Ballot, val : Value]
 OBVIOUS
-
-LEMMA announcedValuesOK ==
-    ASSUME NEW CONSTANT L \in Learner, NEW CONSTANT B \in Ballot, msgs \in SUBSET Message
-    PROVE announcedValues(L, B) \in SUBSET Value
-PROOF BY DEF announcedValues, sentMsgs, Message
 
 LEMMA Test3 ==
     ASSUME NEW CONSTANT A, NEW CONSTANT B, NEW CONSTANT S, A \in SUBSET S, B \in SUBSET S
@@ -370,21 +373,20 @@ LEMMA TypeOKInvariant == TypeOK /\ Next => TypeOK'
       <4>4. QED BY <2>1, <4>1, <4>2, <4>3 DEF Phase1b, Send, TypeOK, Message
     <3>4. QED BY <2>1, <3>1, <3>2, <3>3 DEF Phase1b, TypeOK, Send
   <2>2. CASE Phase2av(lrn, bal, acc)
-    <3> SUFFICES ASSUME NEW v \in announcedValues(lrn, bal),
+    <3> SUFFICES ASSUME NEW v \in Value,
                         Send([type |-> "2av", lr |-> lrn, acc |-> acc, bal |-> bal, val |-> v]),
                         2avSent' = [2avSent EXCEPT ![acc] =
                                         2avSent[acc] \cup { [bal |-> bal, val |-> v] }]
                  PROVE  TypeOK'
       BY <2>2 DEF Phase2av
-    <3>1. v \in Value BY announcedValuesOK DEF Message, TypeOK
     <3>2. msgs' \in SUBSET Message
         <4>0. [type |-> "2av", lr |-> lrn, acc |-> acc, bal |-> bal,
-                   val |-> v] \in Message BY <3>1 DEF Message
+                   val |-> v] \in Message BY (*<3>1*) DEF Message
         <4>1. QED BY <4>0 DEF Message, Send, TypeOK
     <3>4. (2avSent \in [Acceptor -> SUBSET [bal : Ballot, val : Value]])'
         <4>0. [bal |-> bal, val |-> v] \in [bal : Ballot, val : Value]
-            BY <3>1 DEF TypeOK
-        <4>1. QED BY <2>2, <1>2, <3>1, <4>0 DEF Send, TypeOK, Message
+            BY DEF TypeOK
+        <4>1. QED BY <2>2, <1>2, <4>0 DEF Send, TypeOK, Message
     <3>5. QED
       BY <2>2, <3>2, <3>4 DEF Phase2av, Send, TypeOK
   <2>3. CASE Phase2b(lrn, bal, acc)
