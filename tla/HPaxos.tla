@@ -167,9 +167,10 @@ Phase1b(l, b, a) ==
 Phase2av(l, b, a) ==
     /\ maxBal[l, a] <= b
     /\ initializedBallot(l, b)
-    /\ \E v \in Value :
-        /\ announcedValue(l, b, v)
-        /\ \A P \in {p \in 2avSent[a] : p.bal = b} : P.val = v \* TODO spec: uniqueness of values
+    /\ \E v \in {vv \in Value :
+                    /\ announcedValue(l, b, vv)
+                    /\ \A P \in {p \in 2avSent[a] : p.bal = b} : P.val = vv } :
+                    \* TODO spec: uniqueness of values
         /\ KnowsSafeAt(l, a, b, v)
         /\ Send([type |-> "2av", lr |-> l, acc |-> a, bal |-> b, val |-> v])
         /\ 2avSent' = [2avSent EXCEPT ![a] = 2avSent[a] \cup { [bal |-> b, val |-> v] }]
@@ -299,10 +300,22 @@ MsgInv1b(m) ==
         <<B, V>> \in m.proposals => ProposedIn(B, V)
 
 MsgInv2av(m) ==
-    TRUE \* TODO
+    /\ initializedBallot(m.lr, m.bal)
+    /\ announcedValue(m.lr, m.bal, m.val)
+    /\ KnowsSafeAt(m.lr, m.acc, m.bal, m.val)
+    /\ [bal |-> m.bal, val |-> m.val] \in 2avSent[m.acc]
+    /\ \A V \in Value : [bal |-> m.bal, val |-> V] \in 2avSent[m.acc] => V = m.val
     
 MsgInv2b(m) ==
-    TRUE \* TODO
+    /\ \E Q \in ByzQuorum :
+        /\ [lr |-> m.lr, q |-> Q] \in TrustLive
+        /\ \A a \in Q :
+            \E m2av \in received[m.lr, a] :
+                /\ m2av.type = "2av"
+                /\ m2av.bal = m.bal
+                /\ m2av.val = m.val
+                /\ m2av.acc = a
+    /\ [lr |-> m.lr, bal |-> m.bal, val |-> m.val] \in votesSent'[m.acc]
 
 Inv == TypeOK
 
