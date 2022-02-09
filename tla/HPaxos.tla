@@ -161,20 +161,19 @@ Phase1a(l, b) ==
 Phase1c(l, b, v) ==
     /\ Send([type |-> "1c", lr |-> l, bal |-> b, val |-> v])
     /\ UNCHANGED << maxBal, votesSent, 2avSent, received, 
-                    connected, receivedByLearner, decision >>
+                        connected, receivedByLearner, decision >>
 
 Phase1b(l, b, a) ==
     /\ maxBal[l, a] <= b
     /\ initializedBallot(l, b)
     /\ maxBal' = [maxBal EXCEPT ![l, a] = b]
-    /\ LET V == {p \in votesSent[a] : p.bal < b}
-           P == {p \in 2avSent[l, a] : p.bal < b} IN Send([
+    /\ Send([
          type |-> "1b",
          lr |-> l,
          acc |-> a,
          bal |-> b,
-         votes |-> V,
-         proposals |-> P
+         votes |-> {p \in votesSent[a] : p.bal < b},
+         proposals |-> {p \in 2avSent[l, a] : p.bal < b}
        ])
     /\ UNCHANGED << votesSent, 2avSent, received, connected,
                         receivedByLearner, decision >>
@@ -250,8 +249,9 @@ LearnerRecv(l) ==
                         connected, msgs, decision >>
     
 ProposerAction ==
-    \E lrn \in Learner : \E proposer \in Ballot : \E v \in Value :
-        Phase1a(lrn, proposer) \/ Phase1c(lrn, proposer, v)
+    \E lrn \in Learner : \E proposer \in Ballot :
+        \/ Phase1a(lrn, proposer)
+        \/ \E v \in Value : Phase1c(lrn, proposer, v)
 
 AcceptorSendAction ==
     \E lrn \in Learner : \E bal \in Ballot : \E acc \in Acceptor :
@@ -266,9 +266,9 @@ AcceptorDisconnectAction ==
     \E acc \in Acceptor : Disconnect(acc)
 
 LearnerAction ==
-    \E lrn \in Learner : \E bal \in Ballot :
-        \/ LearnerDecide(lrn, bal)
-        \/ LearnerRecv(lrn) 
+    \E lrn \in Learner :
+        \/ \E bal \in Ballot : LearnerDecide(lrn, bal)
+        \/ LearnerRecv(lrn)
 
 Next ==
     \/ ProposerAction
@@ -371,8 +371,8 @@ LEMMA TypeOKInvariant == TypeOK /\ Next => TypeOK'
     <3>4. QED BY <2>1, <3>1, <3>2, <3>3 DEF Phase1b, TypeOK, Send
   <2>2. CASE Phase2av(lrn, bal, acc)
     <3> SUFFICES ASSUME NEW v \in announcedValues(lrn, bal),
-                        /\ Send([type |-> "2av", lr |-> lrn, acc |-> acc, bal |-> bal, val |-> v])
-                        /\ 2avSent' =
+                        Send([type |-> "2av", lr |-> lrn, acc |-> acc, bal |-> bal, val |-> v]),
+                        2avSent' =
                                [2avSent EXCEPT ![lrn, acc] =
                                    2avSent[lrn, acc] \cup { [bal |-> bal, val |-> v] }]
                  PROVE  TypeOK'
@@ -391,8 +391,8 @@ LEMMA TypeOKInvariant == TypeOK /\ Next => TypeOK'
       BY <2>2, <3>2, <3>4 DEF Phase2av, Send, TypeOK
   <2>3. CASE Phase2b(lrn, bal, acc)
     <3> SUFFICES ASSUME NEW v \in Value,
-                        /\ Send([type |-> "2b", lr |-> lrn, acc |-> acc, bal |-> bal, val |-> v])
-                        /\ votesSent' =
+                        Send([type |-> "2b", lr |-> lrn, acc |-> acc, bal |-> bal, val |-> v]),
+                        votesSent' =
                                [votesSent EXCEPT ![acc] =
                                    votesSent[acc] \cup { [lr |-> lrn, bal |-> bal, val |-> v] }]
                  PROVE  TypeOK'
@@ -428,15 +428,14 @@ LEMMA TypeOKInvariant == TypeOK /\ Next => TypeOK'
 <1>4. CASE AcceptorDisconnectAction
     BY <1>4 DEF AcceptorDisconnectAction, Disconnect, TypeOK, Message    
 <1>5. CASE LearnerAction
-  <2> SUFFICES ASSUME NEW lrn \in Learner,
-                      NEW bal \in Ballot,
-                      \/ LearnerDecide(lrn, bal)
-                      \/ LearnerRecv(lrn)
+  <2>1. ASSUME NEW lrn \in Learner, NEW bal \in Ballot,
+                   LearnerDecide(lrn, bal)
                PROVE  TypeOK'
-    BY <1>5 DEF LearnerAction
-  <2>1. CASE LearnerDecide(lrn, bal) BY <2>1 DEF LearnerDecide, TypeOK
-  <2>2. CASE LearnerRecv(lrn) BY <2>2 DEF LearnerRecv, TypeOK      
-  <2>3. QED BY <2>1, <2>2
+    BY <2>1 DEF LearnerDecide, TypeOK
+  <2>2. ASSUME NEW lrn \in Learner, LearnerRecv(lrn)
+               PROVE  TypeOK'
+    BY <2>2 DEF LearnerRecv, TypeOK
+  <2>3. QED BY <1>5, <2>1, <2>2 DEF LearnerAction
 <1>6. QED
     BY <1>1, <1>2, <1>3, <1>4, <1>5 DEF Next
 
@@ -532,7 +531,6 @@ PROOF
         PROVE  ReceivedByLearnerSpec'
     BY <2>1 DEF LearnerDecide, ReceivedByLearnerSpec, TypeOK, Next
   <2>2. ASSUME NEW lrn \in Learner,
-               NEW bal \in Ballot,
                LearnerRecv(lrn)
         PROVE  ReceivedByLearnerSpec'
     <3> SUFFICES ASSUME NEW m \in {mm \in msgs : mm.type = "2b" /\ mm.lrn = lrn},
