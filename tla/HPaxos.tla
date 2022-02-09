@@ -309,12 +309,12 @@ MsgInv2av(m) ==
 MsgInv2b(m) ==
     /\ \E Q \in ByzQuorum :
         /\ [lr |-> m.lr, q |-> Q] \in TrustLive
-        /\ \A a \in Q :
-            \E m2av \in received[m.lr, a] :
+        /\ \A ba \in Q :
+            \E m2av \in received[m.lr, m.acc] :
                 /\ m2av.type = "2av"
+                /\ m2av.acc = ba
                 /\ m2av.bal = m.bal
                 /\ m2av.val = m.val
-                /\ m2av.acc = a
     /\ [lr |-> m.lr, bal |-> m.bal, val |-> m.val] \in votesSent'[m.acc]
 
 Inv == TypeOK
