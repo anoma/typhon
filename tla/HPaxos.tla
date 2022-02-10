@@ -149,6 +149,10 @@ Phase1c(l, b, v) ==
     /\ Send([type |-> "1c", lr |-> l, bal |-> b, val |-> v])
     /\ UNCHANGED << maxBal, votesSent, 2avSent, received, connected, receivedByLearner, decision >>
 
+MaxVote(a, b, vote) ==
+    /\ vote.bal < b
+    /\ \A other \in votesSent[a] : other.bal < b => other.bal <= vote.bal
+
 Phase1b(l, b, a) ==
     /\ maxBal[l, a] <= b
     /\ initializedBallot(l, b)
@@ -158,8 +162,8 @@ Phase1b(l, b, a) ==
          lr |-> l,
          acc |-> a,
          bal |-> b,
-         votes |-> {p \in votesSent[a] : p.bal < b},
-         proposals |-> {p \in 2avSent[a] : p.bal < b}
+         votes |-> { p \in votesSent[a] : MaxVote(a, b, p) },
+         proposals |-> { p \in 2avSent[a] : p.bal < b /\ p.lr = l }
        ])
     /\ UNCHANGED << votesSent, 2avSent, received, connected, receivedByLearner, decision >>
 
@@ -169,7 +173,6 @@ Phase2av(l, b, a) ==
     /\ \E v \in {vv \in Value :
                     /\ announcedValue(l, b, vv)
                     /\ \A P \in {p \in 2avSent[a] : p.bal = b} : P.val = vv } :
-                    \* TODO spec: uniqueness of values
         /\ KnowsSafeAt(l, a, b, v)
         /\ Send([type |-> "2av", lr |-> l, acc |-> a, bal |-> b, val |-> v])
         /\ 2avSent' = [2avSent EXCEPT ![a] = 2avSent[a] \cup { [bal |-> b, val |-> v] }]
@@ -348,13 +351,13 @@ PROOF
     <3>2. (2avSent \in [Acceptor -> SUBSET [bal : Ballot, val : Value]])'
             BY <1>2, <2>1 DEF AcceptorSendAction, Phase1b, Phase2av, Phase2b, Send, TypeOK, Message
     <3>3. msgs' \in SUBSET Message
-      <4>1. {p \in votesSent[acc] : p.bal < bal}
+      <4>1. {vote \in votesSent[acc] : MaxVote(acc, bal, vote)}
                 \in SUBSET [lr : Learner, bal : Ballot, val : Value] BY DEF TypeOK 
-      <4>2. {p \in 2avSent[acc] : p.bal < bal} \in SUBSET [bal : Ballot, val : Value]
+      <4>2. {p \in 2avSent[acc] : p.bal < bal /\ p.lr = lrn} \in SUBSET [bal : Ballot, val : Value]
             BY DEF TypeOK
       <4>3. [type |-> "1b", lr |-> lrn, acc |-> acc, bal |-> bal,
-                   votes |-> {p \in votesSent[acc] : p.bal < bal},
-                   proposals |-> {p \in 2avSent[acc] : p.bal < bal}] \in Message
+                   votes |-> {vote \in votesSent[acc] : MaxVote(acc, bal, vote) },
+                   proposals |-> {p \in 2avSent[acc] : p.bal < bal /\ p.lr = lrn}] \in Message
             BY <4>1, <4>2 DEF Message
       <4>4. QED BY <2>1, <4>1, <4>2, <4>3 DEF Phase1b, Send, TypeOK, Message
     <3>4. QED BY <2>1, <3>1, <3>2, <3>3 DEF Phase1b, TypeOK, Send
