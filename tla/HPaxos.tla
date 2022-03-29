@@ -302,7 +302,7 @@ VarInv3 == \A L \in Learner : \A B \in Ballot : \A V \in Value :
             V \in decision[<<L, B>>] => ChosenIn(L, B, V)
 
 MsgInv1b(m) ==
-    /\ m.bal \leq maxBal[m.acc]
+    /\ m.bal \leq maxBal[<<m.lr, m.acc>>]
     /\ \A vote \in m.votes : VotedForIn(vote.lr, m.acc, vote.bal, vote.val)
     /\ \A pr \in m.proposals : ProposedIn(pr.bal, pr.val)
 
@@ -531,19 +531,83 @@ PROOF
 <1>6. QED
   BY <1>1, <1>2, <1>3, <1>4, <1>5 DEF Next
 
+LEMMA MaxBalNextSpec ==
+    TypeOK /\ Next =>
+        \A l \in Learner : \A a \in Acceptor : maxBal[<<l, a>>] =< maxBal'[<<l, a>>]
+<1> SUFFICES ASSUME TypeOK, Next,
+    NEW CONSTANT l \in Learner, NEW CONSTANT a \in Acceptor
+    PROVE maxBal[<<l, a>>] =< maxBal'[<<l, a>>]
+    OBVIOUS
+<1> USE DEF Next
+\*<1>0. TypeOK' BY TypeOKInvariant
+<1>1. CASE ProposerAction BY <1>1 DEF ProposerAction, Phase1a, Phase1c, Send, TypeOK, Ballot
+<1>2. CASE AcceptorSendAction
+  <2> SUFFICES ASSUME NEW lrn \in Learner,
+                      NEW bal \in Ballot,
+                      NEW acc \in Acceptor,
+                      \/ Phase1b(lrn, bal, acc)
+                      \/ Phase2av(lrn, bal, acc)
+                      \/ Phase2b(lrn, bal, acc)
+               PROVE  maxBal[<<l, a>>] =< (maxBal')[<<l, a>>]
+    BY <1>2 DEF AcceptorSendAction
+  <2>1. CASE Phase1b(lrn, bal, acc)
+    <3>1. CASE <<l, a>> = <<lrn, acc>> BY <2>1, <3>1 DEF Phase1b, TypeOK, Ballot
+    <3>2. CASE <<l, a>> # <<lrn, acc>> BY <2>1, <3>2 DEF Phase1b, TypeOK, Ballot
+    <3>3. QED BY <3>1, <3>2
+  <2>2. CASE Phase2av(lrn, bal, acc)
+    <3>1. UNCHANGED maxBal BY <2>2 DEF Phase2av
+    <3>2. QED BY <3>1 DEF TypeOK, Ballot
+  <2>3. CASE Phase2b(lrn, bal, acc)
+    <3>1. UNCHANGED maxBal BY <2>3 DEF Phase2b
+    <3>2. QED BY <3>1 DEF TypeOK, Ballot
+  <2>4. QED BY <2>1, <2>2, <2>3
+<1>3. CASE AcceptorReceiveAction
+  <2>1. UNCHANGED maxBal BY <1>3 DEF AcceptorReceiveAction, Recv
+  <2>2. QED BY <2>1 DEF TypeOK, Ballot
+<1>4. CASE AcceptorDisconnectAction
+  <2>1. UNCHANGED maxBal BY <1>4 DEF AcceptorDisconnectAction, Disconnect
+  <2>2. QED BY <2>1 DEF TypeOK, Ballot
+<1>5. CASE LearnerAction
+  <2>1. UNCHANGED maxBal BY <1>5 DEF LearnerAction, LearnerDecide, LearnerRecv
+  <2>2. QED BY <2>1 DEF TypeOK, Ballot
+<1>6. QED BY <1>1, <1>2, <1>3, <1>4, <1>5 
+
+
 LEMMA MsgInvInvariant == TypeOK /\ MsgInv /\ Next => MsgInv'
 PROOF
 <1> USE DEF MsgInv
 <1>1b. ASSUME TypeOK, Next, \A m \in msgs : m.type = "1b" => MsgInv1b(m),
         NEW CONSTANT m \in msgs', m.type = "1b"
         PROVE MsgInv1b(m)'
+  <2>0. TypeOK' BY TypeOKInvariant, <1>1b
   <2>1. CASE ProposerAction
     BY <1>1b, <2>1 DEF ProposerAction, Phase1a, Phase1c,
                        MsgInv1b, \*MsgInv2av, MsgInv2b,
                        \*VotedForIn, \*ProposedIn, \*initializedBallot, announcedValue, KnowsSafeAt,
                        Next, Send
   <2>2. CASE AcceptorSendAction
-    OMITTED
+    <3> SUFFICES ASSUME NEW lrn \in Learner,
+                        NEW bal \in Ballot,
+                        NEW acc \in Acceptor,
+                        \/ Phase1b(lrn, bal, acc)
+                        \/ Phase2av(lrn, bal, acc)
+                        \/ Phase2b(lrn, bal, acc)
+                 PROVE  MsgInv1b(m)'
+      BY <2>2 DEF AcceptorSendAction
+    <3>0. (maxBal[<<m.lr, m.acc>>] =< maxBal'[<<m.lr, m.acc>>])
+        BY <1>1b, <2>0, MaxBalNextSpec DEF TypeOK, Message
+    <3>1. CASE Phase1b(lrn, bal, acc)
+      <4>1. (m.bal =< maxBal[<<m.lr, m.acc>>])'
+        <5>1. CASE m \in msgs BY <1>1b, <3>0, <3>1, <5>1 DEF Phase1b, Send, MsgInv1b, TypeOK,
+        Ballot, Message
+        <5>2. QED BY <5>1
+      \*BY <1>1b, <3>1 DEF Phase1b, Send, MsgInv1b
+      \*BY <3>1 DEF Phase1b, MsgInv1b, Send
+      <4>2. QED
+    <3> QED
+      BY <2>2 DEF AcceptorSendAction, MsgInv1b
+    
+    
     (*<3>1. ASSUME NEW lrn \in Learner, NEW bal \in Ballot, NEW acc \in Acceptor, Phase1b(lrn, bal, acc)
         PROVE MsgInv1b(m)'
       BY <1>1b, <3>1 DEF AcceptorSendAction, Phase1b, \*Phase2av, Phase2b,
