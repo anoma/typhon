@@ -579,13 +579,18 @@ PROOF
 <1>1b. ASSUME TypeOK, Next, \A m \in msgs : m.type = "1b" => MsgInv1b(m),
         NEW CONSTANT m \in msgs', m.type = "1b"
         PROVE MsgInv1b(m)'
-  <2>0. TypeOK' BY TypeOKInvariant, <1>1b
-  <2>1. CASE ProposerAction
-    BY <1>1b, <2>1 DEF ProposerAction, Phase1a, Phase1c,
-                       MsgInv1b, \*MsgInv2av, MsgInv2b,
+  <2>0. TypeOK' BY <1>1b, TypeOKInvariant
+  <2>1a. m \in Message BY <2>0 DEF TypeOK
+  <2>1b. maxBal \in [Learner \X Acceptor -> Ballot] BY <1>1b DEF TypeOK
+  <2>1c. maxBal' \in [Learner \X Acceptor -> Ballot] BY <2>0 DEF TypeOK
+  <2>1d. m.type = "1b" BY <1>1b
+  <2>2. CASE ProposerAction
+    BY <1>1b, <2>2 DEF ProposerAction, Phase1a, Phase1c,
+                       MsgInv1b,
+                       \*MsgInv2av, MsgInv2b,
                        \*VotedForIn, \*ProposedIn, \*initializedBallot, announcedValue, KnowsSafeAt,
                        Next, Send
-  <2>2. CASE AcceptorSendAction
+  <2>3. CASE AcceptorSendAction
     <3> SUFFICES ASSUME NEW lrn \in Learner,
                         NEW bal \in Ballot,
                         NEW acc \in Acceptor,
@@ -593,19 +598,22 @@ PROOF
                         \/ Phase2av(lrn, bal, acc)
                         \/ Phase2b(lrn, bal, acc)
                  PROVE  MsgInv1b(m)'
-      BY <2>2 DEF AcceptorSendAction
+      BY <2>3 DEF AcceptorSendAction
     <3>0. (maxBal[<<m.lr, m.acc>>] =< maxBal'[<<m.lr, m.acc>>])
-        BY <1>1b, <2>0, MaxBalNextSpec DEF TypeOK, Message
+        BY <1>1b, <2>1a, MaxBalNextSpec DEF TypeOK, Message
+    \*<3>0a. SUFFICES m.bal =< maxBal[<<m.lr, m.acc>>] BY <3>0 DEF MsgInv1b, Message
     <3>1. CASE Phase1b(lrn, bal, acc)
       <4>1. (m.bal =< maxBal[<<m.lr, m.acc>>])'
-        <5>1. CASE m \in msgs BY <1>1b, <3>0, <3>1, <5>1 DEF Phase1b, Send, MsgInv1b, TypeOK,
+        <5>0. SUFFICES m.bal =< maxBal[<<m.lr, m.acc>>]
+            BY <2>1d, <3>0, <3>1, <2>1a, <2>1b, <2>1c DEF Phase1b, MsgInv1b, Message, Ballot
+        <5>1. CASE m \in msgs BY <1>1b, <2>0, <2>1a, <3>0, <3>1, <5>1 DEF Phase1b, Send, MsgInv1b, TypeOK,
         Ballot, Message
         <5>2. QED BY <5>1
       \*BY <1>1b, <3>1 DEF Phase1b, Send, MsgInv1b
       \*BY <3>1 DEF Phase1b, MsgInv1b, Send
       <4>2. QED
     <3> QED
-      BY <2>2 DEF AcceptorSendAction, MsgInv1b
+      BY <2>3 DEF AcceptorSendAction, MsgInv1b
     
     
     (*<3>1. ASSUME NEW lrn \in Learner, NEW bal \in Ballot, NEW acc \in Acceptor, Phase1b(lrn, bal, acc)
@@ -615,10 +623,10 @@ PROOF
                        \*VotedForIn, \*ProposedIn, \*initializedBallot, announcedValue, KnowsSafeAt,
                        Next, Send
     <3>5. QED OMITTED*)
-  <2>3. CASE AcceptorReceiveAction BY <1>1b, <2>3 DEF AcceptorReceiveAction, Recv, MsgInv1b, Next
-  <2>4. CASE AcceptorDisconnectAction BY <1>1b, <2>4 DEF AcceptorDisconnectAction, Disconnect, MsgInv1b, Next
-  <2>5. CASE LearnerAction BY <1>1b, <2>5 DEF LearnerAction, LearnerRecv, LearnerDecide, MsgInv1b, Next
-  <2>6. QED BY <1>1b, <2>1, <2>2, <2>3, <2>4, <2>5 DEF Next
+  <2>4. CASE AcceptorReceiveAction BY <1>1b, <2>4 DEF AcceptorReceiveAction, Recv, MsgInv1b, Next
+  <2>5. CASE AcceptorDisconnectAction BY <1>1b, <2>5 DEF AcceptorDisconnectAction, Disconnect, MsgInv1b, Next
+  <2>6. CASE LearnerAction BY <1>1b, <2>6 DEF LearnerAction, LearnerRecv, LearnerDecide, MsgInv1b, Next
+  <2>7. QED BY <1>1b, <2>1a, <2>2, <2>3, <2>4, <2>5 DEF Next
 <1>2av. ASSUME TypeOK, Next, \A m \in msgs : m.type = "2av" => MsgInv2av(m),
         NEW m \in msgs', m.type = "2av"
         PROVE MsgInv2av(m)'
