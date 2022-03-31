@@ -535,7 +535,7 @@ PROOF
 <1>6. QED
   BY <1>1, <1>2, <1>3, <1>4, <1>5 DEF Next
 
-LEMMA MaxBalNextSpec ==
+LEMMA MaxBalMonotone ==
     TypeOK /\ Next =>
         \A l \in Learner : \A a \in Acceptor : maxBal[<<l, a>>] =< maxBal'[<<l, a>>]
 <1> SUFFICES ASSUME TypeOK, Next,
@@ -576,6 +576,19 @@ LEMMA MaxBalNextSpec ==
   <2>2. QED BY <2>1 DEF TypeOK, Ballot
 <1>6. QED BY <1>1, <1>2, <1>3, <1>4, <1>5 
 
+LEMMA VarInv1Next == TypeOK /\ Next /\ VarInv1 => VarInv1'
+PROOF
+<1> SUFFICES ASSUME TypeOK, Next, VarInv1, NEW A \in Acceptor, NEW vote \in votesSent'[A]
+    PROVE VotedForIn(vote.lr, A, vote.bal, vote.val)'
+    BY DEF VarInv1
+<1> USE DEF VarInv1
+<1>1. CASE ProposerAction BY <1>1 DEF ProposerAction, Phase1a, Phase1c, Next, Send
+<1>2. CASE AcceptorSendAction
+  <2>0. QED BY <1>2
+<1>3. CASE AcceptorReceiveAction BY <1>3 DEF AcceptorReceiveAction, Recv, Next
+<1>4. CASE AcceptorDisconnectAction BY <1>4 DEF AcceptorDisconnectAction, Disconnect, Next
+<1>5. CASE LearnerAction BY <1>5 DEF LearnerAction, LearnerRecv, LearnerDecide, Next
+<1>10. QED BY <1>1, <1>2, <1>3, <1>4, <1>5 DEF Next
 
 LEMMA MsgInvInvariant == TypeOK /\ MsgInv /\ Next => MsgInv'
 PROOF
@@ -592,7 +605,7 @@ PROOF
   <2>0g. maxBal[<<m.lr, m.acc>>] \in Ballot BY <2>0b, <2>0c, <2>0e DEF Message
   <2>0h. maxBal'[<<m.lr, m.acc>>] \in Ballot BY <2>0b, <2>0d, <2>0e DEF Message
   <2>0i. (maxBal[<<m.lr, m.acc>>] =< maxBal'[<<m.lr, m.acc>>])
-            BY <1>1b, <2>0b, MaxBalNextSpec DEF TypeOK, Message
+            BY <1>1b, <2>0b, MaxBalMonotone DEF TypeOK, Message
   <2>1. CASE ProposerAction
     BY <1>1b, <2>1 DEF ProposerAction, Phase1a, Phase1c,
                        MsgInv1b,
@@ -641,7 +654,7 @@ PROOF
         <5>2. CASE m \notin msgs
           <6>0. m.bal = bal BY <3>1, <5>2 DEF Next, Phase1b, Send
           <6>1. <<m.lr, m.acc>> = <<lrn, acc>> BY <3>1, <5>2 DEF Next, Phase1b, Send
-          <6>2. m.votes = {p \in votesSent[acc] : MaxVote(acc, bal, p)} BY <5>2, <3>1 DEF Phase1b, Send 
+          <6>2. m.votes = {p \in votesSent[acc] : MaxVote(acc, bal, p)} BY <5>2, <3>1 DEF Phase1b, Send
           <6>10. QED BY <6>0, <3>1 DEF Phase1b, Send, VotedForIn
         <5>10. QED BY <1>1b, <3>1 DEF Phase1b, Send, MsgInv1b
       <4>3. QED BY <1>1b, <3>1, <4>1 DEF MsgInv1b, Phase1b, Send\*, VotedForIn, ProposedIn
