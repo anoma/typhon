@@ -535,6 +535,16 @@ PROOF
 <1>6. QED
   BY <1>1, <1>2, <1>3, <1>4, <1>5 DEF Next
 
+LEMMA MsgsMonotone == Next => msgs \subseteq msgs'
+PROOF
+<1> SUFFICES ASSUME Next PROVE msgs \subseteq msgs' OBVIOUS
+<1>1. CASE ProposerAction BY <1>1 DEF ProposerAction, Phase1a, Phase1c, Send
+<1>2. CASE AcceptorSendAction BY <1>2 DEF AcceptorSendAction, Phase1b, Phase2av, Phase2b, Send
+<1>3. CASE AcceptorReceiveAction BY <1>3 DEF AcceptorReceiveAction, Recv
+<1>4. CASE AcceptorDisconnectAction BY <1>4 DEF AcceptorDisconnectAction, Disconnect
+<1>5. CASE LearnerAction BY <1>5 DEF LearnerAction, LearnerDecide, LearnerRecv
+<1>6. QED BY <1>1, <1>2, <1>3, <1>4, <1>5 DEF Next
+
 LEMMA MaxBalMonotone ==
     TypeOK /\ Next =>
         \A l \in Learner : \A a \in Acceptor : maxBal[<<l, a>>] =< maxBal'[<<l, a>>]
@@ -576,15 +586,45 @@ LEMMA MaxBalMonotone ==
   <2>2. QED BY <2>1 DEF TypeOK, Ballot
 <1>6. QED BY <1>1, <1>2, <1>3, <1>4, <1>5 
 
-LEMMA VarInv1Next == TypeOK /\ Next /\ VarInv1 => VarInv1'
+LEMMA VarInv1Next == Next /\ VarInv1 => VarInv1'
 PROOF
-<1> SUFFICES ASSUME TypeOK, Next, VarInv1, NEW A \in Acceptor, NEW vote \in votesSent'[A]
+<1> SUFFICES ASSUME
+  Next, VarInv1, NEW A \in Acceptor, NEW vote \in votesSent'[A]
     PROVE VotedForIn(vote.lr, A, vote.bal, vote.val)'
     BY DEF VarInv1
 <1> USE DEF VarInv1
 <1>1. CASE ProposerAction BY <1>1 DEF ProposerAction, Phase1a, Phase1c, Next, Send
 <1>2. CASE AcceptorSendAction
-  <2>0. QED BY <1>2
+  <2>. SUFFICES ASSUME NEW lrn \in Learner,
+                       NEW bal \in Ballot,
+                       NEW acc \in Acceptor,
+                       \/ Phase1b(lrn, bal, acc)
+                       \/ Phase2av(lrn, bal, acc)
+                       \/ Phase2b(lrn, bal, acc)
+                PROVE  VotedForIn(vote.lr, A, vote.bal, vote.val)'
+      BY <1>2 DEF AcceptorSendAction
+  <2>1. CASE Phase1b(lrn, bal, acc) BY <2>1 DEF Phase1b
+  <2>2. CASE Phase2av(lrn, bal, acc) BY <2>2 DEF Phase2av
+  <2>3. CASE Phase2b(lrn, bal, acc)
+    <3>1. SUFFICES ASSUME NEW v \in Value,
+                          Send([type |-> "2b", lr |-> lrn, acc |-> acc, bal |-> bal, val |-> v]),
+                          votesSent' =
+                                 [votesSent EXCEPT ![acc] =
+                                     votesSent[acc] \cup { [lr |-> lrn, bal |-> bal, val |-> v] }]
+                   PROVE  VotedForIn(vote.lr, A, vote.bal, vote.val)'
+        BY <2>3 DEF Phase2b
+    <3>2. CASE acc = A
+      <4>1. USE DEF VotedForIn
+      <4>2. CASE vote \in votesSent[acc] BY <3>2, <4>2, MsgsMonotone
+      <4>3. CASE vote \notin votesSent[acc]
+        <5>1. DEFINE m0 == [type |-> "2b", lr |-> lrn, acc |-> acc, bal |-> bal, val |-> v]
+        <5>2. m0 \in msgs' BY <3>1 DEF Phase2b, Send
+        <5>3. WITNESS <5>2
+        <5>10 QED BY <3>1, <3>2, <4>3
+      <4>4. QED BY <4>2, <4>3
+    <3>3. CASE acc # A BY <3>1, <3>3
+    <3>4 QED BY <3>2, <3>3
+  <2>5. QED BY <2>1, <2>2, <2>3
 <1>3. CASE AcceptorReceiveAction BY <1>3 DEF AcceptorReceiveAction, Recv, Next
 <1>4. CASE AcceptorDisconnectAction BY <1>4 DEF AcceptorDisconnectAction, Disconnect, Next
 <1>5. CASE LearnerAction BY <1>5 DEF LearnerAction, LearnerRecv, LearnerDecide, Next
