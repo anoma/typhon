@@ -772,6 +772,7 @@ PROOF
         PROVE MsgInv2av(m)'
   <2>0a. TypeOK' BY <1>2av, TypeOKInvariant
   <2>0b. m \in Message BY <2>0a DEF TypeOK
+  <2>0e. m.type = "2av" BY <1>2av
   <2>1. CASE ProposerAction
     BY <1>2av, <2>1 DEF ProposerAction, Phase1a, Phase1c, MsgInv2av, Next, Send
   <2>2. CASE AcceptorSendAction
@@ -784,14 +785,12 @@ PROOF
                  PROVE  MsgInv2av(m)'
       BY <2>2 DEF AcceptorSendAction
     <3>1. CASE Phase1b(lrn, bal, acc)
-      <4>1. initializedBallot(m.lr, m.bal)' BY <1>2av, <3>1 DEF Phase1b, MsgInv2av, Send
-      <4>2. announcedValue(m.lr, m.bal, m.val)' BY <1>2av, <3>1 DEF Phase1b, MsgInv2av, Send
-      <4>3. KnowsSafeAt(m.lr, m.acc, m.bal, m.val)' BY <1>2av, <3>1 DEF Phase1b, MsgInv2av, Send
-      <4>4. [bal |-> m.bal, val |-> m.val] \in 2avSent'[m.acc] BY <1>2av, <3>1 DEF Phase1b, MsgInv2av, Send
-      <4>5. \A V \in Value : [bal |-> m.bal, val |-> V] \in 2avSent'[m.acc] => V = m.val BY <1>2av, <3>1 DEF Phase1b, MsgInv2av, Send
-      <4>6. QED BY <4>1, <4>2, <4>3, <4>4, <4>5 DEF MsgInv2av
+      <4>1. m \in msgs BY <3>1, <2>0e DEF Phase1b, Send
+      <4>2. QED BY <1>2av, <4>1, <3>1 DEF Phase1b, MsgInv2av, Send
     <3>2. CASE Phase2av(lrn, bal, acc) OMITTED
-    <3>3. CASE Phase2b(lrn, bal, acc) OMITTED
+    <3>3. CASE Phase2b(lrn, bal, acc)
+      <4>1. m \in msgs BY <3>3, <2>0e DEF Phase2b, Send
+      <4>2. QED BY <1>2av, <4>1, <3>3 DEF Phase2b, MsgInv2av, Send
     <3>4. QED BY <3>1, <3>2, <3>3
   <2>4. CASE AcceptorReceiveAction BY <1>2av, <2>4 DEF AcceptorReceiveAction, Recv, MsgInv2av, Next
   <2>5. CASE AcceptorDisconnectAction BY <1>2av, <2>5 DEF AcceptorDisconnectAction, Disconnect, MsgInv2av, Next
