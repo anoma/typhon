@@ -750,8 +750,14 @@ PROOF
         <5>3. QED BY <5>1, <5>2   
       <4>10. QED BY <4>1, <4>2, <4>3 DEF MsgInv1b
     <3>2. CASE Phase2av(lrn, bal, acc)
-      <4>1. m \in msgs BY <3>2 DEF Phase2av, Send
-      <4>2. QED BY <4>1
+      <4>1. SUFFICES ASSUME NEW v \in Value,
+                            Send([type |-> "2av", lr |-> lrn, acc |-> acc, bal |-> bal, val |-> v]),
+                            2avSent' = [2avSent EXCEPT
+                                            ![acc] = 2avSent[acc] \cup {[bal |-> bal, val |-> v]}]
+                     PROVE MsgInv1b(m)'
+            BY <3>2 DEF Phase2av
+      <4>2. m \in msgs BY <4>1, <2>0e DEF Send
+      <4>3. QED BY <4>2, <1>1b, <3>2 DEF Phase2av, MsgInv1b
 \*        BY <1>1b, <3>2
 \*          DEF Phase2av, Send, MsgInv1b, MsgsMonotone, VotedForIn, ProposedIn, Message
     <3>3. CASE Phase2b(lrn, bal, acc) OMITTED
