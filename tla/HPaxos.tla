@@ -673,7 +673,8 @@ PROOF
 <1>5. CASE LearnerAction BY <1>5 DEF LearnerAction, LearnerRecv, LearnerDecide, Next
 <1>10. QED BY <1>1, <1>2, <1>3, <1>4, <1>5 DEF Next
 
-LEMMA MsgInvInvariant == TypeOK /\ MsgInv /\ VotesSentSpec /\ 2avSentSpec /\ Next => MsgInv'
+LEMMA MsgInvInvariant ==
+    TypeOK /\ MsgInv /\ VotesSentSpec /\ 2avSentSpec /\ Next => MsgInv'
 PROOF
 <1> USE DEF MsgInv
 <1>1b. ASSUME TypeOK, VotesSentSpec, 2avSentSpec, Next, \A m \in msgs : m.type = "1b" => MsgInv1b(m),
@@ -769,11 +770,45 @@ PROOF
 <1>2av. ASSUME TypeOK, Next, \A m \in msgs : m.type = "2av" => MsgInv2av(m),
         NEW m \in msgs', m.type = "2av"
         PROVE MsgInv2av(m)'
-        OMITTED
+  <2>0a. TypeOK' BY <1>2av, TypeOKInvariant
+  <2>0b. m \in Message BY <2>0a DEF TypeOK
+  <2>1. CASE ProposerAction
+    BY <1>2av, <2>1 DEF ProposerAction, Phase1a, Phase1c, MsgInv2av, Next, Send
+  <2>2. CASE AcceptorSendAction
+    <3> SUFFICES ASSUME NEW lrn \in Learner,
+                        NEW bal \in Ballot,
+                        NEW acc \in Acceptor,
+                        \/ Phase1b(lrn, bal, acc)
+                        \/ Phase2av(lrn, bal, acc)
+                        \/ Phase2b(lrn, bal, acc)
+                 PROVE  MsgInv2av(m)'
+      BY <2>2 DEF AcceptorSendAction
+    <3>1. CASE Phase1b(lrn, bal, acc)
+      <4>1. initializedBallot(m.lr, m.bal)' BY <1>2av, <3>1 DEF Phase1b, MsgInv2av, Send
+      <4>2. announcedValue(m.lr, m.bal, m.val)' BY <1>2av, <3>1 DEF Phase1b, MsgInv2av, Send
+      <4>3. KnowsSafeAt(m.lr, m.acc, m.bal, m.val)' BY <1>2av, <3>1 DEF Phase1b, MsgInv2av, Send
+      <4>4. [bal |-> m.bal, val |-> m.val] \in 2avSent'[m.acc] BY <1>2av, <3>1 DEF Phase1b, MsgInv2av, Send
+      <4>5. \A V \in Value : [bal |-> m.bal, val |-> V] \in 2avSent'[m.acc] => V = m.val BY <1>2av, <3>1 DEF Phase1b, MsgInv2av, Send
+      <4>6. QED BY <4>1, <4>2, <4>3, <4>4, <4>5 DEF MsgInv2av
+    <3>2. CASE Phase2av(lrn, bal, acc) OMITTED
+    <3>3. CASE Phase2b(lrn, bal, acc) OMITTED
+    <3>4. QED BY <3>1, <3>2, <3>3
+  <2>4. CASE AcceptorReceiveAction BY <1>2av, <2>4 DEF AcceptorReceiveAction, Recv, MsgInv2av, Next
+  <2>5. CASE AcceptorDisconnectAction BY <1>2av, <2>5 DEF AcceptorDisconnectAction, Disconnect, MsgInv2av, Next
+  <2>6. CASE LearnerAction BY <1>2av, <2>6 DEF LearnerAction, LearnerRecv, LearnerDecide, MsgInv2av, Next
+  <2>7. QED BY <1>2av, <2>0a, <2>1, <2>2, <2>4, <2>5, <2>6 DEF Next
 <1>2b. ASSUME TypeOK, Next, \A m \in msgs : m.type = "2b" => MsgInv2b(m),
         NEW m \in msgs', m.type = "2b"
         PROVE MsgInv2b(m)'
-        OMITTED
+  <2>0a. TypeOK' BY <1>2b, TypeOKInvariant
+  <2>0b. m \in Message BY <2>0a DEF TypeOK
+  <2>1. CASE ProposerAction
+    BY <1>2b, <2>1 DEF TypeOK, ProposerAction, Phase1a, Phase1c, MsgInv2b, Next, Send
+  <2>2. CASE AcceptorSendAction OMITTED
+  <2>4. CASE AcceptorReceiveAction BY <1>2b, <2>4 DEF AcceptorReceiveAction, Recv, MsgInv2b, Next
+  <2>5. CASE AcceptorDisconnectAction BY <1>2b, <2>5 DEF AcceptorDisconnectAction, Disconnect, MsgInv2b, Next
+  <2>6. CASE LearnerAction BY <1>2b, <2>6 DEF LearnerAction, LearnerRecv, LearnerDecide, MsgInv2b, Next
+  <2>7. QED BY <1>2b, <2>0a, <2>1, <2>2, <2>4, <2>5, <2>6 DEF Next
 <1>3. QED BY <1>1b, <1>2av, <1>2b
 
 
