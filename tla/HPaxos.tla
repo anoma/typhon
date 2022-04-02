@@ -546,6 +546,16 @@ PROOF
 <1>5. CASE LearnerAction BY <1>5 DEF LearnerAction, LearnerDecide, LearnerRecv
 <1>6. QED BY <1>1, <1>2, <1>3, <1>4, <1>5 DEF Next
 
+\*LEMMA 2avSentMonotone == Next => \A A \in Acceptor : 2avSent[A] \subseteq 2avSent'[A]
+\*PROOF
+\*<1> SUFFICES ASSUME Next PROVE msgs \subseteq msgs' OBVIOUS
+\*<1>1. CASE ProposerAction BY <1>1 DEF ProposerAction, Phase1a, Phase1c, Send
+\*<1>2. CASE AcceptorSendAction BY <1>2 DEF AcceptorSendAction, Phase1b, Phase2av, Phase2b, Send
+\*<1>3. CASE AcceptorReceiveAction BY <1>3 DEF AcceptorReceiveAction, Recv
+\*<1>4. CASE AcceptorDisconnectAction BY <1>4 DEF AcceptorDisconnectAction, Disconnect
+\*<1>5. CASE LearnerAction BY <1>5 DEF LearnerAction, LearnerDecide, LearnerRecv
+\*<1>6. QED BY <1>1, <1>2, <1>3, <1>4, <1>5 DEF Next
+
 LEMMA MaxBalMonotone ==
     TypeOK /\ Next =>
         \A l \in Learner : \A a \in Acceptor : maxBal[<<l, a>>] =< maxBal'[<<l, a>>]
@@ -787,7 +797,31 @@ PROOF
     <3>1. CASE Phase1b(lrn, bal, acc)
       <4>1. m \in msgs BY <3>1, <2>0e DEF Phase1b, Send
       <4>2. QED BY <1>2av, <4>1, <3>1 DEF Phase1b, MsgInv2av, Send
-    <3>2. CASE Phase2av(lrn, bal, acc) OMITTED
+    <3>2. CASE Phase2av(lrn, bal, acc)
+\*      <4> SUFFICES ASSUME NEW v \in {vv \in Value :
+\*                                            /\ announcedValue(lrn, bal, vv)
+\*                                            /\ \A P \in {p \in 2avSent[acc] : p.bal = bal} : P.val = vv },
+\*                              maxBal[lrn, acc] =< bal,
+\*                              initializedBallot(lrn, bal),
+\*                              KnowsSafeAt(lrn, acc, bal, v),
+\*                              Send([type |-> "2av", lr |-> lrn, acc |-> acc, bal |-> bal, val |-> v]),
+\*                              2avSent' = [2avSent EXCEPT ![acc] = 2avSent[acc] \cup { [bal |-> bal, val |-> v] }]
+\*                       PROVE MsgInv2av(m)'
+\*            BY <3>2 DEF Phase2av
+      <4>1. CASE m \in msgs
+        <5>1. initializedBallot(m.lr, m.bal)' BY <4>1, <2>0e, <1>2av, MsgsMonotone DEF MsgInv2av, initializedBallot
+        <5>2. announcedValue(m.lr, m.bal, m.val)' BY <4>1, <2>0e, <1>2av, MsgsMonotone DEF MsgInv2av, announcedValue
+        <5>3. KnowsSafeAt(m.lr, m.acc, m.bal, m.val)' OMITTED
+        <5>4. [bal |-> m.bal, val |-> m.val] \in 2avSent'[m.acc]
+          <6>1. SUFFICES ASSUME NEW v \in Value,
+                              2avSent' = [2avSent EXCEPT ![acc] = 2avSent[acc] \cup { [bal |-> bal, val |-> v] }]
+                       PROVE [bal |-> m.bal, val |-> m.val] \in 2avSent'[m.acc]
+              BY <3>2 DEF Phase2av
+          <6>2. QED
+            BY <6>1, <3>2, <4>1, <2>0e, <1>2av, <2>0a, MsgsMonotone DEF MsgInv2av, TypeOK
+            
+        <5>20. QED BY <4>1, <2>0e, <1>2av, MsgsMonotone DEF MsgInv2av, initializedBallot
+      <4>20. QED BY <3>2 DEF Phase2av, MsgInv2av
     <3>3. CASE Phase2b(lrn, bal, acc)
       <4>1. m \in msgs BY <3>3, <2>0e DEF Phase2b, Send
       <4>2. QED BY <1>2av, <4>1, <3>3 DEF Phase2b, MsgInv2av, Send
