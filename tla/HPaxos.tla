@@ -546,15 +546,32 @@ PROOF
 <1>5. CASE LearnerAction BY <1>5 DEF LearnerAction, LearnerDecide, LearnerRecv
 <1>6. QED BY <1>1, <1>2, <1>3, <1>4, <1>5 DEF Next
 
-\*LEMMA 2avSentMonotone == Next => \A A \in Acceptor : 2avSent[A] \subseteq 2avSent'[A]
-\*PROOF
-\*<1> SUFFICES ASSUME Next PROVE msgs \subseteq msgs' OBVIOUS
-\*<1>1. CASE ProposerAction BY <1>1 DEF ProposerAction, Phase1a, Phase1c, Send
-\*<1>2. CASE AcceptorSendAction BY <1>2 DEF AcceptorSendAction, Phase1b, Phase2av, Phase2b, Send
-\*<1>3. CASE AcceptorReceiveAction BY <1>3 DEF AcceptorReceiveAction, Recv
-\*<1>4. CASE AcceptorDisconnectAction BY <1>4 DEF AcceptorDisconnectAction, Disconnect
-\*<1>5. CASE LearnerAction BY <1>5 DEF LearnerAction, LearnerDecide, LearnerRecv
-\*<1>6. QED BY <1>1, <1>2, <1>3, <1>4, <1>5 DEF Next
+LEMMA 2avSentMonotone == Next => \A A \in Acceptor : 2avSent[A] \subseteq 2avSent'[A]
+PROOF
+<1> SUFFICES ASSUME Next, NEW A \in Acceptor PROVE 2avSent[A] \subseteq 2avSent[A]' OBVIOUS
+<1>1. CASE ProposerAction BY <1>1 DEF ProposerAction, Phase1a, Phase1c, Send
+<1>2. CASE AcceptorSendAction
+  <2>. SUFFICES ASSUME NEW lrn \in Learner,
+                       NEW bal \in Ballot,
+                       NEW acc \in Acceptor,
+                       \/ Phase1b(lrn, bal, acc)
+                       \/ Phase2av(lrn, bal, acc)
+                       \/ Phase2b(lrn, bal, acc)
+                PROVE 2avSent[A] \subseteq 2avSent[A]'
+       BY <1>2 DEF AcceptorSendAction
+  <2>1. CASE Phase1b(lrn, bal, acc) BY <2>1 DEF Phase1b, Send
+  <2>2. CASE Phase2av(lrn, bal, acc) 
+      <4>1. SUFFICES ASSUME NEW v \in Value,
+                          2avSent' = [2avSent EXCEPT ![acc] = 2avSent[acc] \cup { [bal |-> bal, val |-> v] }]
+                   PROVE  2avSent[A] \subseteq 2avSent[A]'
+        BY <2>2 DEF Phase2av
+      <4>2. QED BY <4>1
+  <2>3. CASE Phase2b(lrn, bal, acc) BY <2>3 DEF Phase2b, Send
+  <2>4. QED BY <2>1, <2>2, <2>3
+<1>3. CASE AcceptorReceiveAction BY <1>3 DEF AcceptorReceiveAction, Recv
+<1>4. CASE AcceptorDisconnectAction BY <1>4 DEF AcceptorDisconnectAction, Disconnect
+<1>5. CASE LearnerAction BY <1>5 DEF LearnerAction, LearnerDecide, LearnerRecv
+<1>6. QED BY <1>1, <1>2, <1>3, <1>4, <1>5 DEF Next
 
 LEMMA MaxBalMonotone ==
     TypeOK /\ Next =>
