@@ -303,6 +303,7 @@ ReceivedByLearnerSpec ==
 VotesSentSpec == \A A \in Acceptor : \A vote \in votesSent[A] : VotedForIn(vote.lr, A, vote.bal, vote.val)
 
 2avSentSpec1 == \A A \in Acceptor : \A p \in 2avSent[A] : ProposedIn(p.bal, p.val)
+
 2avSentSpec2 ==
     \A A \in Acceptor : \A B \in Ballot : \A V1, V2 \in Value :
         [bal |-> B, val |-> V1] \in 2avSent[A] /\ [bal |-> B, val |-> V2] \in 2avSent[A] => V1 = V2
@@ -320,7 +321,7 @@ MsgInv2av(m) ==
     /\ announcedValue(m.lr, m.bal, m.val)
     /\ KnowsSafeAt(m.lr, m.acc, m.bal, m.val)
     /\ [bal |-> m.bal, val |-> m.val] \in 2avSent[m.acc]
-    /\ \A V \in Value : [bal |-> m.bal, val |-> V] \in 2avSent[m.acc] => V = m.val
+    \*/\ \A V \in Value : [bal |-> m.bal, val |-> V] \in 2avSent[m.acc] => V = m.val
     
 MsgInv2b(m) ==
     /\ [lr |-> m.lr, bal |-> m.bal, val |-> m.val] \in votesSent[m.acc]
@@ -740,6 +741,21 @@ PROOF
 <1>5. CASE LearnerAction BY <1>5 DEF LearnerAction, LearnerRecv, LearnerDecide, Next
 <1>10. QED BY <1>1, <1>2, <1>3, <1>4, <1>5 DEF Next
 
+\*LEMMA InitializedBallotInvariant ==
+\*    \A L \in Learner : \A B \in Ballot : Next /\ initializedBallot(L, B) => initializedBallot(L, B)'
+\*PROOF
+\*<1> SUFFICES ASSUME NEW L \in Learner, NEW B \in Ballot,
+\*             Next,
+\*             initializedBallot(L, B)
+\*             PROVE initializedBallot(L, B)'
+\*    OBVIOUS
+\*<1>1. CASE ProposerAction BY <1>1 DEF ProposerAction, Phase1a, Phase1c, Next
+\*<1>2. CASE AcceptorSendAction BY <1>2 DEF Phase1b, Phase2b, Phase2av, Next
+\*<1>3. CASE AcceptorReceiveAction BY <1>3 DEF AcceptorReceiveAction, Recv, Next
+\*<1>4. CASE AcceptorDisconnectAction BY <1>4 DEF AcceptorDisconnectAction, Disconnect, Next
+\*<1>5. CASE LearnerAction BY <1>5 DEF LearnerAction, LearnerRecv, LearnerDecide, Next
+\*<1>10. QED BY <1>1, <1>2, <1>3, <1>4, <1>5 DEF Next
+
 LEMMA MsgInvInvariant ==
     TypeOK /\ MsgInv /\ VotesSentSpec /\ 2avSentSpec1 /\ Next => MsgInv'
 PROOF
@@ -781,19 +797,6 @@ PROOF
           <6>5. maxBal'[<<lrn, acc>>] = bal BY <6>4, <2>0c, <2>0d
           <6>6. QED BY <6>0, <6>5 DEF Ballot
         <5>8. QED BY <5>6, <5>7
-         \*BY <1>1b, <2>0e, <2>0i, <3>1, <5>6, <2>0g, <2>0h, BallotLeqTrans DEF Phase1b, Send , MsgInv1b
-        \*<5>7. CASE <<m.lr, m.acc>> = <<lrn, acc>> BY <2>0a, <3>1 DEF Phase1b, TypeOK, Ballot
-        \*<5>8. CASE <<m.lr, m.acc>> # <<lrn, acc>> BY <2>0a, <3>1 DEF Phase1b, TypeOK, Ballot
-\*        <5>0. SUFFICES m.bal =< maxBal[<<m.lr, m.acc>>]
-\*            BY <2>0i, \*<2>1b, <2>1e,
-\*            <2>0f, <2>0g, <2>0h,
-\*            BallotLeqTrans
-\*            \*DEF Phase1b, MsgInv1b, Message \*, Ballot
-\*             \*BY <2>1e, <2>0i, <3>1, <2>1b, <2>1c, <2>1d, <2>0f, <2>0g, <2>0h, BallotLeqTrans DEF Phase1b, MsgInv1b, Message
-\*        <5>1. CASE m \in msgs BY <1>1b, <3>1 , <5>1 DEF Phase1b, Send , MsgInv1b
-        \*<5>2. CASE m \in [lr |-> lrn, acc |-> acc, bal |-> bal]
-\*        <5>3. QED BY <5>1 \*, <5>2
-\*          DEF Phase1b, Send, MsgInv1b
       <4>2. ASSUME NEW vote \in m.votes PROVE VotedForIn(vote.lr, m.acc, vote.bal, vote.val)'
         <5>1. CASE m \in msgs BY <1>1b, <5>1, <2>0e, <4>2 DEF MsgInv1b
         <5>2. CASE m \notin msgs
@@ -855,45 +858,30 @@ PROOF
       <4>1. m \in msgs BY <3>1, <2>0e DEF Phase1b, Send
       <4>2. QED BY <1>2av, <4>1, <3>1 DEF Phase1b, MsgInv2av, Send
     <3>2. CASE Phase2av(lrn, bal, acc)
-\*      <4> SUFFICES ASSUME NEW v \in {vv \in Value :
-\*                                            /\ announcedValue(lrn, bal, vv)
-\*                                            /\ \A P \in {p \in 2avSent[acc] : p.bal = bal} : P.val = vv },
-\*                              maxBal[lrn, acc] =< bal,
-\*                              initializedBallot(lrn, bal),
-\*                              KnowsSafeAt(lrn, acc, bal, v),
-\*                              Send([type |-> "2av", lr |-> lrn, acc |-> acc, bal |-> bal, val |-> v]),
-\*                              2avSent' = [2avSent EXCEPT ![acc] = 2avSent[acc] \cup { [bal |-> bal, val |-> v] }]
-\*                       PROVE MsgInv2av(m)'
-\*            BY <3>2 DEF Phase2av
+      <4>0. SUFFICES ASSUME NEW v \in Value,
+                              \*initializedBallot(lrn, bal),
+                              announcedValue(lrn, bal, v),
+                              KnowsSafeAt(lrn, acc, bal, v),
+                              Send([type |-> "2av", lr |-> lrn, acc |-> acc, bal |-> bal, val |-> v]),
+                              2avSent' = [2avSent EXCEPT
+                                    ![acc] = 2avSent[acc] \cup { [bal |-> bal, val |-> v] }]
+                       PROVE MsgInv2av(m)'
+            BY <3>2 DEF Phase2av
       <4>1. CASE m \in msgs
         <5>1. initializedBallot(m.lr, m.bal)' BY <4>1, <2>0e, <1>2av, MsgsMonotone DEF MsgInv2av, initializedBallot
         <5>2. announcedValue(m.lr, m.bal, m.val)' BY <4>1, <2>0e, <1>2av, MsgsMonotone DEF MsgInv2av, announcedValue
         <5>3. KnowsSafeAt(m.lr, m.acc, m.bal, m.val)' OMITTED
         <5>4. [bal |-> m.bal, val |-> m.val] \in 2avSent'[m.acc]
-          <6>1. SUFFICES ASSUME NEW v \in Value,
-                                2avSent' = [2avSent EXCEPT
-                                    ![acc] = 2avSent[acc] \cup { [bal |-> bal, val |-> v] }]
-                         PROVE [bal |-> m.bal, val |-> m.val] \in 2avSent'[m.acc]
-              BY <3>2 DEF Phase2av
-          <6>2. QED BY <6>1, <4>1, <2>0e, <1>2av, 2avSentMonotone DEF MsgInv2av
-        <5>5. \A V \in Value : [bal |-> m.bal, val |-> V] \in 2avSent'[m.acc] => V = m.val
-          <6>1. SUFFICES ASSUME NEW v \in Value,
-                                \A P \in {p \in 2avSent[acc] : p.bal = bal} : P.val = v,
-                                2avSent' = [2avSent EXCEPT
-                                    ![acc] = 2avSent[acc] \cup { [bal |-> bal, val |-> v] }],
-                                NEW V0 \in Value,
-                                [bal |-> m.bal, val |-> V0] \in 2avSent'[m.acc]
-                         PROVE V0 = m.val
-              BY <3>2 DEF Phase2av
-          <6>2. CASE m.acc # acc
-            <7>1. [bal |-> m.bal, val |-> V0] \in 2avSent[m.acc] BY <6>1, <6>2
-            <7>20. QED BY <4>1, <1>2av, <7>1 DEF MsgInv2av
-          <6>3. CASE m.acc = acc BY <4>1, <6>1, <6>3, <1>2av DEF MsgInv2av
-            \*<7>1. 
-          <6>4. QED BY <6>2, <6>3
-          \*<6>20. QED BY <6>1, <4>1, <2>0e, <1>2av, 2avSentMonotone DEF MsgInv2av
-        <5>20. QED BY <4>1, <2>0e, <1>2av, MsgsMonotone DEF MsgInv2av, initializedBallot
-      <4>20. QED BY <3>2 DEF Phase2av, MsgInv2av
+            BY <4>0, <4>1, <2>0e, <1>2av, 2avSentMonotone DEF MsgInv2av
+        <5>6. QED BY <5>1, <5>2, <5>3, <5>4 DEF MsgInv2av
+      <4>2. CASE m \notin msgs
+        <5>2. <<m.lr, m.acc, m.bal, m.val>> = <<lrn, acc, bal, v>> BY <4>0, <4>2 DEF Send
+        <5>3. initializedBallot(m.lr, m.bal)' BY <5>2, <3>2 DEF Phase2av
+        <5>4. announcedValue(m.lr, m.bal, m.val)' BY <4>0, <5>2
+        <5>5. KnowsSafeAt(m.lr, m.acc, m.bal, m.val)' BY <4>0, <5>2
+        <5>6. [bal |-> m.bal, val |-> m.val] \in 2avSent'[m.acc] BY <4>0, <5>2, <2>0a DEF TypeOK
+        <5>7. QED BY <5>3, <5>4, <5>5, <5>6 DEF MsgInv2av
+      <4>20. QED BY <4>1, <4>2
     <3>3. CASE Phase2b(lrn, bal, acc)
       <4>1. m \in msgs BY <3>3, <2>0e DEF Phase2b, Send
       <4>2. QED BY <1>2av, <4>1, <3>3 DEF Phase2b, MsgInv2av, Send
