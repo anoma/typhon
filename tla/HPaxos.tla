@@ -831,12 +831,26 @@ PROOF
         <5>3. KnowsSafeAt(m.lr, m.acc, m.bal, m.val)' OMITTED
         <5>4. [bal |-> m.bal, val |-> m.val] \in 2avSent'[m.acc]
           <6>1. SUFFICES ASSUME NEW v \in Value,
-                              2avSent' = [2avSent EXCEPT ![acc] = 2avSent[acc] \cup { [bal |-> bal, val |-> v] }]
-                       PROVE [bal |-> m.bal, val |-> m.val] \in 2avSent'[m.acc]
+                                2avSent' = [2avSent EXCEPT
+                                    ![acc] = 2avSent[acc] \cup { [bal |-> bal, val |-> v] }]
+                         PROVE [bal |-> m.bal, val |-> m.val] \in 2avSent'[m.acc]
               BY <3>2 DEF Phase2av
-          <6>2. QED
-            BY <6>1, <3>2, <4>1, <2>0e, <1>2av, <2>0a, MsgsMonotone DEF MsgInv2av, TypeOK
-            
+          <6>2. QED BY <6>1, <4>1, <2>0e, <1>2av, 2avSentMonotone DEF MsgInv2av
+        <5>5. \A V \in Value : [bal |-> m.bal, val |-> V] \in 2avSent'[m.acc] => V = m.val
+          <6>1. SUFFICES ASSUME NEW v \in Value,
+                                \A P \in {p \in 2avSent[acc] : p.bal = bal} : P.val = v,
+                                2avSent' = [2avSent EXCEPT
+                                    ![acc] = 2avSent[acc] \cup { [bal |-> bal, val |-> v] }],
+                                NEW V0 \in Value,
+                                [bal |-> m.bal, val |-> V0] \in 2avSent'[m.acc]
+                         PROVE V0 = m.val
+              BY <3>2 DEF Phase2av
+          <6>2. CASE m.acc # acc
+            <7>1. [bal |-> m.bal, val |-> V0] \in 2avSent[m.acc] BY <6>1, <6>2
+            <7>20. QED BY <4>1, <1>2av, <7>1 DEF MsgInv2av
+          <6>3. CASE m.acc = acc BY <6>3, <1>2av
+          <6>4. QED BY <6>2, <6>3
+          \*<6>20. QED BY <6>1, <4>1, <2>0e, <1>2av, 2avSentMonotone DEF MsgInv2av
         <5>20. QED BY <4>1, <2>0e, <1>2av, MsgsMonotone DEF MsgInv2av, initializedBallot
       <4>20. QED BY <3>2 DEF Phase2av, MsgInv2av
     <3>3. CASE Phase2b(lrn, bal, acc)
