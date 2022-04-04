@@ -265,6 +265,7 @@ Next ==
     \/ AcceptorReceiveAction
     \/ AcceptorDisconnectAction
     \/ LearnerAction
+    \*\/ FakeSend
 
 Spec == Init /\ [][Next]_vars
 
@@ -301,7 +302,10 @@ ReceivedByLearnerSpec ==
 
 VotesSentSpec == \A A \in Acceptor : \A vote \in votesSent[A] : VotedForIn(vote.lr, A, vote.bal, vote.val)
 
-2avSentSpec == \A A \in Acceptor : \A p \in 2avSent[A] : ProposedIn(p.bal, p.val)
+2avSentSpec1 == \A A \in Acceptor : \A p \in 2avSent[A] : ProposedIn(p.bal, p.val)
+2avSentSpec2 ==
+    \A A \in Acceptor : \A B \in Ballot : \A V1, V2 \in Value :
+        [bal |-> B, val |-> V1] \in 2avSent[A] /\ [bal |-> B, val |-> V2] \in 2avSent[A] => V1 = V2
 
 VarInv3 == \A L \in Learner : \A B \in Ballot : \A V \in Value :
             V \in decision[<<L, B>>] => ChosenIn(L, B, V)
@@ -657,13 +661,13 @@ PROOF
 <1>5. CASE LearnerAction BY <1>5 DEF LearnerAction, LearnerRecv, LearnerDecide, Next
 <1>10. QED BY <1>1, <1>2, <1>3, <1>4, <1>5 DEF Next
 
-LEMMA 2avSentSpecInvariant == Next /\ 2avSentSpec => 2avSentSpec'
+LEMMA 2avSentSpec1Invariant == Next /\ 2avSentSpec1 => 2avSentSpec1'
 PROOF
-<1> SUFFICES ASSUME
-  Next, 2avSentSpec, NEW A \in Acceptor, NEW p \in 2avSent'[A]
-    PROVE ProposedIn(p.bal, p.val)'
-    BY DEF 2avSentSpec
-<1> USE DEF 2avSentSpec
+<1> SUFFICES ASSUME Next, 2avSentSpec1,
+             NEW A \in Acceptor, NEW p \in 2avSent'[A]
+             PROVE ProposedIn(p.bal, p.val)'
+    BY DEF 2avSentSpec1
+<1> USE DEF 2avSentSpec1
 <1>1. CASE ProposerAction BY <1>1 DEF ProposerAction, Phase1a, Phase1c, Next, Send
 <1>2. CASE AcceptorSendAction
   <2> HIDE DEF Next
@@ -700,11 +704,47 @@ PROOF
 <1>5. CASE LearnerAction BY <1>5 DEF LearnerAction, LearnerRecv, LearnerDecide, Next
 <1>10. QED BY <1>1, <1>2, <1>3, <1>4, <1>5 DEF Next
 
+LEMMA 2avSentSpec2Invariant == Next /\ 2avSentSpec2 => 2avSentSpec2'
+PROOF
+<1> SUFFICES ASSUME Next, 2avSentSpec2,
+             NEW A \in Acceptor, NEW B \in Ballot,
+             NEW V1 \in Value, NEW V2 \in Value,
+             [bal |-> B, val |-> V1] \in 2avSent'[A],
+             [bal |-> B, val |-> V2] \in 2avSent'[A]
+             PROVE V1 = V2
+    BY DEF 2avSentSpec2
+<1> USE DEF 2avSentSpec2
+<1>1. CASE ProposerAction BY <1>1 DEF ProposerAction, Phase1a, Phase1c, Next, Send
+<1>2. CASE AcceptorSendAction
+  <2> HIDE DEF Next
+  <2> SUFFICES ASSUME NEW lrn \in Learner,
+                       NEW bal \in Ballot,
+                       NEW acc \in Acceptor,
+                       \/ Phase1b(lrn, bal, acc)
+                       \/ Phase2av(lrn, bal, acc)
+                       \/ Phase2b(lrn, bal, acc)
+                PROVE V1 = V2
+      BY <1>2 DEF AcceptorSendAction
+  <2>1. CASE Phase1b(lrn, bal, acc) BY <2>1 DEF Phase1b
+  <2>2. CASE Phase2av(lrn, bal, acc)
+    <3>1. SUFFICES ASSUME NEW v \in Value,
+                          \A P \in {p \in 2avSent[acc] : p.bal = bal} : P.val = v,
+                          2avSent' = [2avSent EXCEPT ![acc] = 2avSent[acc] \cup { [bal |-> bal, val |-> v] }]
+                   PROVE V1 = V2
+          BY <2>2 DEF Phase2av
+    <3>2. QED BY <3>1
+  <2>3. CASE Phase2b(lrn, bal, acc) BY <2>3 DEF Phase2b
+  <2>5. QED BY <2>1, <2>2, <2>3
+<1>3. CASE AcceptorReceiveAction BY <1>3 DEF AcceptorReceiveAction, Recv, Next
+<1>4. CASE AcceptorDisconnectAction BY <1>4 DEF AcceptorDisconnectAction, Disconnect, Next
+<1>5. CASE LearnerAction BY <1>5 DEF LearnerAction, LearnerRecv, LearnerDecide, Next
+<1>10. QED BY <1>1, <1>2, <1>3, <1>4, <1>5 DEF Next
+
 LEMMA MsgInvInvariant ==
-    TypeOK /\ MsgInv /\ VotesSentSpec /\ 2avSentSpec /\ Next => MsgInv'
+    TypeOK /\ MsgInv /\ VotesSentSpec /\ 2avSentSpec1 /\ Next => MsgInv'
 PROOF
 <1> USE DEF MsgInv
-<1>1b. ASSUME TypeOK, VotesSentSpec, 2avSentSpec, Next, \A m \in msgs : m.type = "1b" => MsgInv1b(m),
+<1>1b. ASSUME TypeOK, VotesSentSpec, 2avSentSpec1, Next, \A m \in msgs : m.type = "1b" => MsgInv1b(m),
         NEW CONSTANT m \in msgs', m.type = "1b"
         PROVE MsgInv1b(m)'
   <2>0a. TypeOK' BY <1>1b, TypeOKInvariant
@@ -768,7 +808,7 @@ PROOF
           <6>0. m.bal = bal BY <3>1, <5>2 DEF Next, Phase1b, Send
           <6>1. <<m.lr, m.acc>> = <<lrn, acc>> BY <3>1, <5>2 DEF Next, Phase1b, Send
           <6>2. m.proposals = { p \in 2avSent[acc] : p.bal < bal /\ p.lr = lrn } BY <5>2, <3>1 DEF Phase1b, Send
-          <6>3. QED BY <6>0, <3>1, <1>1b, <6>2, <6>1 DEF 2avSentSpec, Phase1b, Send
+          <6>3. QED BY <6>0, <3>1, <1>1b, <6>2, <6>1 DEF 2avSentSpec1, Phase1b, Send
         <5>3. QED BY <5>1, <5>2   
       <4>10. QED BY <4>1, <4>2, <4>3 DEF MsgInv1b
     <3>2. CASE Phase2av(lrn, bal, acc)
@@ -848,7 +888,8 @@ PROOF
           <6>2. CASE m.acc # acc
             <7>1. [bal |-> m.bal, val |-> V0] \in 2avSent[m.acc] BY <6>1, <6>2
             <7>20. QED BY <4>1, <1>2av, <7>1 DEF MsgInv2av
-          <6>3. CASE m.acc = acc BY <6>3, <1>2av
+          <6>3. CASE m.acc = acc BY <4>1, <6>1, <6>3, <1>2av DEF MsgInv2av
+            \*<7>1. 
           <6>4. QED BY <6>2, <6>3
           \*<6>20. QED BY <6>1, <4>1, <2>0e, <1>2av, 2avSentMonotone DEF MsgInv2av
         <5>20. QED BY <4>1, <2>0e, <1>2av, MsgsMonotone DEF MsgInv2av, initializedBallot
