@@ -32,10 +32,10 @@ ASSUME BallotAssumption ==
 (* Learner graph *)
 
 CONSTANT TrustLive
-ASSUME TrustLive \in SUBSET [lr : Learner, q : ByzQuorum]
+ASSUME TrustLiveAssumption == TrustLive \in SUBSET [lr : Learner, q : ByzQuorum]
 
 CONSTANT TrustSafe
-ASSUME TrustSafe \in SUBSET [from : Learner, to : Learner, q : ByzQuorum]
+ASSUME TrustSafeAssumption == TrustSafe \in SUBSET [from : Learner, to : Learner, q : ByzQuorum]
 
 ASSUME LearnerGraphAssumption ==
         (* symmetry *)
@@ -339,6 +339,7 @@ MsgInv == \A m \in msgs: /\ (m.type = "1b") => MsgInv1b(m)
                          
 -----------------------------------------------------------------------------
 
+
 LEMMA TypeOKInvariant == TypeOK /\ Next => TypeOK'
 PROOF
 <1> SUFFICES ASSUME TypeOK, Next PROVE TypeOK' OBVIOUS
@@ -436,6 +437,18 @@ PROOF
   <2>3. QED BY <1>5, <2>1, <2>2 DEF LearnerAction
 <1>6. QED
     BY <1>1, <1>2, <1>3, <1>4, <1>5 DEF Next
+
+
+LEMMA MessageType ==
+    ASSUME NEW m \in Message
+    PROVE /\ m.lr \in Learner
+          /\ m.bal \in Ballot
+          /\ (m.type = "1b" \/ m.type = "2av" \/ m.type = "2b") => m.acc \in Acceptor
+          /\ (m.type = "1c" \/ m.type = "2av" \/ m.type = "2b") => m.val \in Value
+          /\ (m.type = "1b") =>
+                /\ m.votes \in SUBSET [lr : Learner, bal : Ballot, val : Value]
+                /\ m.proposals \in SUBSET [bal : Ballot, val : Value]
+PROOF BY DEF Message
 
 LEMMA ReceivedSpecInvariant ==
     TypeOK /\ ReceivedSpec /\ Next => ReceivedSpec'
@@ -863,7 +876,6 @@ PROOF
         NEW m \in msgs', m.type = "2av"
         PROVE MsgInv2av(m)'
   <2>0a. TypeOK' BY <1>2av, TypeOKInvariant
-  \*<2>0b. m \in Message BY <2>0a DEF TypeOK
   <2>0e. m.type = "2av" BY <1>2av
   <2>1. CASE ProposerAction
     BY <1>2av, <2>1 DEF ProposerAction, Phase1a, Phase1c, MsgInv2av, Next, Send
@@ -892,8 +904,7 @@ PROOF
       <4>1. CASE m \in msgs
         <5>1. initializedBallot(m.lr, m.bal)' BY <4>1, <2>0e, <1>2av, MsgsMonotone DEF MsgInv2av, initializedBallot
         <5>2. announcedValue(m.lr, m.bal, m.val)' BY <4>1, <2>0e, <1>2av, MsgsMonotone DEF MsgInv2av, announcedValue
-        <5>3. KnowsSafeAt(m.lr, m.acc, m.bal, m.val)'
-          <6>5. QED BY <4>0, <4>1, <1>2av DEF Phase2av, MsgInv2av
+        <5>3. KnowsSafeAt(m.lr, m.acc, m.bal, m.val)' BY <4>0, <4>1, <1>2av DEF Phase2av, MsgInv2av
         <5>4. [bal |-> m.bal, val |-> m.val] \in 2avSent'[m.acc]
             BY <4>0, <4>1, <2>0e, <1>2av, 2avSentMonotone DEF MsgInv2av
         <5>6. QED BY <5>1, <5>2, <5>3, <5>4 DEF MsgInv2av
@@ -915,7 +926,7 @@ PROOF
   <2>7. QED BY <1>2av, <2>0a, <2>1, <2>2, <2>4, <2>5, <2>6 DEF Next
 <1>2b. ASSUME TypeOK, Next, \A m \in msgs : m.type = "2b" => MsgInv2b(m),
         NEW m \in msgs', m.type = "2b"
-        PROVE MsgInv2b(m)'    
+        PROVE MsgInv2b(m)'
   <2>0a. TypeOK BY <1>2b
   <2>0b. TypeOK' BY <1>2b, TypeOKInvariant
   <2>0c. m \in Message BY <2>0b DEF TypeOK
@@ -934,8 +945,39 @@ PROOF
                                          receivedByLearner, decision >>
                  PROVE  MsgInv2b(m)'
       BY <2>4 DEF AcceptorReceiveAction, Recv
-    <3>1. QED
-      BY <1>2b, <3>0, <2>0a, <2>0b, <2>0c, ReceivedMonotone, VotesSentMonotone DEF MsgInv2b, Next, TypeOK, Message
+    <3>1. m # m0 BY <3>0, <1>2b
+    <3>2. m \in msgs BY <3>0, <1>2b
+    <3>2a. m \in Message BY <3>2, <1>2b DEF TypeOK
+    <3>2b. TypeOK BY <1>2b DEF Phase2b
+    <3>2c. TypeOK' BY <1>2b, <3>2b, TypeOKInvariant
+    <3>3. [lr |-> m.lr, bal |-> m.bal, val |-> m.val] \in votesSent'[m.acc] BY <3>0, <1>2b DEF MsgInv2b
+    <3>4. \E Q \in ByzQuorum :
+           /\ [lr |-> m.lr, q |-> Q] \in TrustLive
+           /\ \A ba \in Q :
+                 \E m2av \in received[m.lr, m.acc] :
+                    /\ m2av.type = "2av"
+                    /\ m2av.acc = ba
+                    /\ m2av.bal = m.bal
+                    /\ m2av.val = m.val
+          BY <1>2b, <2>0e, <3>2 DEF MsgInv2b
+    <3>5. PICK Q0 \in ByzQuorum : /\ [lr |-> m.lr, q |-> Q0] \in TrustLive
+           /\ \A ba \in Q0 :
+                 \E m2av \in received[m.lr, m.acc] :
+                    /\ m2av.type = "2av"
+                    /\ m2av.acc = ba
+                    /\ m2av.bal = m.bal
+                    /\ m2av.val = m.val BY <3>4
+    <3>7. (\E Q \in ByzQuorum :
+            /\ [lr |-> m.lr, q |-> Q] \in TrustLive
+            /\ \A ba \in Q :
+                \E m2av \in received[m.lr, m.acc] :
+                    /\ m2av.type = "2av"
+                    /\ m2av.acc = ba
+                    /\ m2av.bal = m.bal
+                    /\ m2av.val = m.val)'
+        <4>0. WITNESS Q0 \in ByzQuorum
+        <4>1. QED BY <1>2b, <3>5, <3>2b, <3>2c, MessageType, ReceivedMonotone DEF MsgInv2b, TypeOK
+    <3>8. QED BY <3>3, <3>7 DEF MsgInv2b
   <2>5. CASE AcceptorDisconnectAction BY <1>2b, <2>5 DEF AcceptorDisconnectAction, Disconnect, MsgInv2b, Next
   <2>6. CASE LearnerAction BY <1>2b, <2>6 DEF LearnerAction, LearnerRecv, LearnerDecide, MsgInv2b, Next
   <2>7. QED BY <1>2b, <2>0a, <2>1, <2>2, <2>4, <2>5, <2>6 DEF Next
