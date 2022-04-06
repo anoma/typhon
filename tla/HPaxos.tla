@@ -932,8 +932,73 @@ PROOF
   <2>0c. m \in Message BY <2>0b DEF TypeOK
   <2>0e. m.type = "2b" BY <1>2b
   <2>1. CASE ProposerAction
-    BY <1>2b, <2>1 DEF TypeOK, ProposerAction, Phase1a, Phase1c, MsgInv2b, Next, Send
-  <2>2. CASE AcceptorSendAction OMITTED
+    BY <1>2b, <2>1, <2>0a, <2>0b, <2>0e DEF TypeOK, ProposerAction, Phase1a, Phase1c, MsgInv2b, Next, Send
+  <2>2. CASE AcceptorSendAction
+    <3> HIDE DEF Next
+    <3> SUFFICES ASSUME NEW lrn \in Learner,
+                       NEW bal \in Ballot,
+                       NEW acc \in Acceptor,
+                       \/ Phase1b(lrn, bal, acc)
+                       \/ Phase2av(lrn, bal, acc)
+                       \/ Phase2b(lrn, bal, acc)
+                PROVE  MsgInv2b(m)'
+        BY <2>2 DEF AcceptorSendAction
+    <3>1. CASE Phase1b(lrn, bal, acc)
+      <4>1. m \in msgs BY <3>1, <2>0a, <2>0e DEF Phase1b, Send, TypeOK
+      <4>2. QED BY <1>2b, <3>1, <2>0a, <2>0b, <2>0e, <4>1, MessageType DEF Phase1b, MsgInv2b, Send, TypeOK
+    <3>2. CASE Phase2av(lrn, bal, acc)
+      <4>1. m \in msgs BY <3>2, <2>0a, <2>0e DEF Phase2av, Send, TypeOK
+      <4>2. QED BY <1>2b, <3>2, <2>0a, <2>0e, <4>1, MessageType DEF Phase2av, MsgInv2b, Send
+    <3>3. CASE Phase2b(lrn, bal, acc)
+      <4>1. CASE m \in msgs
+        <5>1. ([lr |-> m.lr, bal |-> m.bal, val |-> m.val] \in votesSent[m.acc])'
+          BY <1>2b, <2>0e, <4>1, MessageType, VotesSentMonotone DEF MsgInv2b, TypeOK
+        <5>2. (\E Q \in ByzQuorum :
+                /\ [lr |-> m.lr, q |-> Q] \in TrustLive
+                /\ \A ba \in Q :
+                    \E m2av \in received[m.lr, m.acc] :
+                        /\ m2av.type = "2av"
+                        /\ m2av.acc = ba
+                        /\ m2av.bal = m.bal
+                        /\ m2av.val = m.val)'
+              BY <1>2b, <3>3, <2>0a, <2>0b, <2>0e, <4>1, MessageType DEF Phase2b, MsgInv2b, Send, TypeOK
+        <5>3. QED BY <5>1, <5>2 DEF MsgInv2b
+      <4>2. CASE m \notin msgs
+        <5>0. SUFFICES ASSUME NEW v \in Value,
+                              NEW Q \in ByzQuorum,
+                              [lr |-> lrn, q |-> Q] \in TrustLive,
+                              \A aa \in Q :
+                                 \E m_1 \in {mm \in received[lrn, acc] :
+                                              /\ mm.type = "2av"
+                                              /\ mm.bal = bal} :
+                                       /\ m_1.val = v
+                                       /\ m_1.acc = aa,
+                              Send([type |-> "2b", lr |-> lrn, acc |-> acc, bal |-> bal, val |-> v]),
+                              votesSent' =
+                                [votesSent EXCEPT ![acc] =
+                                    votesSent[acc] \cup { [lr |-> lrn, bal |-> bal, val |-> v] }]
+                       PROVE MsgInv2b(m)'
+              BY <3>3, <5>0 DEF Phase2b
+        <5>1a. m.lr = lrn BY <5>0, <4>2, <2>0a, <2>0b, <2>0c, <2>0e, MessageType DEF Send, TypeOK
+        <5>1b. m.acc = acc BY <5>0, <4>2, <2>0a, <2>0b, <2>0c, <2>0e, MessageType DEF Send, TypeOK
+        <5>1c. m.bal = bal BY <5>0, <4>2, <2>0a, <2>0b, <2>0c, <2>0e, MessageType DEF Send, TypeOK
+        <5>1d. m.val = v BY <5>0, <4>2, <2>0a, <2>0b, <2>0c, <2>0e, MessageType DEF Send, TypeOK
+        <5>1e. UNCHANGED received BY <3>3 DEF Phase2b
+        <5>2. ([lr |-> m.lr, bal |-> m.bal, val |-> m.val] \in votesSent[m.acc])'
+            BY <5>0, <5>1a, <5>1b, <5>1c, <5>1d, <2>0a, <2>0b DEF TypeOK
+        <5>3. (\E Q_1 \in ByzQuorum :
+              /\ [lr |-> m.lr, q |-> Q_1] \in TrustLive
+              /\ \A ba \in Q_1 :
+                    \E m2av \in received[m.lr, m.acc] :
+                       /\ m2av.type = "2av"
+                       /\ m2av.acc = ba
+                       /\ m2av.bal = m.bal
+                       /\ m2av.val = m.val)'
+          <6>1. WITNESS Q \in ByzQuorum
+          <6>2. QED BY <5>0, <5>1a, <5>1b, <5>1c, <5>1d, <2>0a, <2>0b, <2>0c, <5>1e, MessageType, <3>3 DEF Send, TypeOK
+        <5>4. QED BY <5>2, <5>3 DEF MsgInv2b
+      <4>3. QED BY <4>1, <4>2
+    <3>5. QED BY <3>1, <3>2, <3>3
   <2>4. CASE AcceptorReceiveAction
     <3>0. SUFFICES ASSUME NEW lrn \in Learner,
                         NEW acc \in Acceptor,
