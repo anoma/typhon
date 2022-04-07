@@ -20,7 +20,13 @@ CONSTANTS Acceptor,
 ASSUME SafeAcceptorAssumption ==
         /\ SafeAcceptor \cap FakeAcceptor = {}
         /\ SafeAcceptor \cup FakeAcceptor = Acceptor
-        
+
+LEMMA SafeAcceptorIsAcceptor == SafeAcceptor \subseteq Acceptor
+PROOF BY SafeAcceptorAssumption
+
+LEMMA FakeAcceptorIsAcceptor == FakeAcceptor \subseteq Acceptor
+PROOF BY SafeAcceptorAssumption
+
 ASSUME BQAssumption ==
         /\ \A Q \in ByzQuorum : Q \subseteq Acceptor
 
@@ -133,7 +139,7 @@ KnowsSafeAt(l, ac, b, v) ==
 vars == << maxBal, votesSent, 2avSent, received, connected, receivedByLearner, 
            decision, msgs >>
 
-Init == 
+Init ==
     /\ maxBal = [l \in Learner, a \in Acceptor |-> -1]
     /\ votesSent = [a \in Acceptor |-> {}]
     /\ 2avSent = [l \in Learner, a \in Acceptor |-> {}]
@@ -221,7 +227,7 @@ FakeSend(a) ==
                       \/ mm.type = "2av"
                       \/ mm.type = "2b" } :
         Send(m)
-   /\ UNCHANGED << maxBal, votesSent, 2avSent, received, 
+   /\ UNCHANGED << maxBal, votesSent, 2avSent, received,
                    connected, receivedByLearner, decision >>
 
 LearnerDecide(l, b) ==
@@ -243,21 +249,23 @@ ProposerAction ==
         \/ \E v \in Value : Phase1c(lrn, proposer, v)
 
 AcceptorSendAction ==
-    \E lrn \in Learner : \E bal \in Ballot : \E acc \in Acceptor :
+    \E lrn \in Learner : \E bal \in Ballot : \E acc \in SafeAcceptor :
         \/ Phase1b(lrn, bal, acc)
         \/ Phase2av(lrn, bal, acc)
         \/ Phase2b(lrn, bal, acc)
 
 AcceptorReceiveAction ==
-    \E lrn \in Learner : \E acc \in Acceptor : Recv(lrn, acc)
+    \E lrn \in Learner : \E acc \in SafeAcceptor : Recv(lrn, acc)
     
 AcceptorDisconnectAction ==
-    \E acc \in Acceptor : Disconnect(acc)
+    \E acc \in SafeAcceptor : Disconnect(acc)
 
 LearnerAction ==
     \E lrn \in Learner :
         \/ \E bal \in Ballot : LearnerDecide(lrn, bal)
         \/ LearnerRecv(lrn)
+
+FakeAcceptorAction == \E a \in FakeAcceptor : FakeSend(a)
 
 Next ==
     \/ ProposerAction
@@ -265,7 +273,7 @@ Next ==
     \/ AcceptorReceiveAction
     \/ AcceptorDisconnectAction
     \/ LearnerAction
-    \*\/ FakeSend
+    \/ FakeAcceptorAction
 
 Spec == Init /\ [][Next]_vars
 
@@ -292,7 +300,7 @@ TypeOK ==
 ReceivedSpec ==
     /\ received \in
         [Learner \X Acceptor -> SUBSET {mm \in msgs : mm.type = "1b" \/ mm.type = "2av"}]
-    /\ \A L \in Learner : \A A \in Acceptor : \A mm \in Message :
+    /\ \A L \in Learner : \A A \in SafeAcceptor : \A mm \in Message :
         mm \in received[<<L, A>>] => mm.lrn = L
 
 ReceivedByLearnerSpec ==
@@ -300,12 +308,13 @@ ReceivedByLearnerSpec ==
     /\ \A L \in Learner : \A mm \in Message :
         mm \in receivedByLearner[L] => mm.lrn = L
 
-VotesSentSpec == \A A \in Acceptor : \A vote \in votesSent[A] : VotedForIn(vote.lr, A, vote.bal, vote.val)
+VotesSentSpec ==
+    \A A \in SafeAcceptor : \A vote \in votesSent[A] : VotedForIn(vote.lr, A, vote.bal, vote.val)
 
-2avSentSpec1 == \A A \in Acceptor : \A p \in 2avSent[A] : ProposedIn(p.bal, p.val)
+2avSentSpec1 == \A A \in SafeAcceptor : \A p \in 2avSent[A] : ProposedIn(p.bal, p.val)
 
 2avSentSpec2 ==
-    \A A \in Acceptor : \A B \in Ballot : \A V1, V2 \in Value :
+    \A A \in SafeAcceptor : \A B \in Ballot : \A V1, V2 \in Value :
         [bal |-> B, val |-> V1] \in 2avSent[A] /\ [bal |-> B, val |-> V2] \in 2avSent[A] => V1 = V2
 
 VarInv3 == \A L \in Learner : \A B \in Ballot : \A V \in Value :
@@ -333,12 +342,23 @@ MsgInv2b(m) ==
                 /\ m2av.bal = m.bal
                 /\ m2av.val = m.val
 
-MsgInv == \A m \in msgs: /\ (m.type = "1b") => MsgInv1b(m)
-                         /\ (m.type = "2av") => MsgInv2av(m)
-                         /\ (m.type = "2b") => MsgInv2b(m)
+MsgInv == \A m \in msgs: m.acc \in SafeAcceptor =>
+                /\ (m.type = "1b") => MsgInv1b(m)
+                /\ (m.type = "2av") => MsgInv2av(m)
+                /\ (m.type = "2b") => MsgInv2b(m)
                          
 -----------------------------------------------------------------------------
 
+LEMMA MessageType ==
+    ASSUME NEW m \in Message
+    PROVE /\ m.lr \in Learner
+          /\ m.bal \in Ballot
+          /\ (m.type = "1b" \/ m.type = "2av" \/ m.type = "2b") => m.acc \in Acceptor
+          /\ (m.type = "1c" \/ m.type = "2av" \/ m.type = "2b") => m.val \in Value
+          /\ (m.type = "1b") =>
+                /\ m.votes \in SUBSET [lr : Learner, bal : Ballot, val : Value]
+                /\ m.proposals \in SUBSET [bal : Ballot, val : Value]
+PROOF BY DEF Message
 
 LEMMA TypeOKInvariant == TypeOK /\ Next => TypeOK'
 PROOF
@@ -354,15 +374,16 @@ PROOF
                       \/ Phase2av(lrn, bal, acc)
                       \/ Phase2b(lrn, bal, acc)
                PROVE  TypeOK'
-    BY <1>2 DEF AcceptorSendAction
+    BY <1>2, SafeAcceptorIsAcceptor DEF AcceptorSendAction
   <2>1. CASE Phase1b(lrn, bal, acc)
     <3>1.(votesSent \in [Acceptor -> SUBSET [lr : Learner, bal : Ballot, val : Value]])'
-            BY <1>2, <2>1 DEF AcceptorSendAction, Phase1b, Phase2av, Phase2b, Send, TypeOK, Message
+            BY <2>1 DEF Phase1b, Phase2av, Phase2b, Send, TypeOK, Message
     <3>2. (2avSent \in [Acceptor -> SUBSET [bal : Ballot, val : Value]])'
-            BY <1>2, <2>1 DEF AcceptorSendAction, Phase1b, Phase2av, Phase2b, Send, TypeOK, Message
+            BY <2>1 DEF Phase1b, Phase2av, Phase2b, Send, TypeOK, Message
     <3>3. msgs' \in SUBSET Message
       <4>1. {vote \in votesSent[acc] : MaxVote(acc, bal, vote)}
-                \in SUBSET [lr : Learner, bal : Ballot, val : Value] BY DEF TypeOK 
+                \in SUBSET [lr : Learner, bal : Ballot, val : Value]
+            BY DEF TypeOK 
       <4>2. {p \in 2avSent[acc] : p.bal < bal /\ p.lr = lrn} \in SUBSET [bal : Ballot, val : Value]
             BY DEF TypeOK
       <4>3. [type |-> "1b", lr |-> lrn, acc |-> acc, bal |-> bal,
@@ -379,8 +400,8 @@ PROOF
                  PROVE  TypeOK'
       BY <2>2 DEF Phase2av
     <3>2. msgs' \in SUBSET Message
-        <4>0. [type |-> "2av", lr |-> lrn, acc |-> acc, bal |-> bal,
-                   val |-> v] \in Message BY DEF Message
+        <4>0. [type |-> "2av", lr |-> lrn, acc |-> acc, bal |-> bal, val |-> v] \in Message
+            BY SafeAcceptorIsAcceptor DEF Message
         <4>1. QED BY <4>0 DEF Message, Send, TypeOK
     <3>4. (2avSent \in [Acceptor -> SUBSET [bal : Ballot, val : Value]])'
         <4>0. [bal |-> bal, val |-> v] \in [bal : Ballot, val : Value]
@@ -398,8 +419,8 @@ PROOF
       BY <2>3 DEF Phase2b
     <3>1. v \in Value OBVIOUS
     <3>2. msgs' \in SUBSET Message
-        <4>0. [type |-> "2b", lr |-> lrn, acc |-> acc, bal |-> bal,
-                   val |-> v] \in Message BY DEF Message
+        <4>0. [type |-> "2b", lr |-> lrn, acc |-> acc, bal |-> bal, val |-> v] \in Message
+            BY SafeAcceptorIsAcceptor DEF Message
         <4>1. QED BY <4>0 DEF Message, Send, TypeOK
     <3>3. votesSent'
            \in [Acceptor -> SUBSET [lr : Learner, bal : Ballot, val : Value]]
@@ -420,7 +441,7 @@ PROOF
                       UNCHANGED << msgs, maxBal, 2avSent, votesSent, connected,
                                        receivedByLearner, decision >>
                PROVE  TypeOK'
-    BY <1>3 DEF AcceptorReceiveAction, Recv
+    BY SafeAcceptorIsAcceptor, <1>3 DEF AcceptorReceiveAction, Recv
   <2>1. received' \in [Learner \X Acceptor -> SUBSET Message] BY DEF TypeOK
   <2>7. QED
     BY <1>3, <2>1 DEF AcceptorReceiveAction, Recv, TypeOK  
@@ -435,25 +456,19 @@ PROOF
                PROVE  TypeOK'
     BY <2>2 DEF LearnerRecv, TypeOK
   <2>3. QED BY <1>5, <2>1, <2>2 DEF LearnerAction
-<1>6. QED
-    BY <1>1, <1>2, <1>3, <1>4, <1>5 DEF Next
+<1>6. CASE FakeAcceptorAction
+  <2>1. SUFFICES ASSUME NEW a \in Acceptor,
+                        FakeSend(a)
+                 PROVE TypeOK'
+        BY <1>6, FakeAcceptorIsAcceptor DEF FakeAcceptorAction
+  <2>2. QED BY <2>1 DEF FakeSend, Send, TypeOK
+<1>7. QED
+    BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6 DEF Next
 
-
-LEMMA MessageType ==
-    ASSUME NEW m \in Message
-    PROVE /\ m.lr \in Learner
-          /\ m.bal \in Ballot
-          /\ (m.type = "1b" \/ m.type = "2av" \/ m.type = "2b") => m.acc \in Acceptor
-          /\ (m.type = "1c" \/ m.type = "2av" \/ m.type = "2b") => m.val \in Value
-          /\ (m.type = "1b") =>
-                /\ m.votes \in SUBSET [lr : Learner, bal : Ballot, val : Value]
-                /\ m.proposals \in SUBSET [bal : Ballot, val : Value]
-PROOF BY DEF Message
-
-LEMMA ReceivedSpecInvariant ==
-    TypeOK /\ ReceivedSpec /\ Next => ReceivedSpec'
+LEMMA ReceivedSpecInvariant == TypeOK /\ ReceivedSpec /\ Next => ReceivedSpec'
 PROOF
 <1> SUFFICES ASSUME TypeOK, ReceivedSpec, Next PROVE ReceivedSpec' OBVIOUS
+<1>0. TypeOK' BY TypeOKInvariant
 <1>1. CASE ProposerAction
   BY <1>1 DEF ProposerAction, Phase1a, Phase1c, ReceivedSpec, Send, Next, TypeOK
 <1>2. CASE AcceptorSendAction
@@ -464,7 +479,7 @@ PROOF
                       \/ Phase2av(lrn, bal, acc)
                       \/ Phase2b(lrn, bal, acc)
                PROVE  ReceivedSpec'
-    BY <1>2 DEF AcceptorSendAction
+    BY <1>2, SafeAcceptorIsAcceptor DEF AcceptorSendAction
   <2>1. CASE Phase1b(lrn, bal, acc)
     BY <2>1 DEF TypeOK, ReceivedSpec, Phase1b, Send
   <2>2. CASE Phase2av(lrn, bal, acc)
@@ -475,8 +490,7 @@ PROOF
                  PROVE  ReceivedSpec'
       BY <2>3 DEF Phase2b
     <3>2. UNCHANGED << received >> BY <2>3 DEF Phase2b
-    <3>5. QED
-      BY <3>2 DEF TypeOK, ReceivedSpec, Send
+    <3>5. QED BY <3>2 DEF TypeOK, ReceivedSpec, Send
   <2>4. QED
     BY <2>1, <2>2, <2>3
 <1>3. CASE AcceptorReceiveAction
@@ -489,15 +503,19 @@ PROOF
                       UNCHANGED << msgs, maxBal, 2avSent, votesSent, connected,
                                        receivedByLearner, decision >>
                PROVE  ReceivedSpec'
-    BY <1>3 DEF AcceptorReceiveAction, Recv
+    BY <1>3, SafeAcceptorIsAcceptor DEF AcceptorReceiveAction, Recv
   <2> QED
-    BY DEF ReceivedSpec, TypeOK, Next
+    BY MessageType, SafeAcceptorIsAcceptor DEF ReceivedSpec, TypeOK, Next
 <1>4. CASE AcceptorDisconnectAction
   BY <1>4 DEF AcceptorDisconnectAction, Disconnect, ReceivedSpec, TypeOK, Next
 <1>5. CASE LearnerAction
   BY <1>5 DEF LearnerAction, LearnerRecv, LearnerDecide, ReceivedSpec, TypeOK, Next
-<1>6. QED
-  BY <1>1, <1>2, <1>3, <1>4, <1>5 DEF Next
+<1>6. CASE FakeAcceptorAction
+  <2>1. SUFFICES ASSUME NEW a \in Acceptor, FakeSend(a) PROVE ReceivedSpec'
+        BY <1>6, FakeAcceptorIsAcceptor DEF FakeAcceptorAction
+  <2>2. QED BY <2>1 DEF FakeSend, Send, TypeOK, ReceivedSpec
+<1>7. QED
+  BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6 DEF Next
 
 LEMMA ReceivedByLearnerSpecInvariant ==
     TypeOK /\ ReceivedByLearnerSpec /\ Next => ReceivedByLearnerSpec'
@@ -513,7 +531,7 @@ PROOF
                       \/ Phase2av(lrn, bal, acc)
                       \/ Phase2b(lrn, bal, acc)
                PROVE  ReceivedByLearnerSpec'
-    BY <1>2 DEF AcceptorSendAction
+    BY <1>2, SafeAcceptorIsAcceptor DEF AcceptorSendAction
   <2>1. CASE Phase1b(lrn, bal, acc)
     BY <2>1 DEF TypeOK, ReceivedByLearnerSpec, Phase1b, Send
   <2>2. CASE Phase2av(lrn, bal, acc)
@@ -550,8 +568,11 @@ PROOF
     <3>1. UNCHANGED << msgs >> BY <2>2 DEF LearnerAction, LearnerRecv
     <3>5. QED BY <2>2, <3>1 DEF ReceivedByLearnerSpec
   <2>3. QED BY <1>5, <2>1, <2>2 DEF LearnerAction
-<1>6. QED
-  BY <1>1, <1>2, <1>3, <1>4, <1>5 DEF Next
+<1>6. CASE FakeAcceptorAction
+  <2>1. SUFFICES ASSUME NEW a \in Acceptor, FakeSend(a) PROVE ReceivedByLearnerSpec'
+        BY <1>6, FakeAcceptorIsAcceptor DEF FakeAcceptorAction
+  <2>2. QED BY <2>1 DEF FakeSend, Send, TypeOK, ReceivedByLearnerSpec
+<1>7. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6 DEF Next
 
 LEMMA MsgsMonotone == Next => msgs \subseteq msgs'
 PROOF
@@ -561,7 +582,8 @@ PROOF
 <1>3. CASE AcceptorReceiveAction BY <1>3 DEF AcceptorReceiveAction, Recv
 <1>4. CASE AcceptorDisconnectAction BY <1>4 DEF AcceptorDisconnectAction, Disconnect
 <1>5. CASE LearnerAction BY <1>5 DEF LearnerAction, LearnerDecide, LearnerRecv
-<1>6. QED BY <1>1, <1>2, <1>3, <1>4, <1>5 DEF Next
+<1>6. CASE FakeAcceptorAction BY <1>6 DEF FakeAcceptorAction, FakeSend, Send 
+<1>7. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6 DEF Next
 
 LEMMA 2avSentMonotone == TypeOK /\ Next => \A A \in Acceptor : 2avSent[A] \subseteq 2avSent'[A]
 PROOF
@@ -573,7 +595,8 @@ PROOF
 <1>3. CASE AcceptorReceiveAction BY <1>3 DEF AcceptorReceiveAction, Recv
 <1>4. CASE AcceptorDisconnectAction BY <1>4 DEF AcceptorDisconnectAction, Disconnect
 <1>5. CASE LearnerAction BY <1>5 DEF LearnerAction, LearnerDecide, LearnerRecv
-<1>6. QED BY <1>0, <1>1, <1>2, <1>3, <1>4, <1>5 DEF Next
+<1>6. CASE FakeAcceptorAction BY <1>6 DEF FakeAcceptorAction, FakeSend, Send 
+<1>7. QED BY <1>0, <1>1, <1>2, <1>3, <1>4, <1>5, <1>6 DEF Next
 
 LEMMA 2avSentMonotoneBis == TypeOK /\ Next => \A A \in Acceptor : 2avSent[A] \subseteq 2avSent'[A]
 PROOF
@@ -585,7 +608,8 @@ PROOF
 <1>3. CASE AcceptorReceiveAction BY <1>3 DEF AcceptorReceiveAction, Recv
 <1>4. CASE AcceptorDisconnectAction BY <1>4 DEF AcceptorDisconnectAction, Disconnect
 <1>5. CASE LearnerAction BY <1>5 DEF LearnerAction, LearnerDecide, LearnerRecv
-<1>6. QED BY <1>0, <1>1, <1>2, <1>3, <1>4, <1>5 DEF Next
+<1>6. CASE FakeAcceptorAction BY <1>6 DEF FakeAcceptorAction, FakeSend, Send 
+<1>7. QED BY <1>0, <1>1, <1>2, <1>3, <1>4, <1>5, <1>6 DEF Next
 
 LEMMA ReceivedMonotone ==
     TypeOK /\ Next => \A L \in Learner : \A A \in Acceptor : received[<<L, A>>] \subseteq received'[<<L, A>>]
@@ -598,7 +622,8 @@ PROOF
 <1>3. CASE AcceptorReceiveAction BY <1>3, <1>0a, <1>0b DEF AcceptorReceiveAction, Recv, TypeOK
 <1>4. CASE AcceptorDisconnectAction BY <1>4 DEF AcceptorDisconnectAction, Disconnect
 <1>5. CASE LearnerAction BY <1>5 DEF LearnerAction, LearnerDecide, LearnerRecv
-<1>6. QED BY <1>0, <1>1, <1>2, <1>3, <1>4, <1>5 DEF Next
+<1>6. CASE FakeAcceptorAction BY <1>6 DEF FakeAcceptorAction, FakeSend, Send 
+<1>7. QED BY <1>0, <1>1, <1>2, <1>3, <1>4, <1>5, <1>6 DEF Next
 
 LEMMA MaxBalMonotone ==
     TypeOK /\ Next =>
@@ -617,7 +642,7 @@ LEMMA MaxBalMonotone ==
                       \/ Phase2av(lrn, bal, acc)
                       \/ Phase2b(lrn, bal, acc)
                PROVE  maxBal[<<l, a>>] =< (maxBal')[<<l, a>>]
-    BY <1>2 DEF AcceptorSendAction
+    BY <1>2, SafeAcceptorIsAcceptor DEF AcceptorSendAction
   <2>1. CASE Phase1b(lrn, bal, acc)
     <3>1. CASE <<l, a>> = <<lrn, acc>> BY <2>1, <3>1 DEF Phase1b, TypeOK, Ballot
     <3>2. CASE <<l, a>> # <<lrn, acc>> BY <2>1, <3>2 DEF Phase1b, TypeOK, Ballot
@@ -638,7 +663,10 @@ LEMMA MaxBalMonotone ==
 <1>5. CASE LearnerAction
   <2>1. UNCHANGED maxBal BY <1>5 DEF LearnerAction, LearnerDecide, LearnerRecv
   <2>2. QED BY <2>1 DEF TypeOK, Ballot
-<1>6. QED BY <1>1, <1>2, <1>3, <1>4, <1>5
+<1>6. CASE FakeAcceptorAction
+  <2>1. UNCHANGED maxBal BY <1>6 DEF FakeAcceptorAction, FakeSend
+  <2>2. QED BY <2>1 DEF TypeOK, Ballot
+<1>7. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6 DEF Next
 
 LEMMA VotesSentMonotone ==
     TypeOK /\ Next => \A A \in Acceptor : votesSent[A] \subseteq votesSent'[A]
