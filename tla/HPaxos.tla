@@ -299,7 +299,7 @@ ReceivedSpec ==
     /\ received \in
         [Learner \X Acceptor -> SUBSET {mm \in msgs : mm.type = "1b" \/ mm.type = "2av"}]
     /\ \A L \in Learner : \A A \in SafeAcceptor : \A mm \in Message :
-        mm \in received[<<L, A>>] => mm.lrn = L
+        mm \in received[L, A] => mm.lrn = L
 
 ReceivedByLearnerSpec ==
     /\ receivedByLearner \in [Learner -> SUBSET {mm \in msgs : mm.type = "2b"}]
@@ -317,7 +317,7 @@ VotesSentSpec ==
 
 DecisionSpec ==
     \A L \in Learner : \A B \in Ballot : \A V \in Value :
-        V \in decision[<<L, B>>] => ChosenIn(L, B, V)
+        V \in decision[L, B] => ChosenIn(L, B, V)
 
 MsgInv1b(m) ==
     /\ m.bal \leq maxBal[<<m.lr, m.acc>>]
@@ -800,7 +800,7 @@ LEMMA DecisionSpecInvariant == Next /\ TypeOK /\ DecisionSpec => DecisionSpec'
 PROOF
 <1> SUFFICES ASSUME Next, TypeOK, DecisionSpec,
              NEW L \in Learner, NEW B \in Ballot, NEW V \in Value,
-             V \in decision'[<<L, B>>]
+             V \in decision'[L, B]
              PROVE ChosenIn(L, B, V)'
     BY DEF DecisionSpec
 <1> USE DEF DecisionSpec
@@ -818,8 +818,8 @@ PROOF
   <2>2. CASE LearnerDecide(lrn, bal)
     <3>0a. TypeOK OBVIOUS
     <3>0b. TypeOK' BY TypeOKInvariant
-    <3>1. CASE V \in decision[<<L, B>>] BY <3>1, <2>2 DEF ChosenIn, LearnerDecide
-    <3>2. CASE V \notin decision[<<L, B>>] BY <3>2, <2>2, <3>0a, <3>0b DEF ChosenIn, LearnerDecide, TypeOK 
+    <3>1. CASE V \in decision[L, B] BY <3>1, <2>2 DEF ChosenIn, LearnerDecide
+    <3>2. CASE V \notin decision[L, B] BY <3>2, <2>2, <3>0a, <3>0b DEF ChosenIn, LearnerDecide, TypeOK 
     <3>3. QED BY <3>1, <3>2
   <2>3. CASE LearnerRecv(lrn)
     <3>1. QED BY <2>3 DEF LearnerRecv
@@ -1101,6 +1101,24 @@ Safety == (* safety *)
     \A L1, L2 \in Learner: \A B1, B2 \in Ballot : \A V1, V2 \in Value :
         <<L1, L2>> \in Ent /\
         V1 \in decision[L1, B1] /\ V2 \in decision[L2, B2] => V1 = V2
+
+\*LEMMA InitSpec == TypeOK /\ Init => \A L \in Learner : \A B \in Ballot : decision[L, B] = {}
+\*PROOF
+\*<1> SUFFICES ASSUME TypeOK, Init,
+\*                    NEW L \in Learner, NEW B \in Ballot
+\*             PROVE decision[L, B] = {}
+\*             OBVIOUS
+\*<1> SUFFICES ASSUME TypeOK, ,
+\*                    NEW L \in Learner, NEW B \in Ballot
+\*             PROVE decision[L, B] = {}
+\*             OBVIOUS
+\*             
+\*<1>1. QED BY DEF Init
+\*
+\*LEMMA SafetyInit == TypeOK /\ Init => Safety
+\*PROOF
+\*<1> QED BY DEF Init, Safety, TypeOK
+
 
 THEOREM SafetyResult == Spec => []Safety
 OMITTED
