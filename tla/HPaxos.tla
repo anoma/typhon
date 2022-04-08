@@ -139,15 +139,26 @@ KnowsSafeAt(l, ac, b, v) ==
 vars == << maxBal, votesSent, 2avSent, received, connected, receivedByLearner, 
            decision, msgs >>
 
+TypeOK ==
+    /\ msgs \in SUBSET Message
+    /\ maxBal \in [Learner \X Acceptor -> Ballot]
+    /\ votesSent \in [Acceptor -> SUBSET [lr : Learner, bal : Ballot, val : Value]]
+    /\ 2avSent \in [Acceptor -> SUBSET [bal : Ballot, val : Value]]
+    /\ connected \in [Acceptor -> SUBSET (Learner \X Learner)]
+    /\ received \in [Learner \X Acceptor -> SUBSET Message]
+    /\ receivedByLearner \in [Learner -> SUBSET Message]
+    /\ decision \in [Learner \X Ballot -> SUBSET Value]
+
 Init ==
-    /\ maxBal = [l \in Learner, a \in Acceptor |-> -1]
-    /\ votesSent = [a \in Acceptor |-> {}]
-    /\ 2avSent = [l \in Learner, a \in Acceptor |-> {}]
-    /\ received = [l \in Learner, a \in Acceptor |-> {}]
-    /\ connected = [a \in Acceptor |-> {}]
-    /\ receivedByLearner = [l \in Learner |-> {}]
-    /\ decision = [l \in Learner, b \in Ballot |-> {}]
+    /\ \A L \in Learner : \A A \in SafeAcceptor : maxBal[L, A] = -1
+    /\ \A L \in Learner : \A A \in SafeAcceptor : 2avSent[L, A] = {}
+    /\ \A L \in Learner : \A A \in SafeAcceptor : received[L, A] = {}
+    /\ \A A \in SafeAcceptor : votesSent[A] = {}
+    /\ \A A \in SafeAcceptor : connected[A] = {}
+    /\ \A L \in Learner : receivedByLearner[L] = {}
+    /\ \A L \in Learner : \A B \in Ballot : decision[L, B] = {}
     /\ msgs = {}
+    /\ TypeOK
 
 Send(m) == msgs' = msgs \cup {m}
 
@@ -285,15 +296,7 @@ ProposedIn(bal, val) ==
 
 -----------------------------------------------------------------------------
 
-TypeOK ==
-    /\ msgs \in SUBSET Message
-    /\ maxBal \in [Learner \X Acceptor -> Ballot]
-    /\ votesSent \in [Acceptor -> SUBSET [lr : Learner, bal : Ballot, val : Value]]
-    /\ 2avSent \in [Acceptor -> SUBSET [bal : Ballot, val : Value]]
-    /\ connected \in [Acceptor -> SUBSET (Learner \X Learner)]
-    /\ received \in [Learner \X Acceptor -> SUBSET Message]
-    /\ receivedByLearner \in [Learner -> SUBSET Message]
-    /\ decision \in [Learner \X Ballot -> SUBSET Value]
+
 
 ReceivedSpec ==
     /\ received \in
@@ -1096,29 +1099,16 @@ PROOF
   <2>8. QED BY <1>2b, <2>0a, <2>1, <2>2, <2>4, <2>5, <2>6, <2>7 DEF Next
 <1>3. QED BY <1>1b, <1>2av, <1>2b
 
-
 Safety == (* safety *)
     \A L1, L2 \in Learner: \A B1, B2 \in Ballot : \A V1, V2 \in Value :
         <<L1, L2>> \in Ent /\
         V1 \in decision[L1, B1] /\ V2 \in decision[L2, B2] => V1 = V2
 
-\*LEMMA InitSpec == TypeOK /\ Init => \A L \in Learner : \A B \in Ballot : decision[L, B] = {}
-\*PROOF
-\*<1> SUFFICES ASSUME TypeOK, Init,
-\*                    NEW L \in Learner, NEW B \in Ballot
-\*             PROVE decision[L, B] = {}
-\*             OBVIOUS
-\*<1> SUFFICES ASSUME TypeOK, ,
-\*                    NEW L \in Learner, NEW B \in Ballot
-\*             PROVE decision[L, B] = {}
-\*             OBVIOUS
-\*             
-\*<1>1. QED BY DEF Init
-\*
-\*LEMMA SafetyInit == TypeOK /\ Init => Safety
-\*PROOF
-\*<1> QED BY DEF Init, Safety, TypeOK
+LEMMA SafetyInit == Init => Safety
+PROOF BY DEF Init, Safety
 
+LEMMA SafetyStep == Next /\ Safety => Safety'
+OMITTED
 
 THEOREM SafetyResult == Spec => []Safety
 OMITTED
