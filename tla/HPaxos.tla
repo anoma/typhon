@@ -796,8 +796,36 @@ PROOF
 <1>6. CASE FakeAcceptorAction BY <1>6 DEF FakeAcceptorAction, FakeSend, Send
 <1>7. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6 DEF Next
 
-LEMMA DecisionSpecInvariant == Next /\ DecisionSpec => DecisionSpec'
-OMITTED
+LEMMA DecisionSpecInvariant == Next /\ TypeOK /\ DecisionSpec => DecisionSpec'
+PROOF
+<1> SUFFICES ASSUME Next, TypeOK, DecisionSpec,
+             NEW L \in Learner, NEW B \in Ballot, NEW V \in Value,
+             V \in decision'[<<L, B>>]
+             PROVE ChosenIn(L, B, V)'
+    BY DEF DecisionSpec
+<1> USE DEF DecisionSpec
+<1>1. CASE ProposerAction BY <1>1 DEF ProposerAction, Phase1a, Phase1c, Next, Send
+<1>2. CASE AcceptorSendAction BY <1>2 DEF AcceptorSendAction, Phase1b, Phase2av, Phase2b, Next, Send
+<1>3. CASE AcceptorReceiveAction BY <1>3 DEF AcceptorReceiveAction, Recv, Next
+<1>4. CASE AcceptorDisconnectAction BY <1>4 DEF AcceptorDisconnectAction, Disconnect, Next
+<1>5. CASE LearnerAction
+  <2>1. SUFFICES
+            ASSUME NEW lrn \in Learner, NEW bal \in Ballot,
+                   \/ LearnerDecide(lrn, bal)
+                   \/ LearnerRecv(lrn)
+            PROVE ChosenIn(L, B, V)'
+        BY <1>5 DEF LearnerAction
+  <2>2. CASE LearnerDecide(lrn, bal)
+    <3>0a. TypeOK OBVIOUS
+    <3>0b. TypeOK' BY TypeOKInvariant
+    <3>1. CASE V \in decision[<<L, B>>] BY <3>1, <2>2 DEF ChosenIn, LearnerDecide
+    <3>2. CASE V \notin decision[<<L, B>>] BY <3>2, <2>2, <3>0a, <3>0b DEF ChosenIn, LearnerDecide, TypeOK 
+    <3>3. QED BY <3>1, <3>2
+  <2>3. CASE LearnerRecv(lrn)
+    <3>1. QED BY <2>3 DEF LearnerRecv
+  <2>4. QED BY <2>1, <2>2, <2>3 DEF LearnerAction
+<1>6. CASE FakeAcceptorAction BY <1>6 DEF FakeAcceptorAction, FakeSend, Send
+<1>7. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6 DEF Next
 
 
 LEMMA MsgInvInvariant ==
