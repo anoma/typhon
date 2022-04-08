@@ -315,8 +315,9 @@ VotesSentSpec ==
     \A A \in SafeAcceptor : \A B \in Ballot : \A V1, V2 \in Value :
         [bal |-> B, val |-> V1] \in 2avSent[A] /\ [bal |-> B, val |-> V2] \in 2avSent[A] => V1 = V2
 
-VarInv3 == \A L \in Learner : \A B \in Ballot : \A V \in Value :
-            V \in decision[<<L, B>>] => ChosenIn(L, B, V)
+DecisionSpec ==
+    \A L \in Learner : \A B \in Ballot : \A V \in Value :
+        V \in decision[<<L, B>>] => ChosenIn(L, B, V)
 
 MsgInv1b(m) ==
     /\ m.bal \leq maxBal[<<m.lr, m.acc>>]
@@ -794,6 +795,9 @@ PROOF
 <1>5. CASE LearnerAction BY <1>5 DEF LearnerAction, LearnerRecv, LearnerDecide, Next
 <1>6. CASE FakeAcceptorAction BY <1>6 DEF FakeAcceptorAction, FakeSend, Send
 <1>7. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6 DEF Next
+
+LEMMA DecisionSpecInvariant == Next /\ DecisionSpec => DecisionSpec'
+OMITTED
 
 
 LEMMA MsgInvInvariant ==
