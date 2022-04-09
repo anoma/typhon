@@ -605,7 +605,6 @@ LEMMA MaxBalMonotone ==
     NEW CONSTANT l \in Learner, NEW CONSTANT a \in Acceptor
     PROVE maxBal[<<l, a>>] =< maxBal'[<<l, a>>]
     OBVIOUS
-<1> USE DEF Next
 <1>1. CASE ProposerAction BY <1>1 DEF ProposerAction, Phase1a, Phase1c, Send, TypeOK, Ballot
 <1>2. CASE AcceptorSendAction
   <2> SUFFICES ASSUME NEW lrn \in Learner,
@@ -773,7 +772,6 @@ PROOF
 <1> USE DEF 2avSentSpec2
 <1>1. CASE ProposerAction BY <1>1 DEF ProposerAction, Phase1a, Phase1c, Next, Send
 <1>2. CASE AcceptorSendAction
-  <2> HIDE DEF Next
   <2> SUFFICES ASSUME NEW lrn \in Learner,
                        NEW bal \in Ballot,
                        NEW acc \in SafeAcceptor,
@@ -799,7 +797,7 @@ PROOF
 <1>6. CASE FakeAcceptorAction BY <1>6 DEF FakeAcceptorAction, FakeSend, Send
 <1>7. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6 DEF Next
 
-LEMMA DecisionSpecInvariant == Next /\ TypeOK /\ DecisionSpec => DecisionSpec'
+LEMMA DecisionSpecInvariant == TypeOK /\ Next /\ DecisionSpec => DecisionSpec'
 PROOF
 <1> SUFFICES ASSUME Next, TypeOK, DecisionSpec,
              NEW L \in Learner, NEW B \in Ballot, NEW V \in Value,
@@ -1107,8 +1105,42 @@ Safety == (* safety *)
 LEMMA SafetyInit == Init => Safety
 PROOF BY DEF Init, Safety
 
-LEMMA SafetyStep == Next /\ Safety => Safety'
-OMITTED
+LEMMA SafetyStep ==
+    TypeOK /\ Next /\ DecisionSpec /\ Safety => Safety'
+PROOF
+<1> SUFFICES
+        ASSUME TypeOK, Next, Safety, DecisionSpec,
+               NEW L1 \in Learner, NEW L2 \in Learner,
+               NEW B1 \in Ballot, NEW B2 \in Ballot,
+               NEW V1 \in Value, NEW V2 \in Value,
+               <<L1, L2>> \in Ent,
+               V1 \in decision'[L1, B1], V2 \in decision'[L2, B2]
+        PROVE V1 = V2
+      BY DEF Safety
+<1>0a. TypeOK OBVIOUS
+<1>0b. TypeOK' BY TypeOKInvariant
+<1>1. CASE ProposerAction BY <1>1 DEF ProposerAction, Phase1a, Phase1c, Send, Safety
+<1>2. CASE AcceptorSendAction
+  <2>1. SUFFICES ASSUME NEW lrn \in Learner,
+                        NEW bal \in Ballot,
+                        NEW acc \in SafeAcceptor,
+                        NEW val \in Value,
+                        \/ Phase1b(lrn, bal, acc)
+                        \/ Phase2av(lrn, bal, acc, val)
+                        \/ Phase2b(lrn, bal, acc, val)
+                 PROVE V1 = V2
+        BY <1>2 DEF AcceptorSendAction
+  <2>2. CASE Phase1b(lrn, bal, acc) BY <2>2, <1>0a, <1>0b DEF AcceptorSendAction, Send, Phase1b, Safety, TypeOK
+  <2>3. CASE Phase2av(lrn, bal, acc, val) BY <2>3, <1>0a, <1>0b DEF AcceptorSendAction, Send, Phase2av, Safety, TypeOK
+  <2>4. CASE Phase2b(lrn, bal, acc, val) BY <2>4, <1>0a, <1>0b DEF AcceptorSendAction, Send, Phase2b, Safety, TypeOK
+  <2>5. QED BY <2>1, <2>2, <2>3, <2>4
+<1>3. CASE AcceptorReceiveAction BY <1>3, <1>0a, <1>0b DEF AcceptorReceiveAction, Recv, TypeOK, Safety
+<1>4. CASE AcceptorDisconnectAction BY <1>4 DEF AcceptorDisconnectAction, Disconnect, Safety
+<1>5. CASE LearnerAction
+  <2>20. QED OMITTED
+<1>6. CASE FakeAcceptorAction BY <1>6 DEF FakeAcceptorAction, FakeSend, Send, Safety
+<1>7. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6 DEF Next
+
 
 THEOREM SafetyResult == Spec => []Safety
 OMITTED
