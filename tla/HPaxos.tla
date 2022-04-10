@@ -1137,7 +1137,25 @@ PROOF
 <1>3. CASE AcceptorReceiveAction BY <1>3, <1>0a, <1>0b DEF AcceptorReceiveAction, Recv, TypeOK, Safety
 <1>4. CASE AcceptorDisconnectAction BY <1>4 DEF AcceptorDisconnectAction, Disconnect, Safety
 <1>5. CASE LearnerAction
-  <2>20. QED OMITTED
+  <2> SUFFICES ASSUME NEW lrn \in Learner, NEW bal \in Ballot,
+                       \/ LearnerDecide(lrn, bal)
+                       \/ LearnerRecv(lrn)
+               PROVE V1 = V2 BY <1>5 DEF LearnerAction
+  <2>1. CASE LearnerRecv(lrn) BY <2>1 DEF LearnerRecv, Safety
+  <2>2. CASE LearnerDecide(lrn, bal)
+    <3> SUFFICES ASSUME NEW val \in Value,
+                        ChosenIn(lrn, bal, val),
+                        decision' = [decision EXCEPT ![<<lrn, bal>>] = decision[lrn, bal] \cup {val}],
+                        UNCHANGED <<msgs, maxBal, votesSent, 2avSent, received, connected, receivedByLearner>>
+                 PROVE V1 = V2
+        BY <2>2 DEF LearnerDecide
+    <3>1. CASE val # V1 /\ val # V2 BY <3>1 DEF Safety, TypeOK
+    <3>2. CASE val = V1 OMITTED
+    <3>3. CASE val = V2
+      <4>1. QED BY <3>3
+    <3>4. QED BY <3>1, <3>2, <3>3
+  \*<2>15. DecisionSpec' BY DecisionSpecInvariant
+  <2>3. QED BY <2>1, <2>2
 <1>6. CASE FakeAcceptorAction BY <1>6 DEF FakeAcceptorAction, FakeSend, Send, Safety
 <1>7. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6 DEF Next
 
