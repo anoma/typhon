@@ -1166,6 +1166,15 @@ PROOF
 <1>16. m2av2 \in msgs /\ m2av2.type = "2av" /\
        m2av2.lr = L2 /\ m2av2.acc = A0 /\ m2av2.bal = B2 /\ m2av2.val = V2
        BY <1>14, SafeAcceptorIsAcceptor DEF ReceivedSpec, TypeOK
+<1>17a. initializedBallot(L1, B1) BY <1>15 DEF MsgInv, MsgInv2av
+<1>17b. announcedValue(L1, B1, V1) BY <1>15 DEF MsgInv, MsgInv2av
+<1>17c. KnowsSafeAt(L1, A0, B1, V1) BY <1>15 DEF MsgInv, MsgInv2av
+<1>17d. [bal |-> B1, val |-> V1] \in 2avSent[A0] BY <1>15 DEF MsgInv, MsgInv2av
+<1>18a. initializedBallot(L2, B2) BY <1>16 DEF MsgInv, MsgInv2av
+<1>18b. announcedValue(L2, B2, V2) BY <1>16 DEF MsgInv, MsgInv2av
+<1>18c. KnowsSafeAt(L2, A0, B2, V2) BY <1>16 DEF MsgInv, MsgInv2av
+<1>18d. [bal |-> B2, val |-> V2] \in 2avSent[A0] BY <1>16 DEF MsgInv, MsgInv2av
+
 <1>20. QED OBVIOUS
 
 Safety == (* safety *)
