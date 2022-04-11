@@ -333,8 +333,14 @@ DecisionSpec ==
 
 MsgInv1b(m) ==
     /\ m.bal \leq maxBal[<<m.lr, m.acc>>]
-    /\ \A vote \in m.votes : VotedForIn(vote.lr, m.acc, vote.bal, vote.val)
-    /\ \A pr \in m.proposals : ProposedIn(pr.bal, pr.val)
+    /\ \A vote \in m.votes :
+            /\ vote.bal < m.bal
+            /\ VotedForIn(vote.lr, m.acc, vote.bal, vote.val)
+    /\ \A pr \in m.proposals :
+            /\ pr.bal < m.bal
+            /\ ProposedIn(pr.bal, pr.val)
+    \*/\ m.proposals = {} =>
+    \*    \A B \in Ballot : \A V \in Value : (m.bal <= B) => ~ProposedIn(B, V)
 
 MsgInv2av(m) ==
     /\ initializedBallot(m.lr, m.bal)
@@ -880,15 +886,17 @@ PROOF
           <6>5. maxBal'[<<lrn, acc>>] = bal BY <6>4, <2>0c, <2>0d
           <6>6. QED BY <6>0, <6>5 DEF Ballot
         <5>8. QED BY <5>6, <5>7
-      <4>2. ASSUME NEW vote \in m.votes PROVE VotedForIn(vote.lr, m.acc, vote.bal, vote.val)'
+      <4>2. ASSUME NEW vote \in m.votes
+            PROVE vote.bal < m.bal /\ VotedForIn(vote.lr, m.acc, vote.bal, vote.val)'
         <5>1. CASE m \in msgs BY <1>1b, <5>1, <2>0e, <4>2 DEF MsgInv1b
         <5>2. CASE m \notin msgs
           <6>0. m.bal = bal BY <3>1, <5>2 DEF Next, Phase1b, Send
           <6>1. <<m.lr, m.acc>> = <<lrn, acc>> BY <3>1, <5>2 DEF Next, Phase1b, Send
           <6>2. m.votes = {p \in votesSent[acc] : MaxVote(acc, bal, p)} BY <5>2, <3>1 DEF Phase1b, Send
-          <6>3. QED BY <6>0, <3>1, <1>1b, <6>2, <6>1 DEF VotesSentSpec, Phase1b, Send
+          <6>3. QED BY <6>0, <3>1, <1>1b, <6>2, <6>1 DEF VotesSentSpec, Phase1b, Send, MaxVote
         <5>10. QED BY <5>1, <5>2
-      <4>3. ASSUME NEW pr \in m.proposals PROVE ProposedIn(pr.bal, pr.val)'
+      <4>3. ASSUME NEW pr \in m.proposals
+            PROVE pr.bal < m.bal /\ ProposedIn(pr.bal, pr.val)'
         <5>1. CASE m \in msgs BY <1>1b, <5>1, <2>0e, <4>2 DEF MsgInv1b
         <5>2. CASE m \notin msgs
           <6>0. m.bal = bal BY <3>1, <5>2 DEF Next, Phase1b, Send
@@ -1103,11 +1111,13 @@ PROOF
   <2>8. QED BY <1>2b, <2>0a, <2>1, <2>2, <2>4, <2>5, <2>6, <2>7 DEF Next
 <1>3. QED BY <1>1b, <1>2av, <1>2b
 
+
 LEMMA ChosenSafe ==
     ASSUME NEW L1 \in Learner, NEW L2 \in Learner,
                NEW B1 \in Ballot, NEW B2 \in Ballot,
                NEW V1 \in Value, NEW V2 \in Value,
                TypeOK, ReceivedSpec, ReceivedByLearnerSpec, MsgInv,
+               2avSentSpec1, 2avSentSpec2, \* TODO remove if not needed
                <<L1, L2>> \in Ent,
                ChosenIn(L1, B1, V1), ChosenIn(L2, B2, V2)
     PROVE V1 = V2
