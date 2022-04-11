@@ -404,8 +404,8 @@ PROOF
       <4>2. {p \in 2avSent[acc] : p.bal < bal /\ p.lr = lrn} \in SUBSET [bal : Ballot, val : Value]
             BY DEF TypeOK
       <4>3. [type |-> "1b", lr |-> lrn, acc |-> acc, bal |-> bal,
-                   votes |-> {vote \in votesSent[acc] : MaxVote(acc, bal, vote) },
-                   proposals |-> {p \in 2avSent[acc] : p.bal < bal /\ p.lr = lrn}] \in Message
+             votes |-> {vote \in votesSent[acc] : MaxVote(acc, bal, vote) },
+             proposals |-> {p \in 2avSent[acc] : p.bal < bal /\ p.lr = lrn}] \in Message
             BY <4>1, <4>2 DEF Message
       <4>4. QED BY <2>1, <4>1, <4>2, <4>3 DEF Phase1b, Send, TypeOK, Message
     <3>4. QED BY <2>1, <3>1, <3>2, <3>3 DEF Phase1b, TypeOK, Send
@@ -445,7 +445,7 @@ PROOF
 <1>4. CASE AcceptorDisconnectAction BY <1>4 DEF AcceptorDisconnectAction, Disconnect, TypeOK, Message
 <1>5. CASE LearnerAction
   <2>1. ASSUME NEW lrn \in Learner, NEW bal \in Ballot,
-                   LearnerDecide(lrn, bal)
+               LearnerDecide(lrn, bal)
                PROVE  TypeOK'
     BY <2>1 DEF LearnerDecide, TypeOK
   <2>2. ASSUME NEW lrn \in Learner, LearnerRecv(lrn)
@@ -453,8 +453,7 @@ PROOF
     BY <2>2 DEF LearnerRecv, TypeOK
   <2>3. QED BY <1>5, <2>1, <2>2 DEF LearnerAction
 <1>6. CASE FakeAcceptorAction
-  <2>1. SUFFICES ASSUME NEW a \in Acceptor,
-                        FakeSend(a)
+  <2>1. SUFFICES ASSUME NEW a \in Acceptor, FakeSend(a)
                  PROVE TypeOK'
         BY <1>6, FakeAcceptorIsAcceptor DEF FakeAcceptorAction
   <2>2. QED BY <2>1 DEF FakeSend, Send, TypeOK
@@ -530,7 +529,7 @@ PROOF
     <3>3. (\A L \in Learner : \A mm \in Message : mm \in receivedByLearner[L] => mm.lr = L)'
           BY <3>1 DEF ReceivedByLearnerSpec, TypeOK
     <3>4. (receivedByLearner \in [Learner -> SUBSET {mm \in msgs : mm.type = "2b"}])'
-           BY <3>0, <3>1, MessageType DEF ReceivedByLearnerSpec, Send, TypeOK
+          BY <3>0, <3>1, MessageType DEF ReceivedByLearnerSpec, Send, TypeOK
     <3>5. QED BY <3>3, <3>4 DEF ReceivedByLearnerSpec
   <2>4. QED BY <2>1, <2>2, <2>3
 <1>3. CASE AcceptorReceiveAction
