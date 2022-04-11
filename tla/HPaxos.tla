@@ -58,8 +58,7 @@ ASSUME LearnerGraphAssumption ==
         (* validity *)
         /\ \A E \in TrustSafe : \A Q1, Q2 \in ByzQuorum :
             ([lr |-> E.from, q |-> Q1] \in TrustLive /\ [lr |-> E.to, q |-> Q2] \in TrustLive) =>
-            \E N \in Acceptor :
-                N \in Q1 /\ N \in Q2 /\ N \in SafeAcceptor
+            \E N \in SafeAcceptor : N \in Q1 /\ N \in Q2
 
 CONSTANT Ent
 ASSUME EntanglementAssumption ==
@@ -67,6 +66,16 @@ ASSUME EntanglementAssumption ==
         /\ \A L1, L2 \in Learner :
                 <<L1, L2>> \in Ent <=>
                 [from |-> L1, to |-> L2, q |-> SafeAcceptor] \in TrustSafe
+
+LEMMA EntanglementTrustLive ==
+    ASSUME NEW L1 \in Learner, NEW L2 \in Learner,
+           NEW Q1 \in ByzQuorum, NEW Q2 \in ByzQuorum,
+           <<L1, L2>> \in Ent,
+           [lr |-> L1, q |-> Q1] \in TrustLive,
+           [lr |-> L2, q |-> Q2] \in TrustLive
+    PROVE  \E N \in SafeAcceptor : N \in Q1 /\ N \in Q2
+PROOF BY EntanglementAssumption, LearnerGraphAssumption
+
 
 Message ==
     [type : {"1a"}, lr : Learner, bal : Ballot] \cup
@@ -1098,11 +1107,29 @@ LEMMA ChosenSafe ==
     ASSUME NEW L1 \in Learner, NEW L2 \in Learner,
                NEW B1 \in Ballot, NEW B2 \in Ballot,
                NEW V1 \in Value, NEW V2 \in Value,
+               ReceivedByLearnerSpec,
                <<L1, L2>> \in Ent,
                ChosenIn(L1, B1, V1), ChosenIn(L2, B2, V2)
     PROVE V1 = V2
 PROOF
-OMITTED
+<1>1. PICK Q1 \in ByzQuorum :
+        /\ [lr |-> L1, q |-> Q1] \in TrustLive
+        /\ \A aa \in Q1 :
+            \E m \in {mm \in receivedByLearner[L1] : mm.bal = B1} :
+                /\ m.val = V1
+                /\ m.acc = aa
+      BY DEF ChosenIn
+<1>2. PICK Q2 \in ByzQuorum :
+        /\ [lr |-> L2, q |-> Q2] \in TrustLive
+        /\ \A aa \in Q2 :
+            \E m \in {mm \in receivedByLearner[L2] : mm.bal = B2} :
+                /\ m.val = V2
+                /\ m.acc = aa
+      BY DEF ChosenIn
+<1>3. PICK A \in SafeAcceptor : A \in Q1 /\ A \in Q2 BY EntanglementTrustLive, <1>1, <1>2
+<1>4. PICK m1 \in receivedByLearner[L1] : m1.acc = A /\ m1.bal = B1 /\ m1.val = V1 BY <1>1, <1>3 DEF ChosenIn
+<1>5. PICK m2 \in receivedByLearner[L2] : m2.acc = A /\ m2.bal = B2 /\ m2.val = V2 BY <1>2, <1>3 DEF ChosenIn
+<1>20. QED OBVIOUS
 
 Safety == (* safety *)
     \A L1, L2 \in Learner: \A B1, B2 \in Ballot : \A V1, V2 \in Value :
@@ -1113,10 +1140,11 @@ LEMMA SafetyInit == Init => Safety
 PROOF BY DEF Init, Safety
 
 LEMMA SafetyStep ==
-    TypeOK /\ Next /\ DecisionSpec /\ Safety => Safety'
+    TypeOK /\ Next /\
+    DecisionSpec /\ ReceivedByLearnerSpec /\ Safety => Safety'
 PROOF
 <1> SUFFICES
-        ASSUME TypeOK, Next, Safety, DecisionSpec,
+        ASSUME TypeOK, Next, Safety, DecisionSpec, ReceivedByLearnerSpec,
                NEW L1 \in Learner, NEW L2 \in Learner,
                NEW B1 \in Ballot, NEW B2 \in Ballot,
                NEW V1 \in Value, NEW V2 \in Value,
