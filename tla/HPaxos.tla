@@ -226,7 +226,7 @@ Phase2b(l, b, a, v) ==
 
 Recv(l, a) ==
     /\ \E m \in { mm \in msgs :
-                    /\ mm.lrn = l
+                    /\ mm.lr = l
                     /\ mm.type = "1b" \/ mm.type = "2av" } :
         received' = [received EXCEPT ![l, a] = received[l, a] \cup { m }]
     /\ UNCHANGED << msgs, maxBal, 2avSent, votesSent, connected,
@@ -255,7 +255,7 @@ LearnerDecide(l, b) ==
                         connected, receivedByLearner >>
 
 LearnerRecv(l) ==
-    /\ \E m \in {mm \in msgs : mm.type = "2b" /\ mm.lrn = l}:
+    /\ \E m \in {mm \in msgs : mm.type = "2b" /\ mm.lr = l}:
         receivedByLearner' =
             [receivedByLearner EXCEPT ![l] = receivedByLearner[l] \cup {m}]
     /\ UNCHANGED << maxBal, votesSent, 2avSent, received,
@@ -311,12 +311,12 @@ ReceivedSpec ==
     /\ received \in
         [Learner \X Acceptor -> SUBSET {mm \in msgs : mm.type = "1b" \/ mm.type = "2av"}]
     /\ \A L \in Learner : \A A \in SafeAcceptor : \A mm \in Message :
-        mm \in received[L, A] => mm.lrn = L
+        mm \in received[L, A] => mm.lr = L
 
 ReceivedByLearnerSpec ==
     /\ receivedByLearner \in [Learner -> SUBSET {mm \in msgs : mm.type = "2b"}]
     /\ \A L \in Learner : \A mm \in Message :
-        mm \in receivedByLearner[L] => mm.lrn = L
+        mm \in receivedByLearner[L] => mm.lr = L
 
 VotesSentSpec ==
     \A A \in SafeAcceptor : \A vote \in votesSent[A] : VotedForIn(vote.lr, A, vote.bal, vote.val)
@@ -433,7 +433,7 @@ PROOF
   <2> SUFFICES ASSUME NEW lrn \in Learner,
                       NEW acc \in Acceptor,
                       NEW m \in { mm \in msgs :
-                                    /\ mm.lrn = lrn
+                                    /\ mm.lr = lrn
                                     /\ mm.type = "1b" \/ mm.type = "2av" },
                       received' = [received EXCEPT ![lrn, acc] = received[lrn, acc] \cup { m }],
                       UNCHANGED << msgs, maxBal, 2avSent, votesSent, connected,
@@ -491,7 +491,7 @@ PROOF
   <2> SUFFICES ASSUME NEW lrn \in Learner,
                       NEW acc \in Acceptor,
                       NEW m \in { mm \in msgs :
-                                    /\ mm.lrn = lrn
+                                    /\ mm.lr = lrn
                                     /\ mm.type = "1b" \/ mm.type = "2av" },
                       received' = [received EXCEPT ![lrn, acc] = received[lrn, acc] \cup { m }],
                       UNCHANGED << msgs, maxBal, 2avSent, votesSent, connected,
@@ -537,7 +537,7 @@ PROOF
       BY <2>3 DEF Phase2b
     <3>0. TypeOK' BY TypeOKInvariant
     <3>1. UNCHANGED <<receivedByLearner>> BY <2>3 DEF Phase2b
-    <3>3. (\A L \in Learner : \A mm \in Message : mm \in receivedByLearner[L] => mm.lrn = L)'
+    <3>3. (\A L \in Learner : \A mm \in Message : mm \in receivedByLearner[L] => mm.lr = L)'
           BY <3>1 DEF ReceivedByLearnerSpec, TypeOK
     <3>4. (receivedByLearner \in [Learner -> SUBSET {mm \in msgs : mm.type = "2b"}])'
            BY <3>0, <3>1, MessageType DEF ReceivedByLearnerSpec, Send, TypeOK
@@ -555,7 +555,7 @@ PROOF
     BY <2>1 DEF LearnerDecide, ReceivedByLearnerSpec, TypeOK, Next
   <2>2. ASSUME NEW lrn \in Learner, LearnerRecv(lrn)
         PROVE  ReceivedByLearnerSpec'
-    <3> SUFFICES ASSUME NEW m \in {mm \in msgs : mm.type = "2b" /\ mm.lrn = lrn},
+    <3> SUFFICES ASSUME NEW m \in {mm \in msgs : mm.type = "2b" /\ mm.lr = lrn},
                         receivedByLearner' =
                             [receivedByLearner EXCEPT ![lrn] = receivedByLearner[lrn] \cup {m}]
                  PROVE  ReceivedByLearnerSpec'
@@ -1056,7 +1056,7 @@ PROOF
     <3>0. SUFFICES ASSUME NEW lrn \in Learner,
                           NEW acc \in SafeAcceptor,
                           NEW m0 \in msgs,
-                          m0.lrn = lrn,
+                          m0.lr = lrn,
                           m0.type = "1b" \/ m0.type = "2av",
                           received' = [received EXCEPT ![lrn, acc] = received[lrn, acc] \cup { m0 }],
                           UNCHANGED << msgs, maxBal, 2avSent, votesSent, connected,
@@ -1107,7 +1107,7 @@ LEMMA ChosenSafe ==
     ASSUME NEW L1 \in Learner, NEW L2 \in Learner,
                NEW B1 \in Ballot, NEW B2 \in Ballot,
                NEW V1 \in Value, NEW V2 \in Value,
-               ReceivedByLearnerSpec,
+               TypeOK, ReceivedByLearnerSpec, MsgInv,
                <<L1, L2>> \in Ent,
                ChosenIn(L1, B1, V1), ChosenIn(L2, B2, V2)
     PROVE V1 = V2
@@ -1129,6 +1129,21 @@ PROOF
 <1>3. PICK A \in SafeAcceptor : A \in Q1 /\ A \in Q2 BY EntanglementTrustLive, <1>1, <1>2
 <1>4. PICK m1 \in receivedByLearner[L1] : m1.acc = A /\ m1.bal = B1 /\ m1.val = V1 BY <1>1, <1>3 DEF ChosenIn
 <1>5. PICK m2 \in receivedByLearner[L2] : m2.acc = A /\ m2.bal = B2 /\ m2.val = V2 BY <1>2, <1>3 DEF ChosenIn
+<1>6. m1 \in msgs /\ m1.type = "2b" /\ m1.lr = L1 /\ m1.acc = A /\ m1.bal = B1 /\ m1.val = V1
+        BY <1>4 DEF ReceivedByLearnerSpec, TypeOK
+<1>7. m2 \in msgs /\ m2.type = "2b" /\ m2.lr = L2 /\ m2.acc = A /\ m2.bal = B2 /\ m2.val = V2
+        BY <1>5 DEF ReceivedByLearnerSpec, TypeOK
+<1>8. [lr |-> L1, bal |-> B1, val |-> V1] \in votesSent[A] BY <1>6 DEF MsgInv, MsgInv2b
+<1>9. [lr |-> L2, bal |-> B2, val |-> V2] \in votesSent[A] BY <1>7 DEF MsgInv, MsgInv2b
+\*    /\ [lr |-> m.lr, bal |-> m.bal, val |-> m.val] \in votesSent[m.acc]
+\*    /\ \E Q \in ByzQuorum :
+\*        /\ [lr |-> m.lr, q |-> Q] \in TrustLive
+\*        /\ \A ba \in Q :
+\*            \E m2av \in received[m.lr, m.acc] :
+\*                /\ m2av.type = "2av"
+\*                /\ m2av.acc = ba
+\*                /\ m2av.bal = m.bal
+\*                /\ m2av.val = m.val
 <1>20. QED OBVIOUS
 
 Safety == (* safety *)
@@ -1141,10 +1156,10 @@ PROOF BY DEF Init, Safety
 
 LEMMA SafetyStep ==
     TypeOK /\ Next /\
-    DecisionSpec /\ ReceivedByLearnerSpec /\ Safety => Safety'
+    DecisionSpec /\ ReceivedByLearnerSpec /\ MsgInv /\ Safety => Safety'
 PROOF
 <1> SUFFICES
-        ASSUME TypeOK, Next, Safety, DecisionSpec, ReceivedByLearnerSpec,
+        ASSUME TypeOK, Next, Safety, DecisionSpec, ReceivedByLearnerSpec, MsgInv,
                NEW L1 \in Learner, NEW L2 \in Learner,
                NEW B1 \in Ballot, NEW B2 \in Ballot,
                NEW V1 \in Value, NEW V2 \in Value,
