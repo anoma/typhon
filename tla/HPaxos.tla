@@ -1178,10 +1178,12 @@ PROOF BY DEF Init, Safety
 
 LEMMA SafetyStep ==
     TypeOK /\ Next /\
-    DecisionSpec /\ ReceivedSpec /\ ReceivedByLearnerSpec /\ MsgInv /\ Safety => Safety'
+    DecisionSpec /\ ReceivedSpec /\ ReceivedByLearnerSpec /\ MsgInv /\
+    2avSentSpec1 /\ 2avSentSpec2 /\ Safety => Safety'
 PROOF
 <1> SUFFICES
         ASSUME TypeOK, Next, Safety, DecisionSpec, ReceivedSpec, ReceivedByLearnerSpec, MsgInv,
+               2avSentSpec1, 2avSentSpec2,
                NEW L1 \in Learner, NEW L2 \in Learner,
                NEW B1 \in Ballot, NEW B2 \in Ballot,
                NEW V1 \in Value, NEW V2 \in Value,
@@ -1224,7 +1226,16 @@ PROOF
     <3>0. CASE V1 = V2 BY <3>0
     <3>1. CASE V1 # V2
       <4>1. CASE val # V1 /\ val # V2 BY <4>1 DEF Safety, TypeOK
-      <4>2. CASE val = V1 OMITTED \* similar to <4>3
+      <4>2. CASE val = V1 \*OMITTED \* similar to <4>3
+        <5>0. V2 \in decision[L2, B2] BY <3>1, <4>2 DEF TypeOK
+        <5>1. ChosenIn(L2, B2, V2) BY <5>0 DEF DecisionSpec
+        <5>2. CASE V1 \in decision[L1, B1] BY <5>0, <5>2 DEF Safety
+        <5>3. CASE V1 \notin decision[L1, B1]
+          <6>1a. lrn = L1 BY <5>3, <4>2 DEF TypeOK
+          <6>1b. bal = B1 BY <5>3, <4>2 DEF TypeOK
+          <6>2. ChosenIn(L1, B1, V1) BY <6>1a, <6>1b, <4>2
+          <6>10. QED BY <5>1, <6>2, ChosenSafe
+        <5>4. QED BY <5>2, <5>3
       <4>3. CASE val = V2
         <5>0. V1 \in decision[L1, B1] BY <3>1, <4>3 DEF TypeOK
         <5>1. ChosenIn(L1, B1, V1) BY <5>0 DEF DecisionSpec
@@ -1233,7 +1244,7 @@ PROOF
           <6>1a. lrn = L2 BY <5>3, <4>3 DEF TypeOK
           <6>1b. bal = B2 BY <5>3, <4>3 DEF TypeOK
           <6>2. ChosenIn(L2, B2, V2) BY <6>1a, <6>1b, <4>3
-          <6>10. QED BY <5>0, <5>1, <6>2, ChosenSafe
+          <6>10. QED BY <5>1, <6>2, ChosenSafe
         <5>4. QED BY <5>2, <5>3
       <4>4. QED BY <4>1, <4>2, <4>3
     <3>2. QED BY <3>0, <3>1
