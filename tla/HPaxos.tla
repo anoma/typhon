@@ -1107,7 +1107,7 @@ LEMMA ChosenSafe ==
     ASSUME NEW L1 \in Learner, NEW L2 \in Learner,
                NEW B1 \in Ballot, NEW B2 \in Ballot,
                NEW V1 \in Value, NEW V2 \in Value,
-               TypeOK, ReceivedByLearnerSpec, MsgInv,
+               TypeOK, ReceivedSpec, ReceivedByLearnerSpec, MsgInv,
                <<L1, L2>> \in Ent,
                ChosenIn(L1, B1, V1), ChosenIn(L2, B2, V2)
     PROVE V1 = V2
@@ -1135,15 +1135,37 @@ PROOF
         BY <1>5 DEF ReceivedByLearnerSpec, TypeOK
 <1>8. [lr |-> L1, bal |-> B1, val |-> V1] \in votesSent[A] BY <1>6 DEF MsgInv, MsgInv2b
 <1>9. [lr |-> L2, bal |-> B2, val |-> V2] \in votesSent[A] BY <1>7 DEF MsgInv, MsgInv2b
-\*    /\ [lr |-> m.lr, bal |-> m.bal, val |-> m.val] \in votesSent[m.acc]
-\*    /\ \E Q \in ByzQuorum :
-\*        /\ [lr |-> m.lr, q |-> Q] \in TrustLive
-\*        /\ \A ba \in Q :
-\*            \E m2av \in received[m.lr, m.acc] :
-\*                /\ m2av.type = "2av"
-\*                /\ m2av.acc = ba
-\*                /\ m2av.bal = m.bal
-\*                /\ m2av.val = m.val
+<1>10. PICK R1 \in ByzQuorum :
+            /\ [lr |-> L1, q |-> R1] \in TrustLive
+            /\ \A aa \in R1 :
+                \E m2av \in received[L1, A] :
+                    /\ m2av.type = "2av"
+                    /\ m2av.acc = aa
+                    /\ m2av.bal = B1
+                    /\ m2av.val = V1
+       BY <1>6 DEF MsgInv, MsgInv2b
+<1>11. PICK R2 \in ByzQuorum :
+            /\ [lr |-> L2, q |-> R2] \in TrustLive
+            /\ \A aa \in R2 :
+                \E m2av \in received[L2, A] :
+                    /\ m2av.type = "2av"
+                    /\ m2av.acc = aa
+                    /\ m2av.bal = B2
+                    /\ m2av.val = V2
+       BY <1>7 DEF MsgInv, MsgInv2b
+<1>12. PICK A0 \in SafeAcceptor : A0 \in R1 /\ A0 \in R2 BY EntanglementTrustLive, <1>10, <1>11
+<1>13. PICK m2av1 \in received[L1, A] :
+            m2av1.type = "2av" /\ m2av1.acc = A0 /\ m2av1.bal = B1 /\ m2av1.val = V1
+       BY <1>12, <1>10
+<1>14. PICK m2av2 \in received[L2, A] :
+            m2av2.type = "2av" /\ m2av2.acc = A0 /\ m2av2.bal = B2 /\ m2av2.val = V2
+       BY <1>12, <1>11
+<1>15. m2av1 \in msgs /\ m2av1.type = "2av" /\
+       m2av1.lr = L1 /\ m2av1.acc = A0 /\ m2av1.bal = B1 /\ m2av1.val = V1
+       BY <1>13, SafeAcceptorIsAcceptor DEF ReceivedSpec, TypeOK
+<1>16. m2av2 \in msgs /\ m2av2.type = "2av" /\
+       m2av2.lr = L2 /\ m2av2.acc = A0 /\ m2av2.bal = B2 /\ m2av2.val = V2
+       BY <1>14, SafeAcceptorIsAcceptor DEF ReceivedSpec, TypeOK
 <1>20. QED OBVIOUS
 
 Safety == (* safety *)
@@ -1156,10 +1178,10 @@ PROOF BY DEF Init, Safety
 
 LEMMA SafetyStep ==
     TypeOK /\ Next /\
-    DecisionSpec /\ ReceivedByLearnerSpec /\ MsgInv /\ Safety => Safety'
+    DecisionSpec /\ ReceivedSpec /\ ReceivedByLearnerSpec /\ MsgInv /\ Safety => Safety'
 PROOF
 <1> SUFFICES
-        ASSUME TypeOK, Next, Safety, DecisionSpec, ReceivedByLearnerSpec, MsgInv,
+        ASSUME TypeOK, Next, Safety, DecisionSpec, ReceivedSpec, ReceivedByLearnerSpec, MsgInv,
                NEW L1 \in Learner, NEW L2 \in Learner,
                NEW B1 \in Ballot, NEW B2 \in Ballot,
                NEW V1 \in Value, NEW V2 \in Value,
