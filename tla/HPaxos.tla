@@ -381,8 +381,7 @@ LEMMA TypeOKInvariant == TypeOK /\ Next => TypeOK'
 PROOF
 <1> SUFFICES ASSUME TypeOK, Next PROVE TypeOK' OBVIOUS
 <1> USE DEF Next
-<1>1. CASE ProposerAction
-    BY <1>1 DEF ProposerAction, Phase1a, Phase1c, Send, TypeOK, Message
+<1>1. CASE ProposerAction BY <1>1 DEF ProposerAction, Phase1a, Phase1c, Send, TypeOK, Message
 <1>2. CASE AcceptorSendAction
   <2> SUFFICES ASSUME NEW lrn \in Learner,
                       NEW bal \in Ballot,
@@ -416,11 +415,9 @@ PROOF
             BY SafeAcceptorIsAcceptor DEF Message
         <4>1. QED BY <2>2, <4>0, SafeAcceptorIsAcceptor DEF Phase2av, Send, TypeOK, Message
     <3>4. (2avSent \in [Acceptor -> SUBSET [bal : Ballot, val : Value]])'
-        <4>0. [bal |-> bal, val |-> val] \in [bal : Ballot, val : Value]
-            BY DEF TypeOK
+        <4>0. [bal |-> bal, val |-> val] \in [bal : Ballot, val : Value] BY DEF TypeOK
         <4>1. QED BY <2>2, <1>2, <4>0 DEF Phase2av, Send, TypeOK, Message
-    <3>5. QED
-      BY <2>2, <3>2, <3>4 DEF Phase2av, Send, TypeOK
+    <3>5. QED BY <2>2, <3>2, <3>4 DEF Phase2av, Send, TypeOK
   <2>3. CASE Phase2b(lrn, bal, acc, val)
     <3>1. val \in Value OBVIOUS
     <3>2. msgs' \in SUBSET Message
@@ -428,13 +425,10 @@ PROOF
             BY SafeAcceptorIsAcceptor DEF Message
         <4>1. QED BY <4>0, <2>3 DEF Phase2b, Message, Send, TypeOK
     <3>3. votesSent' \in [Acceptor -> SUBSET [lr : Learner, bal : Ballot, val : Value]]
-        <4>0. [lr |-> lrn, bal |-> bal, val |-> val] \in [lr : Learner, bal : Ballot, val : Value]
-            BY <3>1
+        <4>0. [lr |-> lrn, bal |-> bal, val |-> val] \in [lr : Learner, bal : Ballot, val : Value] BY <3>1
         <4>1 QED BY <2>3, <1>2, <4>0 DEF Phase2b, TypeOK
-    <3>5. QED
-      BY <2>3, <1>2, <3>1, <3>2, <3>3 DEF Phase2b, Send, TypeOK
-  <2>4. QED
-    BY <1>2, <2>1, <2>2, <2>3
+    <3>5. QED BY <2>3, <1>2, <3>1, <3>2, <3>3 DEF Phase2b, Send, TypeOK
+  <2>4. QED BY <1>2, <2>1, <2>2, <2>3
 <1>3. CASE AcceptorReceiveAction
   <2> SUFFICES ASSUME NEW lrn \in Learner,
                       NEW acc \in Acceptor,
@@ -447,17 +441,15 @@ PROOF
                PROVE  TypeOK'
     BY SafeAcceptorIsAcceptor, <1>3 DEF AcceptorReceiveAction, Recv
   <2>1. received' \in [Learner \X Acceptor -> SUBSET Message] BY DEF TypeOK
-  <2>7. QED
-    BY <1>3, <2>1 DEF AcceptorReceiveAction, Recv, TypeOK  
-<1>4. CASE AcceptorDisconnectAction
-    BY <1>4 DEF AcceptorDisconnectAction, Disconnect, TypeOK, Message    
+  <2>7. QED BY <1>3, <2>1 DEF AcceptorReceiveAction, Recv, TypeOK
+<1>4. CASE AcceptorDisconnectAction BY <1>4 DEF AcceptorDisconnectAction, Disconnect, TypeOK, Message
 <1>5. CASE LearnerAction
   <2>1. ASSUME NEW lrn \in Learner, NEW bal \in Ballot,
                    LearnerDecide(lrn, bal)
                PROVE  TypeOK'
     BY <2>1 DEF LearnerDecide, TypeOK
   <2>2. ASSUME NEW lrn \in Learner, LearnerRecv(lrn)
-               PROVE  TypeOK'
+        PROVE  TypeOK'
     BY <2>2 DEF LearnerRecv, TypeOK
   <2>3. QED BY <1>5, <2>1, <2>2 DEF LearnerAction
 <1>6. CASE FakeAcceptorAction
@@ -466,15 +458,13 @@ PROOF
                  PROVE TypeOK'
         BY <1>6, FakeAcceptorIsAcceptor DEF FakeAcceptorAction
   <2>2. QED BY <2>1 DEF FakeSend, Send, TypeOK
-<1>7. QED
-    BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6 DEF Next
+<1>7. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6 DEF Next
 
 LEMMA ReceivedSpecInvariant == TypeOK /\ ReceivedSpec /\ Next => ReceivedSpec'
 PROOF
 <1> SUFFICES ASSUME TypeOK, ReceivedSpec, Next PROVE ReceivedSpec' OBVIOUS
 <1>0. TypeOK' BY TypeOKInvariant
-<1>1. CASE ProposerAction
-  BY <1>1 DEF ProposerAction, Phase1a, Phase1c, ReceivedSpec, Send, Next, TypeOK
+<1>1. CASE ProposerAction BY <1>1 DEF ProposerAction, Phase1a, Phase1c, ReceivedSpec, Send, Next, TypeOK
 <1>2. CASE AcceptorSendAction
   <2> SUFFICES ASSUME NEW lrn \in Learner,
                       NEW bal \in Ballot,
@@ -485,14 +475,10 @@ PROOF
                       \/ Phase2b(lrn, bal, acc, val)
                PROVE  ReceivedSpec'
     BY <1>2, SafeAcceptorIsAcceptor DEF AcceptorSendAction
-  <2>1. CASE Phase1b(lrn, bal, acc)
-    BY <2>1 DEF TypeOK, ReceivedSpec, Phase1b, Send
-  <2>2. CASE Phase2av(lrn, bal, acc, val)
-    BY <2>2 DEF TypeOK, ReceivedSpec, Phase2av, Send
-  <2>3. CASE Phase2b(lrn, bal, acc, val)
-    BY <2>3 DEF Phase2b, TypeOK, ReceivedSpec, Send
-  <2>4. QED
-    BY <2>1, <2>2, <2>3
+  <2>1. CASE Phase1b(lrn, bal, acc) BY <2>1 DEF TypeOK, ReceivedSpec, Phase1b, Send
+  <2>2. CASE Phase2av(lrn, bal, acc, val) BY <2>2 DEF TypeOK, ReceivedSpec, Phase2av, Send
+  <2>3. CASE Phase2b(lrn, bal, acc, val) BY <2>3 DEF Phase2b, TypeOK, ReceivedSpec, Send
+  <2>4. QED BY <2>1, <2>2, <2>3
 <1>3. CASE AcceptorReceiveAction
   <2> SUFFICES ASSUME NEW lrn \in Learner,
                       NEW acc \in Acceptor,
@@ -504,8 +490,7 @@ PROOF
                                        receivedByLearner, decision >>
                PROVE  ReceivedSpec'
     BY <1>3, SafeAcceptorIsAcceptor DEF AcceptorReceiveAction, Recv
-  <2> QED
-    BY MessageType, SafeAcceptorIsAcceptor DEF ReceivedSpec, TypeOK, Next
+  <2> QED BY MessageType, SafeAcceptorIsAcceptor DEF ReceivedSpec, TypeOK, Next
 <1>4. CASE AcceptorDisconnectAction
   BY <1>4 DEF AcceptorDisconnectAction, Disconnect, ReceivedSpec, TypeOK, Next
 <1>5. CASE LearnerAction
@@ -514,8 +499,7 @@ PROOF
   <2>1. SUFFICES ASSUME NEW a \in Acceptor, FakeSend(a) PROVE ReceivedSpec'
         BY <1>6, FakeAcceptorIsAcceptor DEF FakeAcceptorAction
   <2>2. QED BY <2>1 DEF FakeSend, Send, TypeOK, ReceivedSpec
-<1>7. QED
-  BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6 DEF Next
+<1>7. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6 DEF Next
 
 LEMMA ReceivedByLearnerSpecInvariant ==
     TypeOK /\ ReceivedByLearnerSpec /\ Next => ReceivedByLearnerSpec'
@@ -547,10 +531,8 @@ PROOF
           BY <3>1 DEF ReceivedByLearnerSpec, TypeOK
     <3>4. (receivedByLearner \in [Learner -> SUBSET {mm \in msgs : mm.type = "2b"}])'
            BY <3>0, <3>1, MessageType DEF ReceivedByLearnerSpec, Send, TypeOK
-    <3>5. QED
-      BY <3>3, <3>4 DEF ReceivedByLearnerSpec
-  <2>4. QED
-    BY <2>1, <2>2, <2>3
+    <3>5. QED BY <3>3, <3>4 DEF ReceivedByLearnerSpec
+  <2>4. QED BY <2>1, <2>2, <2>3
 <1>3. CASE AcceptorReceiveAction
   BY <1>3 DEF AcceptorReceiveAction, Recv, ReceivedByLearnerSpec, TypeOK, Next
 <1>4. CASE AcceptorDisconnectAction
@@ -753,8 +735,8 @@ PROOF
   <2>1. CASE Phase1b(lrn, bal, acc) BY <2>1 DEF Phase1b
   <2>2. CASE Phase2av(lrn, bal, acc, val)
     <3> SUFFICES ASSUME Send([type |-> "2av", lr |-> lrn, acc |-> acc, bal |-> bal, val |-> val]),
-                          2avSent' = [2avSent EXCEPT ![acc] = 2avSent[acc] \cup { [bal |-> bal, val |-> val] }]
-                   PROVE ProposedIn(p.bal, p.val)'
+                        2avSent' = [2avSent EXCEPT ![acc] = 2avSent[acc] \cup { [bal |-> bal, val |-> val] }]
+                 PROVE ProposedIn(p.bal, p.val)'
           BY <2>2 DEF Phase2av
     <3>2. CASE acc = A
         <4>1. USE DEF ProposedIn
@@ -799,9 +781,9 @@ PROOF
   <2>1. CASE Phase1b(lrn, bal, acc) BY <2>1 DEF Phase1b
   <2>2. CASE Phase2av(lrn, bal, acc, val)
     <3> SUFFICES ASSUME NEW v \in Value,
-                          \A P \in {p \in 2avSent[acc] : p.bal = bal} : P.val = v,
-                          2avSent' = [2avSent EXCEPT ![acc] = 2avSent[acc] \cup { [bal |-> bal, val |-> v] }]
-                   PROVE V1 = V2
+                        \A P \in {p \in 2avSent[acc] : p.bal = bal} : P.val = v,
+                        2avSent' = [2avSent EXCEPT ![acc] = 2avSent[acc] \cup { [bal |-> bal, val |-> v] }]
+                 PROVE V1 = V2
           BY <2>2 DEF Phase2av
     <3>2. QED OBVIOUS
   <2>3. CASE Phase2b(lrn, bal, acc, val) BY <2>3 DEF Phase2b
@@ -1184,7 +1166,6 @@ PROOF
 <1>18b. announcedValue(L2, B2, V2) BY <1>16 DEF MsgInv, MsgInv2av
 <1>18c. KnowsSafeAt(L2, A0, B2, V2) BY <1>16 DEF MsgInv, MsgInv2av
 <1>18d. [bal |-> B2, val |-> V2] \in 2avSent[A0] BY <1>16 DEF MsgInv, MsgInv2av
-
 <1>20. QED OBVIOUS
 
 Safety == (* safety *)
@@ -1207,7 +1188,7 @@ PROOF
                <<L1, L2>> \in Ent,
                V1 \in decision'[L1, B1], V2 \in decision'[L2, B2]
         PROVE V1 = V2
-      BY DEF Safety
+    BY DEF Safety
 <1>0a. TypeOK OBVIOUS
 <1>0b. TypeOK' BY TypeOKInvariant
 <1>1. CASE ProposerAction BY <1>1 DEF ProposerAction, Phase1a, Phase1c, Send, Safety
