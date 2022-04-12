@@ -117,33 +117,39 @@ ChosenIn(lr, bal, v) ==
 
 Chosen(lr, v) == \E b \in Ballot: ChosenIn(lr, b, v)
 
-KnowsSafeAt(l, ac, b, v) ==
-    LET S == {m \in received[ac] : m.type = "1b" /\ m.lr = l /\ m.bal = b}
-    IN  \/ \E BQ \in ByzQuorum :
+KnowsSafeAt1(l, ac, b, v) ==
+    LET S == {m \in received[l, ac] : m.type = "1b" /\ m.bal = b}
+    IN \E BQ \in ByzQuorum :
+        /\ [lr |-> l, q |-> BQ] \in TrustLive
+        /\ \A a \in BQ :
+            \E m \in S :
+                /\ m.acc = a
+                /\ \A p \in {pp \in m.votes : <<pp.lr, l>> \in connected[ac]} :
+                        b <= p.bal
+
+KnowsSafeAt2(l, ac, b, v) ==
+    LET S == {m \in received[l, ac] : m.type = "1b" /\ m.bal = b}
+    IN \E c \in 0..(b-1):
+        /\ \E BQ \in ByzQuorum :
             /\ [lr |-> l, q |-> BQ] \in TrustLive
             /\ \A a \in BQ :
                 \E m \in S :
                     /\ m.acc = a
                     /\ \A p \in {pp \in m.votes : <<pp.lr, l>> \in connected[ac]} :
-                            b <= p.bal
-        \/ \E c \in 0..(b-1):
-            /\ \E BQ \in ByzQuorum :
-                /\ [lr |-> l, q |-> BQ] \in TrustLive
-                /\ \A a \in BQ :
-                    \E m \in S :
-                        /\ m.acc = a
-                        /\ \A p \in {pp \in m.votes : <<pp.lr, l>> \in connected[ac]} :
-                            /\ p.bal <= c
-                            /\ (p.bal = c) => (p.val = v)
-            /\ \E WQ \in ByzQuorum :
-                /\ [lr |-> l, q |-> WQ] \in TrustLive
-                /\ \A a \in WQ :
-                    \E m \in S :
-                        /\ m.acc = a
-                        /\ \E p \in m.proposals :
-                            /\ p.bal = c
-                            /\ p.val = v
+                        /\ p.bal <= c
+                        /\ (p.bal = c) => (p.val = v)
+        /\ \E WQ \in ByzQuorum :
+            /\ [lr |-> l, q |-> WQ] \in TrustLive
+            /\ \A a \in WQ :
+                \E m \in S :
+                    /\ m.acc = a
+                    /\ \E p \in m.proposals :
+                        /\ p.bal = c
+                        /\ p.val = v
 
+KnowsSafeAt(l, ac, b, v) ==
+    \/ KnowsSafeAt1(l, ac, b, v)
+    \/ KnowsSafeAt2(l, ac, b, v)
 
 vars == << maxBal, votesSent, 2avSent, received, connected, receivedByLearner, 
            decision, msgs >>
@@ -342,12 +348,28 @@ MsgInv1b(m) ==
     \*/\ m.proposals = {} =>
     \*    \A B \in Ballot : \A V \in Value : (m.bal <= B) => ~ProposedIn(B, V)
 
+\*    [
+\*        type : {"1b"},
+\*        lr   : Learner,
+\*        acc  : Acceptor,
+\*        bal  : Ballot,
+\*        votes : SUBSET [lr : Learner, bal : Ballot, val : Value],
+\*        proposals : SUBSET [bal : Ballot, val : Value]
+\*    ]
+
 MsgInv2av(m) ==
     /\ initializedBallot(m.lr, m.bal)
     /\ announcedValue(m.lr, m.bal, m.val)
     /\ KnowsSafeAt(m.lr, m.acc, m.bal, m.val)
-    /\ [bal |-> m.bal, val |-> m.val] \in 2avSent[m.acc]
-    
+    /\ [bal |-> m.bal, val |-> m.val] \in 2avSent[m.acc] \* TODO check if necessary
+    /\ \E Q \in ByzQuorum :
+        /\ [lr |-> m.lr, q |-> Q] \in TrustLive
+        /\ \A ba \in Q :
+            \E m1b \in received[m.lr, m.acc] :
+                /\ m1b.type = "1b"
+                /\ m1b.acc = ba
+                /\ m1b.bal = m.bal
+
 MsgInv2b(m) ==
     /\ [lr |-> m.lr, bal |-> m.bal, val |-> m.val] \in votesSent[m.acc]
     /\ \E Q \in ByzQuorum :
@@ -916,7 +938,8 @@ PROOF
   <2>0a. TypeOK' BY <1>2av, TypeOKInvariant
   <2>0e. m.type = "2av" BY <1>2av
   <2>1. CASE ProposerAction
-    BY <1>2av, <2>1 DEF ProposerAction, Phase1a, Phase1c, MsgInv2av, Next, Send
+    <3>0. m \in msgs BY <1>2av, <2>1, <2>0e DEF ProposerAction, Phase1a, Phase1c, MsgInv2av, Next, Send
+    <3>1. QED BY <1>2av, <3>0, <2>1, <2>0e DEF ProposerAction, Phase1a, Phase1c, MsgInv2av, Next, Send
   <2>2. CASE AcceptorSendAction
     <3> SUFFICES ASSUME NEW lrn \in Learner,
                         NEW bal \in Ballot,
@@ -936,7 +959,8 @@ PROOF
                    announcedValue(lrn, bal, val),
                    KnowsSafeAt(lrn, acc, bal, val),
                    Send([type |-> "2av", lr |-> lrn, acc |-> acc, bal |-> bal, val |-> val]),
-                   2avSent' = [2avSent EXCEPT ![acc] = 2avSent[acc] \cup { [bal |-> bal, val |-> val] }]
+                   2avSent' = [2avSent EXCEPT ![acc] = 2avSent[acc] \cup { [bal |-> bal, val |-> val] }],
+                   UNCHANGED received
                 PROVE MsgInv2av(m)'
             BY <3>2 DEF Phase2av
       <4>1. CASE m \in msgs
@@ -944,15 +968,37 @@ PROOF
         <5>2. announcedValue(m.lr, m.bal, m.val)' BY <4>1, <2>0e, <1>2av, MsgsMonotone DEF MsgInv2av, announcedValue
         <5>3. KnowsSafeAt(m.lr, m.acc, m.bal, m.val)' BY <4>1, <1>2av DEF Phase2av, MsgInv2av
         <5>4. [bal |-> m.bal, val |-> m.val] \in 2avSent'[m.acc]
-            BY <4>1, <2>0e, <1>2av, 2avSentMonotone DEF MsgInv2av
-        <5>6. QED BY <5>1, <5>2, <5>3, <5>4 DEF MsgInv2av
+            BY <4>1, <2>0e, <1>2av, 2avSentMonotone, MessageType DEF MsgInv2av, TypeOK
+        <5>5. (\E Q \in ByzQuorum :
+              /\ [lr |-> m.lr, q |-> Q] \in TrustLive
+              /\ \A ba \in Q :
+                    \E m1b \in received[m.lr, m.acc] :
+                       /\ m1b.type = "1b"
+                       /\ m1b.acc = ba
+                       /\ m1b.bal = m.bal)'
+              BY <4>1, <2>0e, <1>2av, 2avSentMonotone, MessageType DEF MsgInv2av, TypeOK
+        <5>6. QED BY <5>1, <5>2, <5>3, <5>4, <5>5 DEF MsgInv2av
       <4>2. CASE m \notin msgs
-        <5>2. <<m.lr, m.acc, m.bal, m.val>> = <<lrn, acc, bal, val>> BY <4>2 DEF Send
-        <5>3. initializedBallot(m.lr, m.bal)' BY <5>2, <3>2 DEF Phase2av
-        <5>4. announcedValue(m.lr, m.bal, m.val)' BY <5>2
-        <5>5. KnowsSafeAt(m.lr, m.acc, m.bal, m.val)' BY <5>2
-        <5>6. [bal |-> m.bal, val |-> m.val] \in 2avSent'[m.acc] BY <5>2, <2>0a DEF TypeOK
-        <5>7. QED BY <5>3, <5>4, <5>5, <5>6 DEF MsgInv2av
+        <5>1a. m.lr = lrn BY <4>2 DEF Send
+        <5>1b. m.acc = acc BY <4>2 DEF Send
+        <5>1c. m.bal = bal BY <4>2 DEF Send
+        <5>1d. m.val = val BY <4>2 DEF Send
+        <5>3. initializedBallot(m.lr, m.bal)' BY <5>1a, <5>1c, <3>2 DEF Phase2av
+        <5>4. announcedValue(m.lr, m.bal, m.val)' BY <5>1a, <5>1c, <5>1d
+        <5>5. KnowsSafeAt(m.lr, m.acc, m.bal, m.val)' BY <5>1a, <5>1b, <5>1c, <5>1d
+        <5>6. [bal |-> m.bal, val |-> m.val] \in 2avSent'[m.acc] BY <5>1b, <5>1c, <5>1d, <2>0a DEF TypeOK
+        <5>7. (\E Q \in ByzQuorum :
+              /\ [lr |-> m.lr, q |-> Q] \in TrustLive
+              /\ \A ba \in Q :
+                    \E m1b \in received[m.lr, m.acc] :
+                       /\ m1b.type = "1b"
+                       /\ m1b.acc = ba
+                       /\ m1b.bal = m.bal)'
+              <6>1. CASE KnowsSafeAt1(lrn, acc, bal, val) OMITTED
+              <6>2. CASE KnowsSafeAt2(lrn, acc, bal, val) OMITTED
+              <6>3. QED BY <6>1, <6>2 DEF KnowsSafeAt
+              \*BY MessageType, <5>1a, <5>1b, <5>1c, <5>1d, SafeAcceptorIsAcceptor DEF KnowsSafeAt, TypeOK
+        <5>8. QED BY <5>1a, <5>1b, <5>1c, <5>1d, <5>3, <5>4, <5>5, <5>6, <5>7, MessageType DEF MsgInv2av, TypeOK
       <4>20. QED BY <4>1, <4>2
     <3>3. CASE Phase2b(lrn, bal, acc, val)
       <4>1. m \in msgs BY <3>3, <2>0e DEF Phase2b, Send
