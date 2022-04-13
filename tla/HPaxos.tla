@@ -935,7 +935,8 @@ PROOF
                \A m \in msgs : m.acc \in SafeAcceptor /\ m.type = "2av" => MsgInv2av(m),
                NEW m \in msgs', m.acc \in SafeAcceptor, m.type = "2av"
         PROVE MsgInv2av(m)'
-  <2>0a. TypeOK' BY <1>2av, TypeOKInvariant
+  <2>0a. TypeOK BY <1>2av
+  <2>0b. TypeOK' BY <1>2av, TypeOKInvariant
   <2>0e. m.type = "2av" BY <1>2av
   <2>1. CASE ProposerAction
     <3>0. m \in msgs BY <1>2av, <2>1, <2>0e DEF ProposerAction, Phase1a, Phase1c, MsgInv2av, Next, Send
@@ -986,7 +987,7 @@ PROOF
         <5>3. initializedBallot(m.lr, m.bal)' BY <5>1a, <5>1c, <3>2 DEF Phase2av
         <5>4. announcedValue(m.lr, m.bal, m.val)' BY <5>1a, <5>1c, <5>1d
         <5>5. KnowsSafeAt(m.lr, m.acc, m.bal, m.val)' BY <5>1a, <5>1b, <5>1c, <5>1d
-        <5>6. [bal |-> m.bal, val |-> m.val] \in 2avSent'[m.acc] BY <5>1b, <5>1c, <5>1d, <2>0a DEF TypeOK
+        <5>6. [bal |-> m.bal, val |-> m.val] \in 2avSent'[m.acc] BY <5>1b, <5>1c, <5>1d, <2>0b DEF TypeOK
         <5>7. (\E Q \in ByzQuorum :
               /\ [lr |-> m.lr, q |-> Q] \in TrustLive
               /\ \A ba \in Q :
@@ -994,22 +995,60 @@ PROOF
                        /\ m1b.type = "1b"
                        /\ m1b.acc = ba
                        /\ m1b.bal = m.bal)'
-              <6>1. CASE KnowsSafeAt1(lrn, acc, bal, val) OMITTED
-              <6>2. CASE KnowsSafeAt2(lrn, acc, bal, val) OMITTED
-              <6>3. QED BY <6>1, <6>2 DEF KnowsSafeAt
-              \*BY MessageType, <5>1a, <5>1b, <5>1c, <5>1d, SafeAcceptorIsAcceptor DEF KnowsSafeAt, TypeOK
+          <6>1. CASE KnowsSafeAt1(lrn, acc, bal, val)
+            <7>1. PICK Q1 \in ByzQuorum :
+                        /\ [lr |-> lrn, q |-> Q1] \in TrustLive
+                        /\ \A a \in Q1 :
+                            \E m1b \in received[lrn, acc] :
+                                /\ m1b.type = "1b"
+                                /\ m1b.bal = bal
+                                /\ m1b.acc = a
+                  BY <6>1 DEF KnowsSafeAt1
+            <7>2. WITNESS Q1 \in ByzQuorum
+            <7>3. QED BY <7>1, <5>1a, <5>1b, <5>1c
+          <6>2. CASE KnowsSafeAt2(lrn, acc, bal, val)
+            <7>1. PICK Q2 \in ByzQuorum :
+                        /\ [lr |-> lrn, q |-> Q2] \in TrustLive
+                        /\ \A a \in Q2 :
+                            \E m1b \in received[lrn, acc] :
+                                /\ m1b.type = "1b"
+                                /\ m1b.bal = bal
+                                /\ m1b.acc = a
+                  BY <6>2 DEF KnowsSafeAt2
+            <7>2. WITNESS Q2 \in ByzQuorum
+            <7>3. QED BY <7>1, <5>1a, <5>1b, <5>1c
+          <6>3. QED BY <6>1, <6>2 DEF KnowsSafeAt
         <5>8. QED BY <5>1a, <5>1b, <5>1c, <5>1d, <5>3, <5>4, <5>5, <5>6, <5>7, MessageType DEF MsgInv2av, TypeOK
       <4>20. QED BY <4>1, <4>2
     <3>3. CASE Phase2b(lrn, bal, acc, val)
       <4>1. m \in msgs BY <3>3, <2>0e DEF Phase2b, Send
       <4>2. QED BY <1>2av, <4>1, <3>3 DEF Phase2b, MsgInv2av, Send
     <3>4. QED BY <3>1, <3>2, <3>3
-  <2>4. CASE AcceptorReceiveAction BY <1>2av, <2>4 DEF AcceptorReceiveAction, Recv, MsgInv2av, Next
+  <2>4. CASE AcceptorReceiveAction
+    <3>1. m \in msgs BY <2>4 DEF AcceptorReceiveAction, Recv
+    <3>6. (\E Q \in ByzQuorum :
+              /\ [lr |-> m.lr, q |-> Q] \in TrustLive
+              /\ \A ba \in Q :
+                    \E m1b \in received[m.lr, m.acc] :
+                       /\ m1b.type = "1b"
+                       /\ m1b.acc = ba
+                       /\ m1b.bal = m.bal)'                      
+      <7>1. PICK Q0 \in ByzQuorum :
+              /\ [lr |-> m.lr, q |-> Q0] \in TrustLive
+              /\ \A ba \in Q0 :
+                     \E m1b \in received[m.lr, m.acc] :
+                        /\ m1b.type = "1b"
+                        /\ m1b.acc = ba
+                        /\ m1b.bal = m.bal
+            BY <1>2av, <3>1, <2>0e DEF MsgInv2av
+      <7>2. WITNESS Q0 \in ByzQuorum
+      <7>3. QED BY <1>2av, <7>1, ReceivedMonotone, MessageType, <3>1 DEF MsgInv2av, TypeOK
+    <3>20. QED BY <1>2av, <2>4, <3>6, MessageType, ReceivedMonotone DEF MsgInv2av, AcceptorReceiveAction, Recv
   <2>5. CASE AcceptorDisconnectAction BY <1>2av, <2>5 DEF AcceptorDisconnectAction, Disconnect, MsgInv2av, Next
   <2>6. CASE LearnerAction BY <1>2av, <2>6 DEF LearnerAction, LearnerRecv, LearnerDecide, MsgInv2av, Next
   <2>7. CASE FakeAcceptorAction
             BY <1>2av, <2>7, SafeAcceptorAssumption DEF FakeAcceptorAction, FakeSend, MsgInv2av, Send
-  <2>8. QED BY <1>2av, <2>0a, <2>1, <2>2, <2>4, <2>5, <2>6, <2>7 DEF Next
+  <2>8. QED BY <1>2av, <2>0b, <2>1, <2>2, <2>4, <2>5, <2>6, <2>7 DEF Next
 <1>2b. ASSUME TypeOK, Next, \A m \in msgs : m.acc \in SafeAcceptor /\ m.type = "2b" => MsgInv2b(m),
         NEW m \in msgs', m.acc \in SafeAcceptor, m.type = "2b"
         PROVE MsgInv2b(m)'
