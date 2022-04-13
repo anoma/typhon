@@ -1247,11 +1247,28 @@ PROOF
 <1>17b. announcedValue(L1, B1, V1) BY <1>15 DEF MsgInv, MsgInv2av
 <1>17c. KnowsSafeAt(L1, A0, B1, V1) BY <1>15 DEF MsgInv, MsgInv2av
 <1>17d. [bal |-> B1, val |-> V1] \in 2avSent[A0] BY <1>15 DEF MsgInv, MsgInv2av
+<1>17e. PICK S1 \in ByzQuorum :
+             /\ [lr |-> L1, q |-> S1] \in TrustLive
+             /\ \A ba \in S1 :
+                 \E m1b \in received[L1, A0] :
+                     /\ m1b.type = "1b"
+                     /\ m1b.acc = ba
+                     /\ m1b.bal = B1
+        BY <1>15 DEF MsgInv, MsgInv2av
 <1>18a. initializedBallot(L2, B2) BY <1>16 DEF MsgInv, MsgInv2av
 <1>18b. announcedValue(L2, B2, V2) BY <1>16 DEF MsgInv, MsgInv2av
 <1>18c. KnowsSafeAt(L2, A0, B2, V2) BY <1>16 DEF MsgInv, MsgInv2av
 <1>18d. [bal |-> B2, val |-> V2] \in 2avSent[A0] BY <1>16 DEF MsgInv, MsgInv2av
-<1>20. QED OBVIOUS
+<1>18e. PICK S2 \in ByzQuorum :
+             /\ [lr |-> L2, q |-> S2] \in TrustLive
+             /\ \A ba \in S2 :
+                 \E m1b \in received[L2, A0] :
+                     /\ m1b.type = "1b"
+                     /\ m1b.acc = ba
+                     /\ m1b.bal = B2
+        BY <1>16 DEF MsgInv, MsgInv2av
+<1>19. PICK A1 \in SafeAcceptor : A1 \in S1 /\ A1 \in S2 BY EntanglementTrustLive, <1>17e, <1>18e
+<1>100. QED OBVIOUS
 
 Safety == (* safety *)
     \A L1, L2 \in Learner: \A B1, B2 \in Ballot : \A V1, V2 \in Value :
@@ -1311,7 +1328,7 @@ PROOF
     <3>0. CASE V1 = V2 BY <3>0
     <3>1. CASE V1 # V2
       <4>1. CASE val # V1 /\ val # V2 BY <4>1 DEF Safety, TypeOK
-      <4>2. CASE val = V1 \*OMITTED \* similar to <4>3
+      <4>2. CASE val = V1
         <5>0. V2 \in decision[L2, B2] BY <3>1, <4>2 DEF TypeOK
         <5>1. ChosenIn(L2, B2, V2) BY <5>0 DEF DecisionSpec
         <5>2. CASE V1 \in decision[L1, B1] BY <5>0, <5>2 DEF Safety
