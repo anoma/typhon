@@ -1268,6 +1268,12 @@ PROOF
                      /\ m1b.bal = B2
         BY <1>16 DEF MsgInv, MsgInv2av
 <1>19. PICK A1 \in SafeAcceptor : A1 \in S1 /\ A1 \in S2 BY EntanglementTrustLive, <1>17e, <1>18e
+<1>20. PICK m1b1 \in received[L1, A0] : m1b1.type = "1b" /\ m1b1.acc = A1 /\ m1b1.bal = B1 BY <1>17e, <1>19
+<1>21. PICK m1b2 \in received[L2, A0] : m1b2.type = "1b" /\ m1b2.acc = A1 /\ m1b2.bal = B2 BY <1>18e, <1>19
+<1>22. m1b1 \in msgs /\ m1b1.type = "1b" /\ m1b1.lr = L1 /\ m1b1.acc = A1 /\ m1b1.bal = B1
+       BY <1>20, SafeAcceptorIsAcceptor DEF ReceivedSpec, TypeOK
+<1>23. m1b2 \in msgs /\ m1b2.type = "1b" /\ m1b2.lr = L2 /\ m1b2.acc = A1 /\ m1b2.bal = B2
+       BY <1>21, SafeAcceptorIsAcceptor DEF ReceivedSpec, TypeOK
 <1>100. QED OBVIOUS
 
 Safety == (* safety *)
