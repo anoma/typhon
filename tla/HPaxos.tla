@@ -338,7 +338,7 @@ VotesSentSpec ==
 
 ConnectedSpec ==
     \A A \in SafeAcceptor : \A L1, L2 \in Learner :
-        <<L1, L2>> \in connected[A] => <<L1, L2>> \in Ent
+        <<L1, L2>> \in Ent => <<L1, L2>> \in connected[A]
 
 DecisionSpec ==
     \A L \in Learner : \A B \in Ballot : \A V \in Value :
@@ -857,8 +857,8 @@ PROOF
 <1> SUFFICES ASSUME Next, ConnectedSpec,
                     NEW A \in SafeAcceptor,
                     NEW L1 \in Learner, NEW L2 \in Learner,
-                    <<L1, L2>> \in connected'[A]
-             PROVE <<L1, L2>> \in Ent
+                    <<L1, L2>> \in Ent
+             PROVE <<L1, L2>> \in connected'[A]
     BY DEF ConnectedSpec
 <1>1. CASE ProposerAction BY <1>1 DEF ProposerAction, Phase1a, Phase1c, Next, ConnectedSpec
 <1>2. CASE AcceptorSendAction BY <1>2 DEF AcceptorSendAction, Phase1b, Phase2b, Phase2av, Next, ConnectedSpec
@@ -1296,7 +1296,7 @@ PROOF
                     /\ \A p \in {pp \in m1b.votes : <<pp.lr, lrn>> \in connected[acc]} :
                             bal <= p.bal
               BY <5>1, <5>2
-        <5>4. /\ m1b \in msgs 
+        <5>4. /\ m1b \in msgs
               /\ m1b.type = "1b"
               /\ m1b.lr = lrn
               /\ m1b.bal = bal
