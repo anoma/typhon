@@ -309,6 +309,9 @@ VotedForIn(lr, acc, bal, val) ==
 ProposedIn(bal, val) ==
     \E m \in msgs : m.type = "2av" /\ m.bal = bal /\ m.val = val
 
+LeftBallot(lr, acc, bal) ==
+    \E m \in msgs : m.type = "1b" /\ m.lr = lr /\ m.acc = acc /\ bal < m.bal
+
 -----------------------------------------------------------------------------
 
 
@@ -1178,6 +1181,27 @@ PROOF
   <2>8. QED BY <1>2b, <2>0a, <2>1, <2>2, <2>4, <2>5, <2>6, <2>7 DEF Next
 <1>3. QED BY <1>1b, <1>2av, <1>2b
 
+HeterogeneousSpec ==
+    \A L1, L2 \in Learner :
+    \A B1, B2 \in Ballot :
+    \A V1, V2 \in Value :
+    \A A2 \in SafeAcceptor : \A Q \in ByzQuorum :
+    \A M \in msgs :
+        /\ <<L1, L2>> \in Ent
+        /\ [lr |-> L1, q |-> Q] \in TrustLive
+        /\ M.type = "2av" /\ M.acc = A2 /\ M.bal = B2 /\ M.val = V2
+        /\ B1 < B2
+        /\ V1 # V2
+        =>
+        \E A1 \in SafeAcceptor :
+            /\ A1 \in Q
+            /\ \E L \in Learner : LeftBallot(L, A1, B1)
+            /\ \neg VotedForIn(L1, A1, B1, V1)
+
+LEMMA HeterogeneousSpecInvariant ==
+    TypeOK /\ Next /\ HeterogeneousSpec => HeterogeneousSpec'
+PROOF
+OMITTED
 
 LEMMA ChosenSafe ==
     ASSUME NEW L1 \in Learner, NEW L2 \in Learner,
