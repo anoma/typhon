@@ -336,6 +336,10 @@ VotesSentSpec ==
     \A A \in SafeAcceptor : \A B \in Ballot : \A V1, V2 \in Value :
         [bal |-> B, val |-> V1] \in 2avSent[A] /\ [bal |-> B, val |-> V2] \in 2avSent[A] => V1 = V2
 
+ConnectedSpec ==
+    \A A \in SafeAcceptor : \A L1, L2 \in Learner :
+        <<L1, L2>> \in connected[A] => <<L1, L2>> \in Ent
+
 DecisionSpec ==
     \A L \in Learner : \A B \in Ballot : \A V \in Value :
         V \in decision[L, B] => ChosenIn(L, B, V)
@@ -848,6 +852,22 @@ PROOF
 <1>6. CASE FakeAcceptorAction BY <1>6 DEF FakeAcceptorAction, FakeSend, Send
 <1>7. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6 DEF Next
 
+LEMMA ConnectedSpecInvariant == Next /\ ConnectedSpec => ConnectedSpec'
+PROOF
+<1> SUFFICES ASSUME Next, ConnectedSpec,
+                    NEW A \in SafeAcceptor,
+                    NEW L1 \in Learner, NEW L2 \in Learner,
+                    <<L1, L2>> \in connected'[A]
+             PROVE <<L1, L2>> \in Ent
+    BY DEF ConnectedSpec
+<1>1. CASE ProposerAction BY <1>1 DEF ProposerAction, Phase1a, Phase1c, Next, ConnectedSpec
+<1>2. CASE AcceptorSendAction BY <1>2 DEF AcceptorSendAction, Phase1b, Phase2b, Phase2av, Next, ConnectedSpec
+<1>3. CASE AcceptorReceiveAction BY <1>3 DEF AcceptorReceiveAction, Recv, Next, ConnectedSpec
+<1>4. CASE AcceptorDisconnectAction BY <1>4 DEF AcceptorDisconnectAction, Disconnect, Next, ConnectedSpec
+<1>5. CASE LearnerAction BY <1>5 DEF LearnerAction, LearnerRecv, LearnerDecide, Next, ConnectedSpec
+<1>6. CASE FakeAcceptorAction BY <1>6 DEF FakeAcceptorAction, FakeSend, Send, ConnectedSpec
+<1>7. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6 DEF Next
+
 
 LEMMA MsgInvInvariant ==
     TypeOK /\ MsgInv /\ VotesSentSpec /\ 2avSentSpec1 /\ Next => MsgInv'
@@ -1067,13 +1087,13 @@ PROOF
   <2>2. CASE AcceptorSendAction
     <3> HIDE DEF Next
     <3> SUFFICES ASSUME NEW lrn \in Learner,
-                       NEW bal \in Ballot,
-                       NEW acc \in SafeAcceptor,
-                       NEW val \in Value,
-                       \/ Phase1b(lrn, bal, acc)
-                       \/ Phase2av(lrn, bal, acc, val)
-                       \/ Phase2b(lrn, bal, acc, val)
-                PROVE  MsgInv2b(m)'
+                        NEW bal \in Ballot,
+                        NEW acc \in SafeAcceptor,
+                        NEW val \in Value,
+                        \/ Phase1b(lrn, bal, acc)
+                        \/ Phase2av(lrn, bal, acc, val)
+                        \/ Phase2b(lrn, bal, acc, val)
+                 PROVE MsgInv2b(m)'
         BY <2>2 DEF AcceptorSendAction
     <3>1. CASE Phase1b(lrn, bal, acc)
       <4>1. m \in msgs BY <3>1, <2>0a, <2>0e DEF Phase1b, Send, TypeOK
@@ -1185,11 +1205,12 @@ HeterogeneousSpec ==
     \A L1, L2 \in Learner :
     \A B1, B2 \in Ballot :
     \A V1, V2 \in Value :
-    \A A2 \in SafeAcceptor : \A Q \in ByzQuorum :
+    \A A2 \in SafeAcceptor :
+    \A Q \in ByzQuorum :
     \A M \in msgs :
         /\ <<L1, L2>> \in Ent
         /\ [lr |-> L1, q |-> Q] \in TrustLive
-        /\ M.type = "2av" /\ M.acc = A2 /\ M.bal = B2 /\ M.val = V2
+        /\ M.type = "2av" /\ M.lr = L2 /\ M.acc = A2 /\ M.bal = B2 /\ M.val = V2
         /\ B1 < B2
         /\ V1 # V2
         =>
@@ -1199,9 +1220,111 @@ HeterogeneousSpec ==
             /\ \neg VotedForIn(L1, A1, B1, V1)
 
 LEMMA HeterogeneousSpecInvariant ==
-    TypeOK /\ Next /\ HeterogeneousSpec => HeterogeneousSpec'
+    TypeOK /\ Next /\ ReceivedSpec /\ ConnectedSpec /\ HeterogeneousSpec => HeterogeneousSpec'
 PROOF
-OMITTED
+<1> SUFFICES ASSUME TypeOK, Next, ReceivedSpec, ConnectedSpec, HeterogeneousSpec,
+                    NEW L1 \in Learner, NEW L2 \in Learner,
+                    NEW B1 \in Ballot, NEW B2 \in Ballot,
+                    NEW V1 \in Value, NEW V2 \in Value,
+                    NEW A2 \in SafeAcceptor,
+                    NEW Q1 \in ByzQuorum,
+                    NEW m \in msgs',
+                    <<L1, L2>> \in Ent,
+                    [lr |-> L1, q |-> Q1] \in TrustLive,
+                    m.type = "2av", m.lr = L2, m.acc = A2, m.bal = B2, m.val = V2,
+                    B1 < B2,
+                    V1 # V2
+             PROVE \E A1 \in SafeAcceptor :
+                    /\ A1 \in Q1
+                    /\ \E L \in Learner : LeftBallot(L, A1, B1)
+                    /\ \neg VotedForIn(L1, A1, B1, V1)
+    BY DEF HeterogeneousSpec
+<1>0a. TypeOK OBVIOUS
+<1>0b. TypeOK' BY TypeOKInvariant
+<1>0c. m \in Message BY <1>0b DEF TypeOK
+<1>1. CASE ProposerAction BY <1>1 DEF ProposerAction, Phase1a, Phase1c, Next, Send, HeterogeneousSpec
+<1>2. CASE AcceptorSendAction
+  <2> SUFFICES ASSUME NEW lrn \in Learner,
+                      NEW bal \in Ballot,
+                      NEW acc \in SafeAcceptor,
+                      NEW val \in Value,
+                      \/ Phase1b(lrn, bal, acc)
+                      \/ Phase2av(lrn, bal, acc, val)
+                      \/ Phase2b(lrn, bal, acc, val)
+               PROVE (\E A1 \in SafeAcceptor :
+                        /\ A1 \in Q1
+                        /\ \E L \in Learner : LeftBallot(L, A1, B1)
+                        /\ \neg VotedForIn(L1, A1, B1, V1))'
+      BY <1>2 DEF AcceptorSendAction
+  <2>1. CASE Phase1b(lrn, bal, acc)
+    <3>1. m \in msgs BY <2>1, <1>0b, <1>0c, MessageType DEF Phase1b, Send
+    <3>2. QED BY <3>1 DEF HeterogeneousSpec
+  <2>2. CASE Phase2av(lrn, bal, acc, val)
+    <3>0. msgs \subseteq msgs' BY <2>2 DEF Phase2av, Send
+    <3>1. CASE m \in msgs BY <3>1 DEF HeterogeneousSpec
+    <3>2. CASE m \notin msgs
+      <4>1a. m.lr = lrn BY <3>2, <2>2 DEF Phase2av, Send
+      <4>1b. m.acc = acc BY <3>2, <2>2 DEF Phase2av, Send
+      <4>1c. m.bal = bal BY <3>2, <2>2 DEF Phase2av, Send
+      <4>1d. m.val = val BY <3>2, <2>2 DEF Phase2av, Send
+      <4>2. KnowsSafeAt(lrn, acc, bal, val) BY <2>2 DEF Phase2av
+      <4>3a. CASE KnowsSafeAt1(lrn, acc, bal, val)
+\*KnowsSafeAt1(l, ac, b, v) ==
+\*    LET S == {m \in received[l, ac] : m.type = "1b" /\ m.bal = b}
+\*    IN \E BQ \in ByzQuorum :
+\*        /\ [lr |-> l, q |-> BQ] \in TrustLive
+\*        /\ \A a \in BQ :
+\*            \E m \in S :
+\*                /\ m.acc = a
+\*                /\ \A p \in {pp \in m.votes : <<pp.lr, l>> \in connected[ac]} :
+\*                        b <= p.bal
+        <5>1. PICK Q2 \in ByzQuorum :
+            /\ [lr |-> lrn, q |-> Q2] \in TrustLive
+            /\ \A a \in Q2 :
+                \E m1b \in received[lrn, acc] :
+                    /\ m1b.type = "1b"
+                    /\ m1b.bal = bal
+                    /\ m1b.acc = a
+                    /\ \A p \in {pp \in m1b.votes : <<pp.lr, lrn>> \in connected[acc]} :
+                            bal <= p.bal
+            BY <4>3a DEF KnowsSafeAt1
+        <5>2. PICK S \in SafeAcceptor : S \in Q1 /\ S \in Q2 BY EntanglementTrustLive, <4>1a, <5>1
+        <5>3. PICK m1b \in received[lrn, acc] :
+                    /\ m1b.type = "1b"
+                    /\ m1b.bal = bal
+                    /\ m1b.acc = S
+                    /\ \A p \in {pp \in m1b.votes : <<pp.lr, lrn>> \in connected[acc]} :
+                            bal <= p.bal
+              BY <5>1, <5>2
+        <5>4. /\ m1b \in msgs 
+              /\ m1b.type = "1b"
+              /\ m1b.lr = lrn
+              /\ m1b.bal = bal
+              /\ m1b.acc = S
+              /\ \A p \in {pp \in m1b.votes : <<pp.lr, lrn>> \in connected[acc]} :
+                    bal <= p.bal
+              BY <5>3, SafeAcceptorIsAcceptor DEF TypeOK, ReceivedSpec
+        <5>5. WITNESS S \in SafeAcceptor
+        <5>6. \E L \in Learner : LeftBallot(L, S, B1)' BY <4>1c, <5>4, <3>0 DEF LeftBallot
+        <5>7. \neg VotedForIn(L1, S, B1, V1)'
+          <6>1. SUFFICES ASSUME VotedForIn(L1, S, B1, V1) PROVE FALSE OBVIOUS
+          <6>10. QED BY <4>1a, <5>4, <6>1 DEF VotedForIn
+        <5>100. QED BY <5>2, <5>6, <5>7 \*DEF LeftBallot
+      <4>3b. CASE KnowsSafeAt2(lrn, acc, bal, val) OMITTED
+      <4>4. QED BY <4>3a, <4>3b, <4>2 DEF KnowsSafeAt
+      \*<4>50. PICK A0 \in SafeAcceptor : A0 \in Q /\ A0 \in  BY EntanglementTrustLive, <1>10, <1>11
+      \*<4>100. QED BY <3>2, <4>1a, <4>1b, <4>1c, <4>1d
+    <3>3. QED BY <3>1, <3>2
+  <2>3. CASE Phase2b(lrn, bal, acc, val)
+    <3>1. m \in msgs BY <2>3, <1>0b, <1>0c, MessageType DEF Phase2b, Send
+    <3>2. QED BY <3>1 DEF HeterogeneousSpec
+  <2>4. QED BY <2>1, <2>2, <2>3
+\*BY <1>2 DEF AcceptorSendAction, Phase1b, Phase2av, Phase2b, Next, Send
+<1>3. CASE AcceptorReceiveAction BY <1>3, <1>0b, <1>0c, MessageType DEF AcceptorReceiveAction, Recv, Next, HeterogeneousSpec, TypeOK
+<1>4. CASE AcceptorDisconnectAction BY <1>4 DEF AcceptorDisconnectAction, Disconnect, Next, HeterogeneousSpec
+<1>5. CASE LearnerAction BY <1>5, <1>0b, <1>0c, MessageType DEF LearnerAction, LearnerRecv, LearnerDecide, Next, HeterogeneousSpec, TypeOK
+<1>6. CASE FakeAcceptorAction BY <1>6, SafeAcceptorAssumption DEF FakeAcceptorAction, FakeSend, Send, HeterogeneousSpec
+<1>7. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6 DEF Next
 
 LEMMA ChosenSafe ==
     ASSUME NEW L1 \in Learner, NEW L2 \in Learner,
