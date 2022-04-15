@@ -327,8 +327,12 @@ ReceivedByLearnerSpec ==
     /\ \A L \in Learner : \A mm \in Message :
         mm \in receivedByLearner[L] => mm.lr = L
 
-VotesSentSpec ==
+VotesSentSpec1 ==
     \A A \in SafeAcceptor : \A vote \in votesSent[A] : VotedForIn(vote.lr, A, vote.bal, vote.val)
+
+VotesSentSpec2 ==
+    \A L \in Learner : \A A \in SafeAcceptor : \A B \in Ballot : \A V \in Value :
+        [lr |-> L, bal |-> B, val |-> V] \in votesSent[A] <=> VotedForIn(L, A, B, V)
 
 2avSentSpec1 == \A A \in SafeAcceptor : \A p \in 2avSent[A] : ProposedIn(p.bal, p.val)
 
@@ -696,13 +700,13 @@ PROOF
 <1>6. CASE FakeAcceptorAction BY <1>6 DEF FakeAcceptorAction, FakeSend, Send
 <1>7. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6 DEF Next
 
-LEMMA VotesSentSpecInvariant == Next /\ VotesSentSpec => VotesSentSpec'
+LEMMA VotesSentSpecInvariant == Next /\ VotesSentSpec1 => VotesSentSpec1'
 PROOF
 <1> SUFFICES ASSUME
-  Next, VotesSentSpec, NEW A \in SafeAcceptor, NEW vote \in votesSent'[A]
+  Next, VotesSentSpec1, NEW A \in SafeAcceptor, NEW vote \in votesSent'[A]
     PROVE VotedForIn(vote.lr, A, vote.bal, vote.val)'
-    BY DEF VotesSentSpec
-<1> USE DEF VotesSentSpec
+    BY DEF VotesSentSpec1
+<1> USE DEF VotesSentSpec1
 <1>1. CASE ProposerAction BY <1>1, SafeAcceptorIsAcceptor DEF ProposerAction, Phase1a, Phase1c, Next, Send
 <1>2. CASE AcceptorSendAction
   <2>. SUFFICES ASSUME NEW lrn \in Learner,
@@ -734,6 +738,72 @@ PROOF
       <4>4. QED BY <4>2, <4>3
     <3>3. CASE acc # A BY <3>3
     <3>4 QED BY <3>2, <3>3
+  <2>5. QED BY <2>1, <2>2, <2>3
+<1>3. CASE AcceptorReceiveAction BY <1>3 DEF AcceptorReceiveAction, Recv, Next
+<1>4. CASE AcceptorDisconnectAction BY <1>4 DEF AcceptorDisconnectAction, Disconnect, Next
+<1>5. CASE LearnerAction BY <1>5 DEF LearnerAction, LearnerRecv, LearnerDecide, Next
+<1>6. CASE FakeAcceptorAction BY <1>6 DEF FakeAcceptorAction, FakeSend, Send
+<1>7. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6 DEF Next
+
+LEMMA VotesSentSpecInvariant2 == TypeOK /\ Next /\ VotesSentSpec2 => VotesSentSpec2'
+PROOF
+<1> SUFFICES ASSUME TypeOK, Next, VotesSentSpec2,
+                    NEW L \in Learner, NEW A \in SafeAcceptor, NEW B \in Ballot, NEW V \in Value
+             PROVE ([lr |-> L, bal |-> B, val |-> V] \in votesSent[A] <=> VotedForIn(L, A, B, V))'
+    BY DEF VotesSentSpec2
+<1> USE DEF VotesSentSpec2
+<1>0a. TypeOK OBVIOUS
+<1>0b. TypeOK' BY TypeOKInvariant
+<1>1. CASE ProposerAction BY <1>1 DEF ProposerAction, Phase1a, Phase1c, Send
+<1>2. CASE AcceptorSendAction
+  <2>. SUFFICES ASSUME NEW lrn \in Learner,
+                       NEW bal \in Ballot,
+                       NEW acc \in SafeAcceptor,
+                       NEW val \in Value,
+                       \/ Phase1b(lrn, bal, acc)
+                       \/ Phase2av(lrn, bal, acc, val)
+                       \/ Phase2b(lrn, bal, acc, val)
+                PROVE ([lr |-> L, bal |-> B, val |-> V] \in votesSent[A] <=> VotedForIn(L, A, B, V))'
+      BY <1>2 DEF AcceptorSendAction
+  <2>1. CASE Phase1b(lrn, bal, acc) BY <2>1 DEF Phase1b
+  <2>2. CASE Phase2av(lrn, bal, acc, val) BY <2>2 DEF Phase2av
+  <2>3. CASE Phase2b(lrn, bal, acc, val)
+    <3> SUFFICES ASSUME Send([type |-> "2b", lr |-> lrn, acc |-> acc, bal |-> bal, val |-> val]),
+                        votesSent' = [votesSent EXCEPT ![acc] =
+                                        votesSent[acc] \cup { [lr |-> lrn, bal |-> bal, val |-> val] }]
+                 PROVE ([lr |-> L, bal |-> B, val |-> V] \in votesSent[A] <=> VotedForIn(L, A, B, V))'
+        BY <2>3 DEF Phase2b
+    <3>2. CASE acc = A
+      <4>1. ASSUME [lr |-> L, bal |-> B, val |-> V] \in votesSent'[A]
+            PROVE  (\E m \in msgs : m.type = "2b" /\ m.lr = L /\ m.acc = A /\ m.bal = B /\ m.val = V)'
+        <5>1. CASE [lr |-> L, bal |-> B, val |-> V] \in votesSent[acc] BY <3>2, <5>1, MsgsMonotone DEF VotedForIn
+        <5>2. CASE [lr |-> L, bal |-> B, val |-> V] \notin votesSent[acc]
+          <6>1. DEFINE m0 == [type |-> "2b", lr |-> lrn, acc |-> acc, bal |-> bal, val |-> val]
+          <6>2. m0 \in msgs' BY DEF Send
+          <6>3. WITNESS m0 \in msgs'
+          <6>10. QED BY <3>2, <5>2, <4>1
+          \*<6>20. QED BY <5>2, <6>2, <1>0b, <3>2, MessageType DEF Send, VotedForIn, TypeOK
+        \*BY <3>2, <5>2, <1>0b, MessageType DEF VotedForIn, TypeOK
+        \*<5>20. QED BY <1>0b, <3>2, MessageType, MsgsMonotone DEF Send, VotedForIn, TypeOK
+        <5>3. QED BY <5>1, <5>2
+      <4>2. ASSUME (\E m \in msgs : m.type = "2b" /\ m.lr = L /\ m.acc = A /\ m.bal = B /\ m.val = V)'
+            PROVE  [lr |-> L, bal |-> B, val |-> V] \in votesSent'[A]
+            BY <1>0b, <3>2, <4>2, MessageType DEF Send, VotedForIn, TypeOK
+      <4>3. QED BY <4>1, <4>2 DEF VotedForIn
+            \*
+      \*<4>5. DEFINE m0 == [type |-> "2b", lr |-> lrn, acc |-> acc, bal |-> bal, val |-> val]
+      \*<4>3. m0 \in msgs' BY DEF Send
+      \*<4>20. QED BY <1>0b, <3>2, <4>3, MsgsMonotone DEF Send, VotedForIn, TypeOK
+      \*<4>1. USE DEF VotedForIn
+\*      <4>2. CASE vote \in votesSent[acc] BY <3>2, <4>2, MsgsMonotone
+\*      <4>3. CASE vote \notin votesSent[acc]
+\*        <5>1. DEFINE m0 == [type |-> "2b", lr |-> lrn, acc |-> acc, bal |-> bal, val |-> val]
+\*        <5>2. m0 \in msgs' BY DEF Phase2b, Send
+\*        <5>3. WITNESS <5>2
+\*        <5>10 QED BY <3>2, <4>3
+\*      <4>4. QED BY <4>2, <4>3
+    <3>3. CASE acc # A BY <3>3
+    <3>4. QED BY <3>2, <3>3
   <2>5. QED BY <2>1, <2>2, <2>3
 <1>3. CASE AcceptorReceiveAction BY <1>3 DEF AcceptorReceiveAction, Recv, Next
 <1>4. CASE AcceptorDisconnectAction BY <1>4 DEF AcceptorDisconnectAction, Disconnect, Next
@@ -860,20 +930,21 @@ PROOF
                     <<L1, L2>> \in Ent
              PROVE <<L1, L2>> \in connected'[A]
     BY DEF ConnectedSpec
-<1>1. CASE ProposerAction BY <1>1 DEF ProposerAction, Phase1a, Phase1c, Next, ConnectedSpec
-<1>2. CASE AcceptorSendAction BY <1>2 DEF AcceptorSendAction, Phase1b, Phase2b, Phase2av, Next, ConnectedSpec
-<1>3. CASE AcceptorReceiveAction BY <1>3 DEF AcceptorReceiveAction, Recv, Next, ConnectedSpec
-<1>4. CASE AcceptorDisconnectAction BY <1>4 DEF AcceptorDisconnectAction, Disconnect, Next, ConnectedSpec
-<1>5. CASE LearnerAction BY <1>5 DEF LearnerAction, LearnerRecv, LearnerDecide, Next, ConnectedSpec
-<1>6. CASE FakeAcceptorAction BY <1>6 DEF FakeAcceptorAction, FakeSend, Send, ConnectedSpec
+<1> USE DEF ConnectedSpec
+<1>1. CASE ProposerAction BY <1>1 DEF ProposerAction, Phase1a, Phase1c, Next
+<1>2. CASE AcceptorSendAction BY <1>2 DEF AcceptorSendAction, Phase1b, Phase2b, Phase2av, Next
+<1>3. CASE AcceptorReceiveAction BY <1>3 DEF AcceptorReceiveAction, Recv, Next
+<1>4. CASE AcceptorDisconnectAction BY <1>4 DEF AcceptorDisconnectAction, Disconnect, Next
+<1>5. CASE LearnerAction BY <1>5 DEF LearnerAction, LearnerRecv, LearnerDecide, Next
+<1>6. CASE FakeAcceptorAction BY <1>6 DEF FakeAcceptorAction, FakeSend, Send
 <1>7. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6 DEF Next
 
 
 LEMMA MsgInvInvariant ==
-    TypeOK /\ MsgInv /\ VotesSentSpec /\ 2avSentSpec1 /\ Next => MsgInv'
+    TypeOK /\ MsgInv /\ VotesSentSpec1 /\ 2avSentSpec1 /\ Next => MsgInv'
 PROOF
 <1> USE DEF MsgInv
-<1>1b. ASSUME TypeOK, VotesSentSpec, 2avSentSpec1, Next,
+<1>1b. ASSUME TypeOK, VotesSentSpec1, 2avSentSpec1, Next,
        \A m \in msgs : m.acc \in SafeAcceptor /\ m.type = "1b" => MsgInv1b(m),
        NEW m \in msgs', m.acc \in SafeAcceptor, m.type = "1b"
        PROVE MsgInv1b(m)'
@@ -919,7 +990,7 @@ PROOF
           <6>0. m.bal = bal BY <3>1, <5>2 DEF Next, Phase1b, Send
           <6>1. <<m.lr, m.acc>> = <<lrn, acc>> BY <3>1, <5>2 DEF Next, Phase1b, Send
           <6>2. m.votes = {p \in votesSent[acc] : MaxVote(acc, bal, p)} BY <5>2, <3>1 DEF Phase1b, Send
-          <6>3. QED BY <6>0, <3>1, <1>1b, <6>2, <6>1 DEF VotesSentSpec, Phase1b, Send, MaxVote
+          <6>3. QED BY <6>0, <3>1, <1>1b, <6>2, <6>1 DEF VotesSentSpec1, Phase1b, Send, MaxVote
         <5>10. QED BY <5>1, <5>2
       <4>3. ASSUME NEW pr \in m.proposals
             PROVE pr.bal < m.bal /\ ProposedIn(pr.bal, pr.val)'
@@ -1308,7 +1379,7 @@ PROOF
         <5>6. \E L \in Learner : LeftBallot(L, S, B1)' BY <4>1c, <5>4, <3>0 DEF LeftBallot
         <5>7. \neg VotedForIn(L1, S, B1, V1)'
           <6>1. SUFFICES ASSUME VotedForIn(L1, S, B1, V1) PROVE FALSE OBVIOUS
-          <6>10. QED BY <4>1a, <5>4, <6>1 DEF VotedForIn
+          <6>10. QED BY <4>1a, <4>1c, <5>4, <6>1 DEF VotedForIn
         <5>100. QED BY <5>2, <5>6, <5>7 \*DEF LeftBallot
       <4>3b. CASE KnowsSafeAt2(lrn, acc, bal, val) OMITTED
       <4>4. QED BY <4>3a, <4>3b, <4>2 DEF KnowsSafeAt
