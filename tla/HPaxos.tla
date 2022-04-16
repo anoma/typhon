@@ -782,26 +782,11 @@ PROOF
           <6>2. m0 \in msgs' BY DEF Send
           <6>3. WITNESS m0 \in msgs'
           <6>10. QED BY <3>2, <5>2, <4>1
-          \*<6>20. QED BY <5>2, <6>2, <1>0b, <3>2, MessageType DEF Send, VotedForIn, TypeOK
-        \*BY <3>2, <5>2, <1>0b, MessageType DEF VotedForIn, TypeOK
-        \*<5>20. QED BY <1>0b, <3>2, MessageType, MsgsMonotone DEF Send, VotedForIn, TypeOK
         <5>3. QED BY <5>1, <5>2
       <4>2. ASSUME (\E m \in msgs : m.type = "2b" /\ m.lr = L /\ m.acc = A /\ m.bal = B /\ m.val = V)'
             PROVE  [lr |-> L, bal |-> B, val |-> V] \in votesSent'[A]
             BY <1>0b, <3>2, <4>2, MessageType DEF Send, VotedForIn, TypeOK
       <4>3. QED BY <4>1, <4>2 DEF VotedForIn
-            \*
-      \*<4>5. DEFINE m0 == [type |-> "2b", lr |-> lrn, acc |-> acc, bal |-> bal, val |-> val]
-      \*<4>3. m0 \in msgs' BY DEF Send
-      \*<4>20. QED BY <1>0b, <3>2, <4>3, MsgsMonotone DEF Send, VotedForIn, TypeOK
-      \*<4>1. USE DEF VotedForIn
-\*      <4>2. CASE vote \in votesSent[acc] BY <3>2, <4>2, MsgsMonotone
-\*      <4>3. CASE vote \notin votesSent[acc]
-\*        <5>1. DEFINE m0 == [type |-> "2b", lr |-> lrn, acc |-> acc, bal |-> bal, val |-> val]
-\*        <5>2. m0 \in msgs' BY DEF Phase2b, Send
-\*        <5>3. WITNESS <5>2
-\*        <5>10 QED BY <3>2, <4>3
-\*      <4>4. QED BY <4>2, <4>3
     <3>3. CASE acc # A BY <3>3
     <3>4. QED BY <3>2, <3>3
   <2>5. QED BY <2>1, <2>2, <2>3
