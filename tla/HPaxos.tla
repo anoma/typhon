@@ -1298,7 +1298,7 @@ PROOF
                         /\ \neg VotedForIn(L1, A1, B1, V1))'
       BY <1>2 DEF AcceptorSendAction
   <2>1. CASE Phase1b(lrn, bal, acc)
-    <3>1. m \in msgs BY <2>1, <1>0b, <1>0c, MessageType DEF Phase1b, Send
+    <3>1. m \in msgs BY <2>1, <1>0b DEF Phase1b, Send, TypeOK, Message
     <3>2. QED BY <3>1 DEF HeterogeneousSpec
   <2>2. CASE Phase2av(lrn, bal, acc, val)
     <3>0. msgs \subseteq msgs' BY <2>2 DEF Phase2av, Send
