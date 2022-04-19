@@ -8,6 +8,10 @@ LEMMA BallotLeqTrans ==
     ASSUME NEW A \in Ballot, NEW B \in Ballot, NEW C \in Ballot, A =< B, B =< C PROVE A =< C
 PROOF BY DEF Ballot
 
+\*LEMMA BallotLeqDec ==
+\*    ASSUME NEW A \in Ballot, NEW B \in Ballot PROVE A < B \/ A >= B
+\*PROOF BY DEF Ballot
+
 CONSTANT Value
 None == CHOOSE v : v \notin Value
 -----------------------------------------------------------------------------
@@ -333,6 +337,10 @@ VotesSentSpec1 ==
 VotesSentSpec2 ==
     \A L \in Learner : \A A \in SafeAcceptor : \A B \in Ballot : \A V \in Value :
         VotedForIn(L, A, B, V) => [lr |-> L, bal |-> B, val |-> V] \in votesSent[A]
+
+VotesSentSpec3 ==
+    \A A \in SafeAcceptor : \A B \in Ballot : \A L \in Learner : \A vote \in votesSent[A] :
+        vote.bal < B => \E P \in votesSent[A] : MaxVote(A, B, P)
 
 2avSentSpec1 == \A A \in SafeAcceptor : \A p \in 2avSent[A] : ProposedIn(p.bal, p.val)
 
@@ -703,7 +711,7 @@ PROOF
 <1>6. CASE FakeAcceptorAction BY <1>6 DEF FakeAcceptorAction, FakeSend, Send
 <1>7. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6 DEF Next
 
-LEMMA VotesSentSpecInvariant == Next /\ VotesSentSpec1 => VotesSentSpec1'
+LEMMA VotesSentSpec1Invariant == Next /\ VotesSentSpec1 => VotesSentSpec1'
 PROOF
 <1> SUFFICES ASSUME
   Next, VotesSentSpec1, NEW A \in SafeAcceptor, NEW vote \in votesSent'[A]
@@ -748,7 +756,7 @@ PROOF
 <1>6. CASE FakeAcceptorAction BY <1>6 DEF FakeAcceptorAction, FakeSend, Send
 <1>7. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6 DEF Next
 
-LEMMA VotesSentSpecInvariant2 == TypeOK /\ Next /\ VotesSentSpec2 => VotesSentSpec2'
+LEMMA VotesSentSpec2Invariant == TypeOK /\ Next /\ VotesSentSpec2 => VotesSentSpec2'
 PROOF
 <1> SUFFICES ASSUME TypeOK, Next, VotesSentSpec2,
                     NEW L \in Learner, NEW A \in SafeAcceptor, NEW B \in Ballot, NEW V \in Value
@@ -783,6 +791,10 @@ PROOF
 <1>5. CASE LearnerAction BY <1>5 DEF LearnerAction, LearnerRecv, LearnerDecide, Next
 <1>6. CASE FakeAcceptorAction BY <1>6 DEF FakeAcceptorAction, FakeSend, Send
 <1>7. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6 DEF Next
+
+LEMMA VotesSentSpec3Invariant == TypeOK /\ Next /\ VotesSentSpec3 => VotesSentSpec3'
+PROOF
+OMITTED
 
 LEMMA 2avSentSpec1Invariant == Next /\ 2avSentSpec1 => 2avSentSpec1'
 PROOF
@@ -914,10 +926,10 @@ PROOF
 
 
 LEMMA MsgInvInvariant ==
-    TypeOK /\ MsgInv /\ VotesSentSpec1 /\ 2avSentSpec1 /\ Next => MsgInv'
+    TypeOK /\ MsgInv /\ VotesSentSpec1 /\ VotesSentSpec3 /\ 2avSentSpec1 /\ Next => MsgInv'
 PROOF
 <1> USE DEF MsgInv
-<1>1b. ASSUME TypeOK, VotesSentSpec1, 2avSentSpec1, Next,
+<1>1b. ASSUME TypeOK, VotesSentSpec1, VotesSentSpec3, 2avSentSpec1, Next,
        \A m \in msgs : m.acc \in SafeAcceptor /\ m.type = "1b" => MsgInv1b(m),
        NEW m \in msgs', m.acc \in SafeAcceptor, m.type = "1b"
        PROVE MsgInv1b(m)'
@@ -991,7 +1003,14 @@ PROOF
          <6>0b. m.lr =lrn BY <3>1, <5>2 DEF Next, Phase1b, Send
          <6>0c. m.acc = acc BY <3>1, <5>2 DEF Next, Phase1b, Send
          <6>0d. m.type = "1b" BY <3>1, <5>2 DEF Next, Phase1b, Send
-         <6>10. QED BY <6>0a, <6>0b, <6>0c, <6>0d, <4>4, <5>2
+         <6>0e. m.votes = {p \in votesSent[acc] : MaxVote(acc, bal, p)} BY <3>1, <5>2 DEF Next, Phase1b, Send
+         \*<6>1. USE DEF MaxVote
+         <6>1. \A p \in votesSent[acc] : p.bal >= bal
+           <7>1. SUFFICES ASSUME NEW P \in votesSent[acc], P.bal < bal PROVE FALSE
+               BY <1>1b, SafeAcceptorIsAcceptor DEF TypeOK, Ballot
+           <7>2. QED BY <6>0e, <1>1b, <7>1, <4>4 DEF VotesSentSpec3
+         \*<6>2. votesSent[acc] = {} BY <6>0e, <1>1b DEF VotesSentSpec3
+         <6>10. QED BY <6>0a, <6>0b, <6>0c, <6>0d, <6>0e, <4>4, <5>2, <3>1, <6>1
         \*<5>5. CASE m \in msgs BY <1>1b, <5>1, <2>0e, <4>2, MsgsMonotone DEF MsgInv1b, VotedForIn
        <5>3. QED BY <5>1, <5>2
       <4>10. QED BY <4>1, <4>2, <4>3, <4>4 DEF MsgInv1b
@@ -1391,6 +1410,9 @@ PROOF
 <1>5. CASE LearnerAction BY <1>5, <1>0b, <1>0c, MessageType DEF LearnerAction, LearnerRecv, LearnerDecide, Next, HeterogeneousSpec, TypeOK
 <1>6. CASE FakeAcceptorAction BY <1>6, SafeAcceptorAssumption DEF FakeAcceptorAction, FakeSend, Send, HeterogeneousSpec
 <1>7. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6 DEF Next
+
+
+
 
 LEMMA ChosenSafe ==
     ASSUME NEW L1 \in Learner, NEW L2 \in Learner,
