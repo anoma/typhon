@@ -1261,9 +1261,10 @@ HeterogeneousSpec ==
             /\ \neg VotedForIn(L1, A1, B1, V1)
 
 LEMMA HeterogeneousSpecInvariant ==
-    TypeOK /\ Next /\ ReceivedSpec /\ ConnectedSpec /\ HeterogeneousSpec => HeterogeneousSpec'
+    TypeOK /\ Next /\ ReceivedSpec /\ VotesSentSpec2 /\ ConnectedSpec /\
+    HeterogeneousSpec => HeterogeneousSpec'
 PROOF
-<1> SUFFICES ASSUME TypeOK, Next, ReceivedSpec, ConnectedSpec, HeterogeneousSpec,
+<1> SUFFICES ASSUME TypeOK, Next, ReceivedSpec, VotesSentSpec2, ConnectedSpec, HeterogeneousSpec,
                     NEW L1 \in Learner, NEW L2 \in Learner,
                     NEW B1 \in Ballot, NEW B2 \in Ballot,
                     NEW V1 \in Value, NEW V2 \in Value,
@@ -1349,7 +1350,8 @@ PROOF
         <5>6. \E L \in Learner : LeftBallot(L, S, B1)' BY <4>1c, <5>4, <3>0 DEF LeftBallot
         <5>7. \neg VotedForIn(L1, S, B1, V1)'
           <6>1. SUFFICES ASSUME VotedForIn(L1, S, B1, V1) PROVE FALSE OBVIOUS
-          <6>10. QED BY <4>1a, <4>1c, <5>4, <6>1 DEF VotedForIn
+          <6>2. [lr |-> L1, bal |-> B1, val |-> V1] \in votesSent[S] BY <6>1 DEF VotesSentSpec2
+          <6>10. QED BY <4>1a, <4>1c, <5>4, <6>2, <2>2 DEF VotesSentSpec2
         <5>100. QED BY <5>2, <5>6, <5>7 \*DEF LeftBallot
       <4>3b. CASE KnowsSafeAt2(lrn, acc, bal, val) OMITTED
       <4>4. QED BY <4>3a, <4>3b, <4>2 DEF KnowsSafeAt
