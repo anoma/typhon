@@ -339,7 +339,7 @@ VotesSentSpec2 ==
         VotedForIn(L, A, B, V) => [lr |-> L, bal |-> B, val |-> V] \in votesSent[A]
 
 VotesSentSpec3 ==
-    \A A \in SafeAcceptor : \A B \in Ballot : \A L \in Learner : \A vote \in votesSent[A] :
+    \A A \in SafeAcceptor : \A B \in Ballot : \A vote \in votesSent[A] :
         vote.bal < B => \E P \in votesSent[A] : MaxVote(A, B, P)
 
 2avSentSpec1 == \A A \in SafeAcceptor : \A p \in 2avSent[A] : ProposedIn(p.bal, p.val)
@@ -794,7 +794,44 @@ PROOF
 
 LEMMA VotesSentSpec3Invariant == TypeOK /\ Next /\ VotesSentSpec3 => VotesSentSpec3'
 PROOF
-OMITTED
+<1> SUFFICES ASSUME TypeOK, Next, VotesSentSpec3,
+                    NEW A \in SafeAcceptor, NEW B \in Ballot, NEW V \in votesSent'[A],
+                    V.bal < B
+             PROVE (\E P \in votesSent[A] : MaxVote(A, B, P))'
+    BY DEF VotesSentSpec3
+<1> USE DEF VotesSentSpec3
+<1>0a. TypeOK OBVIOUS
+<1>0b. TypeOK' BY TypeOKInvariant
+<1>1. CASE ProposerAction BY <1>1 DEF ProposerAction, Phase1a, Phase1c, Send
+<1>2. CASE AcceptorSendAction
+  <2>. SUFFICES ASSUME NEW lrn \in Learner,
+                       NEW bal \in Ballot,
+                       NEW acc \in SafeAcceptor,
+                       NEW val \in Value,
+                       \/ Phase1b(lrn, bal, acc)
+                       \/ Phase2av(lrn, bal, acc, val)
+                       \/ Phase2b(lrn, bal, acc, val)
+                PROVE (\E P \in votesSent[A] : MaxVote(A, B, P))'
+      BY <1>2 DEF AcceptorSendAction
+  <2>1. CASE Phase1b(lrn, bal, acc) BY <2>1 DEF Phase1b
+  <2>2. CASE Phase2av(lrn, bal, acc, val) BY <2>2 DEF Phase2av
+  <2>3. CASE Phase2b(lrn, bal, acc, val)
+    <3> SUFFICES ASSUME votesSent' = [votesSent EXCEPT ![acc] =
+                                        votesSent[acc] \cup { [lr |-> lrn, bal |-> bal, val |-> val] }]
+                 PROVE \E P \in votesSent'[A] : MaxVote(A, B, P)'
+        BY <2>3 DEF Phase2b
+    <3>1. CASE A = acc
+      <4>1. CASE \A P \in votesSent[A] : P.bal >= B BY <3>1, <4>1, <1>0b DEF Ballot, TypeOK, MaxVote
+      <4>2. CASE \E P \in votesSent[A] : P.bal < B BY <4>2
+      <4>3. QED BY <4>1, <4>2 DEF Ballot, TypeOK
+    <3>2. CASE A # acc BY <3>2
+    <3>3. QED BY <3>1, <3>2 
+  <2>5. QED BY <2>1, <2>2, <2>3
+<1>3. CASE AcceptorReceiveAction BY <1>3 DEF AcceptorReceiveAction, Recv, Next
+<1>4. CASE AcceptorDisconnectAction BY <1>4 DEF AcceptorDisconnectAction, Disconnect, Next
+<1>5. CASE LearnerAction BY <1>5 DEF LearnerAction, LearnerRecv, LearnerDecide, Next
+<1>6. CASE FakeAcceptorAction BY <1>6 DEF FakeAcceptorAction, FakeSend, Send
+<1>7. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6 DEF Next
 
 LEMMA 2avSentSpec1Invariant == Next /\ 2avSentSpec1 => 2avSentSpec1'
 PROOF
