@@ -8,10 +8,6 @@ LEMMA BallotLeqTrans ==
     ASSUME NEW A \in Ballot, NEW B \in Ballot, NEW C \in Ballot, A =< B, B =< C PROVE A =< C
 PROOF BY DEF Ballot
 
-\*LEMMA BallotLeqDec ==
-\*    ASSUME NEW A \in Ballot, NEW B \in Ballot PROVE A < B \/ A >= B
-\*PROOF BY DEF Ballot
-
 CONSTANT Value
 None == CHOOSE v : v \notin Value
 -----------------------------------------------------------------------------
@@ -1439,9 +1435,12 @@ PROOF
     <3>2. QED BY <3>1 DEF HeterogeneousSpec
   <2>4. QED BY <2>1, <2>2, <2>3
 \*BY <1>2 DEF AcceptorSendAction, Phase1b, Phase2av, Phase2b, Next, Send
-<1>3. CASE AcceptorReceiveAction BY <1>3, <1>0b, <1>0c, MessageType DEF AcceptorReceiveAction, Recv, Next, HeterogeneousSpec, TypeOK
+<1>3. CASE AcceptorReceiveAction
+      BY <1>3, <1>0b, <1>0c\*, MessageType
+      DEF AcceptorReceiveAction, Next, Recv, HeterogeneousSpec, LeftBallot, VotedForIn\*, TypeOK
 <1>4. CASE AcceptorDisconnectAction BY <1>4 DEF AcceptorDisconnectAction, Disconnect, Next, HeterogeneousSpec
-<1>5. CASE LearnerAction BY <1>5, <1>0b, <1>0c, MessageType DEF LearnerAction, LearnerRecv, LearnerDecide, Next, HeterogeneousSpec, TypeOK
+<1>5. CASE LearnerAction BY <1>5 \*, <1>0b, <1>0c, MessageType
+          DEF LearnerAction, LearnerRecv, LearnerDecide, Next, HeterogeneousSpec, TypeOK
 <1>6. CASE FakeAcceptorAction BY <1>6, SafeAcceptorAssumption DEF FakeAcceptorAction, FakeSend, Send, HeterogeneousSpec
 <1>7. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6 DEF Next
 
