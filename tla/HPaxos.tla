@@ -1116,14 +1116,11 @@ PROOF
               BY <4>1, <2>0e, <1>2av, 2avSentMonotone, MessageType DEF MsgInv2av, TypeOK
         <5>6. QED BY <5>1, <5>2, <5>3, <5>4, <5>5 DEF MsgInv2av
       <4>2. CASE m \notin msgs
-        <5>1a. m.lr = lrn BY <4>2 DEF Send
-        <5>1b. m.acc = acc BY <4>2 DEF Send
-        <5>1c. m.bal = bal BY <4>2 DEF Send
-        <5>1d. m.val = val BY <4>2 DEF Send
-        <5>3. initializedBallot(m.lr, m.bal)' BY <5>1a, <5>1c, <3>2 DEF Phase2av
-        <5>4. announcedValue(m.lr, m.bal, m.val)' BY <5>1a, <5>1c, <5>1d
-        <5>5. KnowsSafeAt(m.lr, m.acc, m.bal, m.val)' BY <5>1a, <5>1b, <5>1c, <5>1d
-        <5>6. [bal |-> m.bal, val |-> m.val] \in 2avSent'[m.acc] BY <5>1b, <5>1c, <5>1d, <2>0b DEF TypeOK
+        <5>1. m = [type |-> "2av", lr |-> lrn, acc |-> acc, bal |-> bal, val |-> val] BY <4>2 DEF Send
+        <5>3. initializedBallot(m.lr, m.bal)' BY <5>1, <3>2 DEF Phase2av
+        <5>4. announcedValue(m.lr, m.bal, m.val)' BY <5>1
+        <5>5. KnowsSafeAt(m.lr, m.acc, m.bal, m.val)' BY <5>1
+        <5>6. [bal |-> m.bal, val |-> m.val] \in 2avSent'[m.acc] BY <5>1, <2>0b DEF TypeOK
         <5>7. (\E Q \in ByzQuorum :
               /\ [lr |-> m.lr, q |-> Q] \in TrustLive
               /\ \A ba \in Q :
@@ -1141,7 +1138,7 @@ PROOF
                                 /\ m1b.acc = a
                   BY <6>1 DEF KnowsSafeAt1
             <7>2. WITNESS Q1 \in ByzQuorum
-            <7>3. QED BY <7>1, <5>1a, <5>1b, <5>1c
+            <7>3. QED BY <7>1, <5>1
           <6>2. CASE KnowsSafeAt2(lrn, acc, bal, val)
             <7>1. PICK Q2 \in ByzQuorum :
                         /\ [lr |-> lrn, q |-> Q2] \in TrustLive
@@ -1152,9 +1149,9 @@ PROOF
                                 /\ m1b.acc = a
                   BY <6>2 DEF KnowsSafeAt2
             <7>2. WITNESS Q2 \in ByzQuorum
-            <7>3. QED BY <7>1, <5>1a, <5>1b, <5>1c
+            <7>3. QED BY <7>1, <5>1
           <6>3. QED BY <6>1, <6>2 DEF KnowsSafeAt
-        <5>8. QED BY <5>1a, <5>1b, <5>1c, <5>1d, <5>3, <5>4, <5>5, <5>6, <5>7, MessageType DEF MsgInv2av, TypeOK
+        <5>8. QED BY <5>1, <5>3, <5>4, <5>5, <5>6, <5>7, MessageType DEF MsgInv2av, TypeOK
       <4>20. QED BY <4>1, <4>2
     <3>3. CASE Phase2b(lrn, bal, acc, val)
       <4>1. m \in msgs BY <3>3, <2>0e DEF Phase2b, Send
@@ -1243,13 +1240,10 @@ PROOF
                                     votesSent[acc] \cup { [lr |-> lrn, bal |-> bal, val |-> val] }]
                    PROVE MsgInv2b(m)'
               BY <3>3 DEF Phase2b
-        <5>1a. m.lr = lrn BY <4>2, <2>0a, <2>0b, <2>0c, <2>0e, MessageType DEF Send, TypeOK
-        <5>1b. m.acc = acc BY <4>2, <2>0a, <2>0b, <2>0c, <2>0e, MessageType DEF Send, TypeOK
-        <5>1c. m.bal = bal BY <4>2, <2>0a, <2>0b, <2>0c, <2>0e, MessageType DEF Send, TypeOK
-        <5>1d. m.val = val BY <4>2, <2>0a, <2>0b, <2>0c, <2>0e, MessageType DEF Send, TypeOK
+        <5>1. m = [type |-> "2b", lr |-> lrn, acc |-> acc, bal |-> bal, val |-> val] BY <4>2 DEF Send
         <5>1e. UNCHANGED received BY <3>3 DEF Phase2b
         <5>2. ([lr |-> m.lr, bal |-> m.bal, val |-> m.val] \in votesSent[m.acc])'
-            BY <5>1a, <5>1b, <5>1c, <5>1d, <2>0a, <2>0b, <2>0e, MessageType DEF TypeOK
+            BY <5>1, <2>0a, <2>0b, <2>0e, MessageType DEF TypeOK
         <5>3. (\E Q_1 \in ByzQuorum :
               /\ [lr |-> m.lr, q |-> Q_1] \in TrustLive
               /\ \A ba \in Q_1 :
@@ -1259,7 +1253,7 @@ PROOF
                        /\ m2av.bal = m.bal
                        /\ m2av.val = m.val)'
           <6>1. WITNESS Q \in ByzQuorum
-          <6>2. QED BY <5>1a, <5>1b, <5>1c, <5>1d, <5>1e, <2>0a DEF Send, TypeOK
+          <6>2. QED BY <5>1, <5>1e, <2>0a DEF Send, TypeOK
         <5>4. QED BY <5>2, <5>3 DEF MsgInv2b
       <4>3. QED BY <4>1, <4>2
     <3>5. QED BY <3>1, <3>2, <3>3
@@ -1377,10 +1371,8 @@ PROOF
     <3>0. msgs \subseteq msgs' BY <2>2 DEF Phase2av, Send
     <3>1. CASE m \in msgs BY <3>1 DEF HeterogeneousSpec
     <3>2. CASE m \notin msgs
-      <4>1a. m.lr = lrn BY <3>2, <2>2 DEF Phase2av, Send
-      <4>1b. m.acc = acc BY <3>2, <2>2 DEF Phase2av, Send
-      <4>1c. m.bal = bal BY <3>2, <2>2 DEF Phase2av, Send
-      <4>1d. m.val = val BY <3>2, <2>2 DEF Phase2av, Send
+      <4>1. m = [type |-> "2av", lr |-> lrn, acc |-> acc, bal |-> bal, val |-> val]
+             BY <3>2, <2>2 DEF Phase2av, Send
       <4>2. KnowsSafeAt(lrn, acc, bal, val) BY <2>2 DEF Phase2av
       <4>3a. CASE KnowsSafeAt1(lrn, acc, bal, val)
 \*KnowsSafeAt1(l, ac, b, v) ==
@@ -1402,7 +1394,7 @@ PROOF
                     /\ \A p \in {pp \in m1b.votes : <<pp.lr, lrn>> \in connected[acc]} :
                             bal <= p.bal
             BY <4>3a DEF KnowsSafeAt1
-        <5>2. PICK S \in SafeAcceptor : S \in Q1 /\ S \in Q2 BY EntanglementTrustLive, <4>1a, <5>1
+        <5>2. PICK S \in SafeAcceptor : S \in Q1 /\ S \in Q2 BY EntanglementTrustLive, <4>1, <5>1
         <5>3. PICK m1b \in received[lrn, acc] :
                     /\ m1b.type = "1b"
                     /\ m1b.bal = bal
@@ -1419,11 +1411,11 @@ PROOF
                     bal <= p.bal
               BY <5>3, SafeAcceptorIsAcceptor DEF TypeOK, ReceivedSpec
         <5>5. WITNESS S \in SafeAcceptor
-        <5>6. \E L \in Learner : LeftBallot(L, S, B1)' BY <4>1c, <5>4, <3>0 DEF LeftBallot
+        <5>6. \E L \in Learner : LeftBallot(L, S, B1)' BY <4>1, <5>4, <3>0 DEF LeftBallot
         <5>7. \neg VotedForIn(L1, S, B1, V1)'
           <6>1. SUFFICES ASSUME VotedForIn(L1, S, B1, V1) PROVE FALSE OBVIOUS
           <6>2. [lr |-> L1, bal |-> B1, val |-> V1] \in votesSent[S] BY <6>1 DEF VotesSentSpec2
-          <6>10. QED BY <4>1a, <4>1c, <5>4, <6>2, <2>2 DEF VotesSentSpec2, TypeOK, MsgInv, MsgInv1b
+          <6>10. QED BY <4>1, <5>4, <6>2, <2>2 DEF VotesSentSpec2, TypeOK, MsgInv, MsgInv1b
         <5>100. QED BY <5>2, <5>6, <5>7 \*DEF LeftBallot
       <4>3b. CASE KnowsSafeAt2(lrn, acc, bal, val) OMITTED
       <4>4. QED BY <4>3a, <4>3b, <4>2 DEF KnowsSafeAt
