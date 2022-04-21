@@ -187,7 +187,9 @@ Phase1c(l, b, v) ==
 
 MaxVote(a, b, vote) ==
     /\ vote.bal < b
-    /\ \A other \in votesSent[a] : other.bal < b => other.bal <= vote.bal
+    /\ \A other \in votesSent[a] :
+        other.lr = vote.lr /\ other.bal < b => other.bal <= vote.bal
+        \* HYPOTHESIS: we can pick max votes per each learner
 
 Phase1b(l, b, a) ==
     /\ maxBal[l, a] <= b
@@ -336,7 +338,7 @@ VotesSentSpec2 ==
 
 VotesSentSpec3 ==
     \A A \in SafeAcceptor : \A B \in Ballot : \A vote \in votesSent[A] :
-        vote.bal < B => \E P \in votesSent[A] : MaxVote(A, B, P)
+        vote.bal < B => \E P \in votesSent[A] : MaxVote(A, B, P) /\ P.lr = vote.lr
 
 2avSentSpec1 == \A A \in SafeAcceptor : \A p \in 2avSent[A] : ProposedIn(p.bal, p.val)
 
@@ -790,9 +792,10 @@ PROOF
 LEMMA VotesSentSpec3Invariant == TypeOK /\ Next /\ VotesSentSpec3 => VotesSentSpec3'
 PROOF
 <1> SUFFICES ASSUME TypeOK, Next, VotesSentSpec3,
-                    NEW A \in SafeAcceptor, NEW B \in Ballot, NEW V \in votesSent'[A],
+                    NEW A \in SafeAcceptor, NEW B \in Ballot,
+                    NEW V \in votesSent'[A],
                     V.bal < B
-             PROVE (\E P \in votesSent[A] : MaxVote(A, B, P))'
+             PROVE (\E P \in votesSent[A] : MaxVote(A, B, P) /\ P.lr = V.lr)'
     BY DEF VotesSentSpec3
 <1> USE DEF VotesSentSpec3
 <1>0a. TypeOK OBVIOUS
@@ -806,18 +809,19 @@ PROOF
                        \/ Phase1b(lrn, bal, acc)
                        \/ Phase2av(lrn, bal, acc, val)
                        \/ Phase2b(lrn, bal, acc, val)
-                PROVE (\E P \in votesSent[A] : MaxVote(A, B, P))'
+                PROVE (\E P \in votesSent[A] : MaxVote(A, B, P) /\ P.lr = V.lr)'
       BY <1>2 DEF AcceptorSendAction
   <2>1. CASE Phase1b(lrn, bal, acc) BY <2>1 DEF Phase1b
   <2>2. CASE Phase2av(lrn, bal, acc, val) BY <2>2 DEF Phase2av
   <2>3. CASE Phase2b(lrn, bal, acc, val)
     <3> SUFFICES ASSUME votesSent' = [votesSent EXCEPT ![acc] =
                                         votesSent[acc] \cup { [lr |-> lrn, bal |-> bal, val |-> val] }]
-                 PROVE \E P \in votesSent'[A] : MaxVote(A, B, P)'
+                 PROVE (\E P \in votesSent[A] : MaxVote(A, B, P) /\ P.lr = V.lr)'
         BY <2>3 DEF Phase2b
     <3>1. CASE A = acc
-      <4>1. CASE \A P \in votesSent[A] : P.bal >= B BY <3>1, <4>1, <1>0b DEF Ballot, TypeOK, MaxVote
-      <4>2. CASE \E P \in votesSent[A] : P.bal < B BY <4>2
+      <4>1. CASE \A P \in votesSent[A] : P.lr = V.lr => P.bal >= B
+            BY <3>1, <4>1, <1>0b DEF Ballot, TypeOK, MaxVote
+      <4>2. CASE \E P \in votesSent[A] : P.lr = V.lr /\ P.bal < B BY <4>2
       <4>3. QED BY <4>1, <4>2 DEF Ballot, TypeOK
     <3>2. CASE A # acc BY <3>2
     <3>3. QED BY <3>1, <3>2 
