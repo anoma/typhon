@@ -13,6 +13,7 @@ PROOF BY DEF Ballot
 
 CONSTANT Value
 ASSUME ValueNotEmpty == Value # {}
+
 None == CHOOSE v : v \notin Value
 -----------------------------------------------------------------------------
 CONSTANTS Acceptor,
@@ -129,7 +130,7 @@ KnowsSafeAt1(l, ac, b, v) ==
             \E m \in S :
                 /\ m.acc = a
                 /\ \A p \in {pp \in m.votes : <<pp.lr, l>> \in connected[ac]} :
-                        b <= p.bal
+                        b =< p.bal
 
 KnowsSafeAt2(l, ac, b, v) ==
     LET S == {m \in received[l, ac] : m.type = "1b" /\ m.bal = b}
@@ -140,7 +141,7 @@ KnowsSafeAt2(l, ac, b, v) ==
                 \E m \in S :
                     /\ m.acc = a
                     /\ \A p \in {pp \in m.votes : <<pp.lr, l>> \in connected[ac]} :
-                        /\ p.bal <= c
+                        /\ p.bal =< c
                         /\ (p.bal = c) => (p.val = v)
         /\ \E WQ \in ByzQuorum :
             /\ [lr |-> l, q |-> WQ] \in TrustLive
@@ -192,11 +193,11 @@ Phase1c(l, b, v) ==
 MaxVote(a, b, vote) ==
     /\ vote.bal < b
     /\ \A other \in votesSent[a] :
-        other.lr = vote.lr /\ other.bal < b => other.bal <= vote.bal
+        other.lr = vote.lr /\ other.bal < b => other.bal =< vote.bal
         \* TODO: HYPOTHESIS: we can pick max votes per each learner
 
 Phase1b(l, b, a) ==
-    /\ maxBal[l, a] <= b
+    /\ maxBal[l, a] =< b
     /\ initializedBallot(l, b)
     /\ maxBal' = [maxBal EXCEPT ![l, a] = b]
     /\ Send([
@@ -211,7 +212,7 @@ Phase1b(l, b, a) ==
     /\ UNCHANGED << votesSent, 2avSent, received, connected, receivedByLearner, decision >>
 
 Phase2av(l, b, a, v) ==
-    /\ maxBal[l, a] <= b
+    /\ maxBal[l, a] =< b
     /\ initializedBallot(l, b)
     /\ announcedValue(l, b, v)
     /\ \A P \in {p \in 2avSent[a] : p.bal = b} : P.val = v
@@ -221,7 +222,7 @@ Phase2av(l, b, a, v) ==
     /\ UNCHANGED << maxBal, votesSent, received, connected, receivedByLearner, decision >>
 
 Phase2b(l, b, a, v) ==
-    /\ \A L \in Learner : maxBal[L, a] <= b
+    /\ \A L \in Learner : maxBal[L, a] =< b
     /\ \E Q \in ByzQuorum :
         /\ [lr |-> l, q |-> Q] \in TrustLive
         /\ \A aa \in Q :
@@ -359,7 +360,7 @@ DecisionSpec ==
         V \in decision[L, B] => ChosenIn(L, B, V)
 
 MsgInv1b(m) ==
-    /\ m.bal \leq maxBal[m.lr, m.acc]
+    /\ m.bal =< maxBal[m.lr, m.acc]
     /\ \A vote \in m.votes :
             /\ vote.bal < m.bal
             /\ VotedForIn(vote.lr, m.acc, vote.bal, vote.val)
@@ -371,7 +372,7 @@ MsgInv1b(m) ==
     \*    \A L \in Learner : \A B \in Ballot : \A V \in Value :
     \*        B < m.bal => ~VotedForIn(L, m.acc, B, V)
     \*/\ m.proposals = {} =>
-    \*    \A B \in Ballot : \A V \in Value : (m.bal <= B) => ~ProposedIn(B, V)
+    \*    \A B \in Ballot : \A V \in Value : (m.bal =< B) => ~ProposedIn(B, V)
 
 \*    [
 \*        type : {"1b"},
@@ -1082,7 +1083,7 @@ PROOF
       <4>3. QED BY <4>2, <1>1b, <3>2 DEF Phase2av, MsgInv1b
     <3>3. CASE Phase2b(lrn, bal, acc, val)
       <4> SUFFICES
-            ASSUME \A L \in Learner : maxBal[L, acc] <= bal,
+            ASSUME \A L \in Learner : maxBal[L, acc] =< bal,
                    Send([type |-> "2b", lr |-> lrn, acc |-> acc, bal |-> bal, val |-> val]),
                    votesSent' = [votesSent EXCEPT
                                     ![acc] = votesSent[acc] \cup {[lr |-> lrn, bal |-> bal, val |-> val]}]
@@ -1446,7 +1447,7 @@ PROOF
 \*            \E m \in S :
 \*                /\ m.acc = a
 \*                /\ \A p \in {pp \in m.votes : <<pp.lr, l>> \in connected[ac]} :
-\*                        b <= p.bal
+\*                        b =< p.bal
         <5>1. PICK Q2 \in ByzQuorum :
             /\ [lr |-> lrn, q |-> Q2] \in TrustLive
             /\ \A a \in Q2 :
@@ -1455,7 +1456,7 @@ PROOF
                     /\ m1b.bal = bal
                     /\ m1b.acc = a
                     /\ \A p \in {pp \in m1b.votes : <<pp.lr, lrn>> \in connected[acc]} :
-                            bal <= p.bal
+                            bal =< p.bal
             BY <4>3a DEF KnowsSafeAt1
         <5>2. PICK S \in SafeAcceptor : S \in Q1 /\ S \in Q2 BY EntanglementTrustLive, <4>1, <5>1
         <5>3. PICK m1b \in received[lrn, acc] :
@@ -1463,7 +1464,7 @@ PROOF
                     /\ m1b.bal = bal
                     /\ m1b.acc = S
                     /\ \A p \in {pp \in m1b.votes : <<pp.lr, lrn>> \in connected[acc]} :
-                            bal <= p.bal
+                            bal =< p.bal
               BY <5>1, <5>2
         <5>4. /\ m1b \in msgs
               /\ m1b.type = "1b"
@@ -1471,7 +1472,7 @@ PROOF
               /\ m1b.bal = bal
               /\ m1b.acc = S
               /\ \A p \in {pp \in m1b.votes : <<pp.lr, lrn>> \in connected[acc]} :
-                    bal <= p.bal
+                    bal =< p.bal
               BY <5>3, SafeAcceptorIsAcceptor DEF TypeOK, ReceivedSpec
         <5>5. WITNESS S \in SafeAcceptor
         <5>6. \E L \in Learner : LeftBallot(L, S, B1)' BY <4>1, <5>4, <3>0 DEF LeftBallot
