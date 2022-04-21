@@ -729,10 +729,9 @@ PROOF
   <2>2. CASE Phase2av(lrn, bal, acc, val) BY <2>2 DEF Phase2av
   <2>3. CASE Phase2b(lrn, bal, acc, val)
     <3> SUFFICES ASSUME Send([type |-> "2b", lr |-> lrn, acc |-> acc, bal |-> bal, val |-> val]),
-                          votesSent' =
-                                 [votesSent EXCEPT ![acc] =
-                                     votesSent[acc] \cup { [lr |-> lrn, bal |-> bal, val |-> val] }]
-                   PROVE  VotedForIn(vote.lr, A, vote.bal, vote.val)'
+                        votesSent' = [votesSent EXCEPT ![acc] =
+                                        votesSent[acc] \cup { [lr |-> lrn, bal |-> bal, val |-> val] }]
+                 PROVE VotedForIn(vote.lr, A, vote.bal, vote.val)'
         BY <2>3 DEF Phase2b
     <3>2. CASE acc = A
       <4>1. USE DEF VotedForIn
