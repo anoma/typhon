@@ -1441,15 +1441,6 @@ PROOF
       <4>1. maxBal[lrn, acc] =< bal BY <2>2 DEF Phase2av
       <4>2. KnowsSafeAt(lrn, acc, bal, val) BY <2>2 DEF Phase2av
       <4>3a. CASE KnowsSafeAt1(lrn, acc, bal, val)
-\*KnowsSafeAt1(l, ac, b, v) ==
-\*    LET S == {m \in received[l, ac] : m.type = "1b" /\ m.bal = b}
-\*    IN \E BQ \in ByzQuorum :
-\*        /\ [lr |-> l, q |-> BQ] \in TrustLive
-\*        /\ \A a \in BQ :
-\*            \E m \in S :
-\*                /\ m.acc = a
-\*                /\ \A p \in {pp \in m.votes : <<pp.lr, l>> \in connected[ac]} :
-\*                        b =< p.bal
         <5>1. PICK Q2 \in ByzQuorum :
             /\ [lr |-> lrn, q |-> Q2] \in TrustLive
             /\ \A a \in Q2 :
@@ -1482,23 +1473,19 @@ PROOF
           <6>1. SUFFICES ASSUME VotedForIn(L1, S, B1, V1) PROVE FALSE OBVIOUS
           <6>2. [lr |-> L1, bal |-> B1, val |-> V1] \in votesSent[S] BY <6>1 DEF VotesSentSpec2
           <6>3. m1b.votes = { p \in votesSent[S] : MaxVote(S, B2, p) } BY <4>0, <5>4 DEF MsgInv, MsgInv1b
-          \*<6>4def. DEFINE P0 == [lr |-> L1, bal |-> B1, val |-> V1]
-          \*<6>4bis. P0.bal < B2 OBVIOUS
           <6>4. PICK P \in votesSent[S] : MaxVote(S, B2, P) /\ P.lr = L1
             <7>1. SUFFICES ASSUME NEW P0 \in votesSent[S],
                            P0 = [lr |-> L1, bal |-> B1, val |-> V1]
                            PROVE \E P \in votesSent[S] : MaxVote(S, B2, P) /\ P.lr = P0.lr
-                           BY <6>2
+                  BY <6>2
             <7>2. SUFFICES P0.bal < B2 BY DEF VotesSentSpec3
             <7>3. QED BY <7>1
-            \*<7>20. QED BY <7>1, <5>4, <4>0, <6>2, SafeAcceptorIsAcceptor DEF VotesSentSpec3, TypeOK
-                \*BY <5>4, <4>0, <6>2, SafeAcceptorIsAcceptor DEF VotesSentSpec3
-          \*<6>4. m1b.bal <= bal BY BallotLeqTrans,
-          \*<6>4. PICK P \in votesSent[S] : MaxVote(S, B2, )
-\*              \A A \in SafeAcceptor : \A B \in Ballot : \A vote \in votesSent[A] :
-\*        vote.bal < B => \E P \in votesSent[A] : MaxVote(A, B, P) /\ P.lr = vote.lr
-          \*<6>4. [lr |-> L1, bal |-> B1, val |-> V1] \in m1b.votes
-          <6>10. QED BY <4>0, <5>4, <6>2, <6>4, <2>2 DEF VotesSentSpec2, TypeOK, MsgInv, MsgInv1b
+          <6>5. P \in m1b.votes BY <6>3, <6>4
+          <6>6. <<P.lr, lrn>> \in connected[acc] BY <6>4, <4>0 DEF ConnectedSpec
+          <6>7. B2 =< P.bal BY <6>5, <6>6, <5>4, <4>0
+          <6>8. P \in [lr : Learner, bal : Ballot, val : Value] BY <6>4, SafeAcceptorIsAcceptor DEF TypeOK
+          <6>9. P.bal \in Ballot BY <6>8
+          <6>10. QED BY <6>9, <6>7, <6>4, BallotLeNotLeq DEF MaxVote
         <5>100. QED BY <5>2, <5>6, <5>7 \*DEF LeftBallot
       <4>3b. CASE KnowsSafeAt2(lrn, acc, bal, val) OMITTED
       <4>4. QED BY <4>3a, <4>3b, <4>2 DEF KnowsSafeAt
