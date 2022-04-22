@@ -1391,10 +1391,11 @@ HeterogeneousSpec ==
             /\ \neg VotedForIn(L1, A1, B1, V1)
 
 LEMMA HeterogeneousSpecInvariant ==
-    TypeOK /\ Next /\ ReceivedSpec /\ VotesSentSpec2 /\ ConnectedSpec /\ MsgInv /\
+    TypeOK /\ Next /\ ReceivedSpec /\ VotesSentSpec2 /\ VotesSentSpec3 /\ ConnectedSpec /\ MsgInv /\
     HeterogeneousSpec => HeterogeneousSpec'
 PROOF
-<1> SUFFICES ASSUME TypeOK, Next, ReceivedSpec, VotesSentSpec2, ConnectedSpec, MsgInv, HeterogeneousSpec,
+<1> SUFFICES ASSUME TypeOK, Next, ReceivedSpec, VotesSentSpec2, VotesSentSpec3,
+                    ConnectedSpec, MsgInv, HeterogeneousSpec,
                     NEW L1 \in Learner, NEW L2 \in Learner,
                     NEW B1 \in Ballot, NEW B2 \in Ballot,
                     NEW V1 \in Value, NEW V2 \in Value,
@@ -1435,8 +1436,9 @@ PROOF
     <3>0. msgs \subseteq msgs' BY <2>2 DEF Phase2av, Send
     <3>1. CASE m \in msgs BY <3>1 DEF HeterogeneousSpec
     <3>2. CASE m \notin msgs
-      <4>1. m = [type |-> "2av", lr |-> lrn, acc |-> acc, bal |-> bal, val |-> val]
+      <4>0. m = [type |-> "2av", lr |-> lrn, acc |-> acc, bal |-> bal, val |-> val]
              BY <3>2, <2>2 DEF Phase2av, Send
+      <4>1. maxBal[lrn, acc] =< bal BY <2>2 DEF Phase2av
       <4>2. KnowsSafeAt(lrn, acc, bal, val) BY <2>2 DEF Phase2av
       <4>3a. CASE KnowsSafeAt1(lrn, acc, bal, val)
 \*KnowsSafeAt1(l, ac, b, v) ==
@@ -1458,7 +1460,7 @@ PROOF
                     /\ \A p \in {pp \in m1b.votes : <<pp.lr, lrn>> \in connected[acc]} :
                             bal =< p.bal
             BY <4>3a DEF KnowsSafeAt1
-        <5>2. PICK S \in SafeAcceptor : S \in Q1 /\ S \in Q2 BY EntanglementTrustLive, <4>1, <5>1
+        <5>2. PICK S \in SafeAcceptor : S \in Q1 /\ S \in Q2 BY EntanglementTrustLive, <4>0, <5>1
         <5>3. PICK m1b \in received[lrn, acc] :
                     /\ m1b.type = "1b"
                     /\ m1b.bal = bal
@@ -1475,11 +1477,28 @@ PROOF
                     bal =< p.bal
               BY <5>3, SafeAcceptorIsAcceptor DEF TypeOK, ReceivedSpec
         <5>5. WITNESS S \in SafeAcceptor
-        <5>6. \E L \in Learner : LeftBallot(L, S, B1)' BY <4>1, <5>4, <3>0 DEF LeftBallot
+        <5>6. \E L \in Learner : LeftBallot(L, S, B1)' BY <4>0, <5>4, <3>0 DEF LeftBallot
         <5>7. \neg VotedForIn(L1, S, B1, V1)'
           <6>1. SUFFICES ASSUME VotedForIn(L1, S, B1, V1) PROVE FALSE OBVIOUS
           <6>2. [lr |-> L1, bal |-> B1, val |-> V1] \in votesSent[S] BY <6>1 DEF VotesSentSpec2
-          <6>10. QED BY <4>1, <5>4, <6>2, <2>2 DEF VotesSentSpec2, TypeOK, MsgInv, MsgInv1b
+          <6>3. m1b.votes = { p \in votesSent[S] : MaxVote(S, B2, p) } BY <4>0, <5>4 DEF MsgInv, MsgInv1b
+          \*<6>4def. DEFINE P0 == [lr |-> L1, bal |-> B1, val |-> V1]
+          \*<6>4bis. P0.bal < B2 OBVIOUS
+          <6>4. PICK P \in votesSent[S] : MaxVote(S, B2, P) /\ P.lr = L1
+            <7>1. SUFFICES ASSUME NEW P0 \in votesSent[S],
+                           P0 = [lr |-> L1, bal |-> B1, val |-> V1]
+                           PROVE \E P \in votesSent[S] : MaxVote(S, B2, P) /\ P.lr = P0.lr
+                           BY <6>2
+            <7>2. SUFFICES P0.bal < B2 BY DEF VotesSentSpec3
+            <7>3. QED BY <7>1
+            \*<7>20. QED BY <7>1, <5>4, <4>0, <6>2, SafeAcceptorIsAcceptor DEF VotesSentSpec3, TypeOK
+                \*BY <5>4, <4>0, <6>2, SafeAcceptorIsAcceptor DEF VotesSentSpec3
+          \*<6>4. m1b.bal <= bal BY BallotLeqTrans,
+          \*<6>4. PICK P \in votesSent[S] : MaxVote(S, B2, )
+\*              \A A \in SafeAcceptor : \A B \in Ballot : \A vote \in votesSent[A] :
+\*        vote.bal < B => \E P \in votesSent[A] : MaxVote(A, B, P) /\ P.lr = vote.lr
+          \*<6>4. [lr |-> L1, bal |-> B1, val |-> V1] \in m1b.votes
+          <6>10. QED BY <4>0, <5>4, <6>2, <6>4, <2>2 DEF VotesSentSpec2, TypeOK, MsgInv, MsgInv1b
         <5>100. QED BY <5>2, <5>6, <5>7 \*DEF LeftBallot
       <4>3b. CASE KnowsSafeAt2(lrn, acc, bal, val) OMITTED
       <4>4. QED BY <4>3a, <4>3b, <4>2 DEF KnowsSafeAt
