@@ -133,8 +133,9 @@ KnowsSafeAt1(l, ac, b, v) ==
                         b =< p.bal
 
 KnowsSafeAt2(l, ac, b, v) ==
-    LET S == {m \in received[l, ac] : m.type = "1b" /\ m.bal = b}
-    IN \E c \in 0..(b-1):
+    LET S == {mm \in received[l, ac] : mm.type = "1b" /\ mm.bal = b}
+    IN \E c \in Ballot :
+        /\ c < b
         /\ \E BQ \in ByzQuorum :
             /\ [lr |-> l, q |-> BQ] \in TrustLive
             /\ \A a \in BQ :
@@ -151,6 +152,23 @@ KnowsSafeAt2(l, ac, b, v) ==
                     /\ \E p \in m.proposals :
                         /\ p.bal = c
                         /\ p.val = v
+\*    LET S == {mm \in received[l, ac] : mm.type = "1b" /\ mm.bal = b}
+\*    IN \E c \in Ballot : \E BQ \in ByzQuorum : \E WQ \in ByzQuorum :
+\*        /\ c < b
+\*        /\ [lr |-> l, q |-> BQ] \in TrustLive
+\*        /\ \A a \in BQ :
+\*            \E m \in S :
+\*                /\ m.acc = a
+\*                /\ \A p \in {pp \in m.votes : <<pp.lr, l>> \in connected[ac]} :
+\*                    /\ p.bal =< c
+\*                    /\ (p.bal = c) => (p.val = v)
+\*        /\ [lr |-> l, q |-> WQ] \in TrustLive
+\*        /\ \A a \in WQ :
+\*            \E m \in S :
+\*                /\ m.acc = a
+\*                /\ \E p \in m.proposals :
+\*                    /\ p.bal = c
+\*                    /\ p.val = v
 
 KnowsSafeAt(l, ac, b, v) ==
     \/ KnowsSafeAt1(l, ac, b, v)
