@@ -181,7 +181,7 @@ TypeOK ==
     /\ msgs \in SUBSET Message
     /\ maxBal \in [Learner \X Acceptor -> Ballot]
     /\ votesSent \in [Acceptor -> SUBSET [lr : Learner, bal : Ballot, val : Value]]
-    /\ 2avSent \in [Acceptor -> SUBSET [bal : Ballot, val : Value]]
+    /\ 2avSent \in [Learner \X Acceptor -> SUBSET [bal : Ballot, val : Value]] \* TODO fixme
     /\ connected \in [Acceptor -> SUBSET (Learner \X Learner)]
     /\ received \in [Learner \X Acceptor -> SUBSET Message]
     /\ receivedByLearner \in [Learner -> SUBSET Message]
