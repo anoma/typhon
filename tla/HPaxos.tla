@@ -69,8 +69,16 @@ CONSTANT Ent
 ASSUME EntanglementAssumption ==
         /\ Ent \in SUBSET(Learner \X Learner)
         /\ \A L1, L2 \in Learner :
-                <<L1, L2>> \in Ent <=>
-                [from |-> L1, to |-> L2, q |-> SafeAcceptor] \in TrustSafe
+              <<L1, L2>> \in Ent <=>
+              [from |-> L1, to |-> L2, q |-> SafeAcceptor] \in TrustSafe
+
+LEMMA EntanglementSym ==
+    ASSUME NEW L1 \in Learner, NEW L2 \in Learner, <<L1, L2>> \in Ent PROVE <<L2, L1>> \in Ent
+PROOF BY EntanglementAssumption, LearnerGraphAssumption
+
+LEMMA EntanglementSelf ==
+    ASSUME NEW L1 \in Learner, NEW L2 \in Learner, <<L1, L2>> \in Ent PROVE <<L1, L1>> \in Ent
+PROOF BY EntanglementAssumption, LearnerGraphAssumption
 
 LEMMA EntanglementTrustLive ==
     ASSUME NEW L1 \in Learner, NEW L2 \in Learner,
