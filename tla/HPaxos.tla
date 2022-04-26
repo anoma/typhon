@@ -65,6 +65,14 @@ ASSUME LearnerGraphAssumption ==
             ([lr |-> E.from, q |-> Q1] \in TrustLive /\ [lr |-> E.to, q |-> Q2] \in TrustLive) =>
             \E N \in SafeAcceptor : N \in Q1 /\ N \in Q2
 
+CONSTANT WeakQuorum
+ASSUME WeakQuorumIsByzQuorum == WeakQuorum \subseteq ByzQuorum
+
+ASSUME WeakQuorumAssumption ==
+    \A WQ \in WeakQuorum : \A L \in Learner :
+        [from |-> L, to |-> L, q |-> WQ] \in TrustSafe =>
+        \E S \in SafeAcceptor : S \in WQ
+
 CONSTANT Ent
 ASSUME EntanglementAssumption ==
         /\ Ent \in SUBSET(Learner \X Learner)
