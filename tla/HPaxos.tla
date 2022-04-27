@@ -8,6 +8,14 @@ LEMMA BallotLeqTrans ==
     ASSUME NEW A \in Ballot, NEW B \in Ballot, NEW C \in Ballot, A =< B, B =< C PROVE A =< C
 PROOF BY DEF Ballot
 
+LEMMA BallotLeLeqTrans ==
+    ASSUME NEW A \in Ballot, NEW B \in Ballot, NEW C \in Ballot, A < B, B =< C PROVE A < C
+PROOF BY DEF Ballot
+
+LEMMA BallotLeqLeTrans ==
+    ASSUME NEW A \in Ballot, NEW B \in Ballot, NEW C \in Ballot, A =< B, B < C PROVE A < C
+PROOF BY DEF Ballot
+
 LEMMA BallotLeNotLeq == ASSUME NEW A \in Ballot, NEW B \in Ballot, A < B PROVE \neg B =< A
 PROOF BY DEF Ballot
 
