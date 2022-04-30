@@ -261,7 +261,8 @@ Phase1b(l, b, a) ==
          bal |-> b,
          votes |-> { p \in votesSent[a] : MaxVote(a, b, p) },
          \* TODO: should we restrict to instances connected with l?
-         proposals |-> { p \in 2avSent[a] : p.bal < b } \* TODO /\ p.lr = l
+         proposals |-> { p \in 2avSent[a] : p.bal < b /\ p.lr = l }
+         \* p.lr = l condition needed to prove uniquness of votes
        ])
     /\ UNCHANGED << votesSent, 2avSent, received, connected, receivedByLearner, decision >>
 
@@ -269,10 +270,10 @@ Phase2av(l, b, a, v) ==
     /\ maxBal[l, a] =< b
     /\ initializedBallot(l, b)
     /\ announcedValue(l, b, v)
-    /\ \A P \in {p \in 2avSent[a] : p.bal = b} : P.val = v \* /\ p.bal = l
+    /\ \A P \in { p \in 2avSent[a] : p.bal = b /\ p.lr = l } : P.val = v
     /\ KnowsSafeAt(l, a, b, v)
     /\ Send([type |-> "2av", lr |-> l, acc |-> a, bal |-> b, val |-> v])
-    /\ 2avSent' = [2avSent EXCEPT ![a] = 2avSent[a] \cup { [bal |-> b, val |-> v] }]
+    /\ 2avSent' = [2avSent EXCEPT ![a] = 2avSent[a] \cup { [lr |-> l, bal |-> b, val |-> v] }]
     /\ UNCHANGED << maxBal, votesSent, received, connected, receivedByLearner, decision >>
 
 Phase2b(l, b, a, v) ==
