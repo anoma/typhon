@@ -437,10 +437,8 @@ MsgInv1b(m) ==
         /\ pr.bal < m.bal
         /\ Proposed(pr.lr, m.acc, pr.bal, pr.val)
     /\ m.votes = { p \in votesSent[m.acc] : MaxVote(m.acc, m.bal, p) }
-
     \* cannot prove this for now
-    \*/\ m.proposals = { p \in 2avSent[m.acc] : p.bal < m.bal } \* TODO: /\ p.lr = m.lr
-
+    /\ m.proposals = { p \in 2avSent[m.acc] : p.bal < m.bal /\ p.lr = m.lr }
     \*/\ m.votes = {} =>
     \*    \A L \in Learner : \A B \in Ballot : \A V \in Value :
     \*        B < m.bal => ~VotedFor(L, m.acc, B, V)
@@ -885,7 +883,7 @@ PROOF
                     NEW A \in SafeAcceptor, NEW B \in Ballot,
                     NEW V \in votesSent'[A],
                     V.bal < B
-             PROVE (\E P \in votesSent[A] : MaxVote(A, B, P) /\ P.lr = V.lr)'
+             PROVE (\E P \in votesSent[A] : MaxVote(A, B, P) /\ P.lr = V.lr /\ V.bal =< P.bal)'
     BY DEF VotesSentSpec3
 <1> USE DEF VotesSentSpec3
 <1>0a. TypeOK OBVIOUS
