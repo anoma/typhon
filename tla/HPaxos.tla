@@ -1055,7 +1055,6 @@ PROOF
 <1>6. CASE FakeAcceptorAction BY <1>6 DEF FakeAcceptorAction, FakeSend, Send
 <1>7. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6 DEF Next
 
-
 LEMMA 2avSentSpec1Invariant == Next /\ 2avSentSpec1 => 2avSentSpec1'
 PROOF
 <1> SUFFICES ASSUME Next, 2avSentSpec1,
@@ -1078,7 +1077,8 @@ PROOF
   <2>1. CASE Phase1b(lrn, bal, acc) BY <2>1 DEF Phase1b
   <2>2. CASE Phase2av(lrn, bal, acc, val)
     <3> SUFFICES ASSUME Send([type |-> "2av", lr |-> lrn, acc |-> acc, bal |-> bal, val |-> val]),
-                        2avSent' = [2avSent EXCEPT ![acc] = 2avSent[acc] \cup { [bal |-> bal, val |-> val] }]
+                        2avSent' = [2avSent EXCEPT ![acc] =
+                                    2avSent[acc] \cup { [lr |-> lrn, bal |-> bal, val |-> val] }]
                  PROVE Proposed(p.lr, A, p.bal, p.val)'
           BY <2>2 DEF Phase2av
     <3>2. CASE acc = A
