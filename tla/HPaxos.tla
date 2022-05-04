@@ -64,7 +64,7 @@ ASSUME LearnerGraphAssumption ==
             [from |-> E.to, to |-> E.from, q |-> E.q] \in TrustSafe
         (* transitivity *)
         /\ \A E1, E2 \in TrustSafe :
-            E1.q = E2.q =>
+            E1.q = E2.q /\ E1.to = E2.from =>
             [from |-> E1.from, to |-> E2.to, q |-> E1.q] \in TrustSafe
         (* closure *)
         /\ \A E \in TrustSafe : \A Q \in ByzQuorum :
