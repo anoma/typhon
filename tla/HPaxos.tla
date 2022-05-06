@@ -1809,8 +1809,9 @@ PROOF
               <8>10. QED BY <6>2, <6>5, <8>2, BallotLeqLeTrans
             <7>2. CASE P.val # V1
               <8>1. B1 < P.bal
+                <9>0. <<L1, L1>> \in Ent BY EntanglementSelf
                 <9>1. B1 <= P.bal BY <6>2
-                <9>2. B1 # P.bal BY <6>1, <6>2, <6>5, <7>2, SafeAcceptorIsAcceptor DEF VotesSentSpec4
+                <9>2. B1 # P.bal BY <6>1, <6>2, <6>5, <7>2, <9>0 DEF VotesSentSpec4
                 <9>3. QED BY <6>5, <9>1, <9>2 DEF Ballot
               <8>2. P.bal =< c BY <5>5, <6>3, <6>4
               <8>3. QED BY <8>1, <8>2, <6>5, BallotLeLeqTrans
