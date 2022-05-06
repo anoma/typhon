@@ -4,76 +4,140 @@ EXTENDS Integers, FiniteSets, Functions, TLAPS, TLC, SequenceTheorems
 -----------------------------------------------------------------------------
 Ballot == Nat
 
+(* Transitivity of =< *) 
 LEMMA BallotLeqTrans ==
     ASSUME NEW A \in Ballot, NEW B \in Ballot, NEW C \in Ballot, A =< B, B =< C PROVE A =< C
 PROOF BY DEF Ballot
 
+(* composition of < and =< is contained in < *)  
 LEMMA BallotLeLeqTrans ==
     ASSUME NEW A \in Ballot, NEW B \in Ballot, NEW C \in Ballot, A < B, B =< C PROVE A < C
 PROOF BY DEF Ballot
 
+(* composition of =< and < is contained in < *)  
 LEMMA BallotLeqLeTrans ==
     ASSUME NEW A \in Ballot, NEW B \in Ballot, NEW C \in Ballot, A =< B, B < C PROVE A < C
 PROOF BY DEF Ballot
 
+(* A < B implies ¬ (B =< A) *)
 LEMMA BallotLeNotLeq == ASSUME NEW A \in Ballot, NEW B \in Ballot, A < B PROVE \neg B =< A
 PROOF BY DEF Ballot
 
+(* Value is the set of values over which we want to reach consensus *)
 CONSTANT Value
 ASSUME ValueNotEmpty == Value # {}
 
+(* `None` is an arbitrary but fixed set, not being a value, *)
+(*  i.e., not a member of `Value`                           *)
 None == CHOOSE v : v \notin Value
 
 -----------------------------------------------------------------------------
+(* sets of acceptors, safe/byz acceptors, quorums, learners *)
+(* SafeAcceptor is the set 𝓢 from [HPaxos-TR], *)
+(* i.e., _the_ `pre-determined [set of] acceptors [that] are actually safe` *)
+
 CONSTANTS Acceptor,
           SafeAcceptor,
           FakeAcceptor,
           ByzQuorum,
           Learner
 
+
+(* cf. Lamport: Quorum for learners in the context of crash failures *)
+(* ByzQuorum: context of Byzantine failures/behaviour *)
+
+(* assume acceptors are the disjoint union of safe and fake acceptors *)
 ASSUME SafeAcceptorAssumption ==
         /\ SafeAcceptor \cap FakeAcceptor = {}
         /\ SafeAcceptor \cup FakeAcceptor = Acceptor
-
+(* SafeAcceptor \subseteq Acceptor *)
 LEMMA SafeAcceptorIsAcceptor == SafeAcceptor \subseteq Acceptor
 PROOF BY SafeAcceptorAssumption
 
+(* FakeAcceptor \subseteq Acceptor *)
 LEMMA FakeAcceptorIsAcceptor == FakeAcceptor \subseteq Acceptor
 PROOF BY SafeAcceptorAssumption
 
+(* quroums consists of acceptors *) 
 ASSUME BQAssumption ==
-        /\ \A Q \in ByzQuorum : Q \subseteq Acceptor
+        /\ \A Q \in ByzQuorum : Q \subseteq Acceptor 
 
+(* Ballot numbers are not acceptors, learners, or quroums *)
+(* (Ballot \cup {-1}) \cap (Acceptor \cup ByzQuorum \cup Learner) = {} *)
 ASSUME BallotAssumption ==
         /\ (Ballot \cup {-1}) \cap Acceptor = {}
         /\ (Ballot \cup {-1}) \cap ByzQuorum = {}
         /\ (Ballot \cup {-1}) \cap Learner = {}
 
 -----------------------------------------------------------------------------
+(* ******************************************************************************** *)
+(* GENERALITIES                                                                     *)
+(* - Agreement is generalized/relaxed/relativized to pairs of _entangled_ learners: *)
+(*   learners may fail to agree if they are not entangled where                     *)
+(*   learners are entangled if a shared assumed-safe quorum is a/"the" safe qourum  *)
+(* - Termination is generalized/relaxed/relativized to assumptions of a learner:    *)
+(*   learners may fail to terminate if none of their assumed-safe quorums are live  *)
+(* - Validity is the same in heterogeneous and homogeneous settings:                *)
+(*   if learners decide on a value, the value must have been proposed               *)
+(* ******************************************************************************** *)
+
+
 (* Learner graph *)
 
+(* Learner are labeled with sets of quorums (relevant for termination) *)
+(* Quorums are mapped to sets of (partial) equivalence classes of learners; *)
+(* larger quorums are mapped to larger equivalence clases -- monotonoicity *)
+
+(* Recall that Learners congregate into a finite set of processes *)
+(* and try to "decide" on the same value. *)
+(* NB: Learners do only "listen", i.e., receive messages, but don't send. *)
+(* (Also, recall that Paxos style learners serve client requests.) *)
+
+(* The learner graph can be pictured as *)
+(* a graph in which *)
+(*   - nodes are learners (and all learners are nodes) *)
+(*   - nodes are labeled with "termination conditions" *)
+(*   - edges are undirected *)
+(*   - edges are labeled with "agreement conditions" *)
+
+(* "termination conditions" are formalized via `TrustLive` *)
+
+(* "agreement conditions" are formalized as `TrustSafe` *)
+
+
+(* "termination conditions" *)
+(* `The learner requires (expects) termination precisely when *)
+(* at least one [`TrustLive`-related] quorum [is] all live.` *)
+(* A learner is `TrustLive`-related to a quorum if it *)
+(* should/would (?) be sufficient to make the the learner decide. *)
+(* This is Definition 4 (Quorum) in [HPaxos-TR] *)
 CONSTANT TrustLive
-ASSUME TrustLiveAssumption == TrustLive \in SUBSET [lr : Learner, q : ByzQuorum]
+ASSUME TrustLiveAssumption == TrustLive \in SUBSET [lr : Learner, q : ByzQuorum] 
 
 CONSTANT TrustSafe
 ASSUME TrustSafeAssumption == TrustSafe \in SUBSET [from : Learner, to : Learner, q : ByzQuorum]
 
 ASSUME LearnerGraphAssumption ==
-        (* symmetry *)
+        (* symmetry *) 
+        (* symmtery of TrustSafeAssumption in the first two components *)
         /\ \A E \in TrustSafe :
             [from |-> E.to, to |-> E.from, q |-> E.q] \in TrustSafe
         (* transitivity *)
+        (* transitivity of TrustSafeAssumption in the first two components *)
         /\ \A E1, E2 \in TrustSafe :
-            E1.q = E2.q =>
+            E1.q = E2.q /\ E1.to = E2.from =>
             [from |-> E1.from, to |-> E2.to, q |-> E1.q] \in TrustSafe
         (* closure *)
+        (* ... or "monotonicity": bigger quorum → bigger equivalence classes *)
         /\ \A E \in TrustSafe : \A Q \in ByzQuorum :
             E.q \subseteq Q =>
             [from |-> E.from, to |-> E.to, q |-> Q] \in TrustSafe
         (* validity *)
+        (* cf. Definition 16 of [HPaxos-TR] *)
         /\ \A E \in TrustSafe : \A Q1, Q2 \in ByzQuorum :
             ([lr |-> E.from, q |-> Q1] \in TrustLive /\ [lr |-> E.to, q |-> Q2] \in TrustLive) =>
-            \E N \in SafeAcceptor : N \in Q1 /\ N \in Q2
+            \E N \in SafeAcceptor : N \in Q1 /\ N \in Q2 
+                  (* E.q [in place of `SafeAcceptor`]   *)
 
 \*CONSTANT TrustWeak
 \*ASSUME TrustWeakAssumption == TrustWeak \in SUBSET [lr : Learner, q : ByzQuorum]
@@ -99,6 +163,9 @@ ASSUME LearnerGraphAssumption ==
 \*        [from |-> L, to |-> L, q |-> WQ] \in TrustSafe =>
 \*        \E S \in SafeAcceptor : S \in WQ
 
+
+(* Entanglment, of learners with other learners.  *)
+(* This is via the "actual" safe acceptors `SafeAcceptor` *)
 CONSTANT Ent
 ASSUME EntanglementAssumption ==
         /\ Ent \in SUBSET(Learner \X Learner)
@@ -128,7 +195,7 @@ PROOF BY EntanglementAssumption, LearnerGraphAssumption
 \*           NEW WQ \in WeakQuorum,
 \*           <<L1, L2>> \in Ent
 \*    PROVE  \E N \in SafeAcceptor : N \in WQ
-\*PROOF BY EntanglementAssumption, WeakQuorumAssumption
+\*PROOF BY EntanglementAssumption, WeakQuorumAssumption 
 
 -----------------------------------------------------------------------------
 (* Messages *)
@@ -2041,3 +2108,10 @@ THEOREM SafetyResult == Spec => []Safety
 OMITTED
 
 ==============================================================================
+
+
+(* Where are/is ... *)
+(* `L` the unknown set of actually live acceptors *)
+(* `we assume some (unknown) set of pre-determined acceptors are actually live. *)
+(* `pre-determined acceptors are actually safe` 𝓢 <= `L` , is 𝓢 = `SafeAcceptor` ? *)
+(* Assumption 6 ii) ∀l . qa ∈ Qa ⇒ l ∪ qa ∈ Qa {we don't need?} *)
