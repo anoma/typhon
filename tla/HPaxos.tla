@@ -421,8 +421,9 @@ VotesSentSpec4 ==
         Proposed(L, A, B, V) => [lr |-> L, bal |-> B, val |-> V] \in 2avSent[A]
 
 2avSentSpec3 ==
-    \A A \in SafeAcceptor : \A B \in Ballot : \A V1, V2 \in Value :
-        [bal |-> B, val |-> V1] \in 2avSent[A] /\ [bal |-> B, val |-> V2] \in 2avSent[A] => V1 = V2
+    \A L \in Learner : \A A \in SafeAcceptor : \A B \in Ballot : \A V1, V2 \in Value :
+        [lr |-> L, bal |-> B, val |-> V1] \in 2avSent[A] /\
+        [lr |-> L, bal |-> B, val |-> V2] \in 2avSent[A] => V1 = V2
 
 ConnectedSpec ==
     \A A \in SafeAcceptor : \A L1, L2 \in Learner :
@@ -944,9 +945,11 @@ PROOF
 <1>7. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6 DEF Next
 
 LEMMA VotesSentSpec4Invariant ==
-    TypeOK /\ Next /\ ReceivedSpec /\ VotesSentSpec1 /\ VotesSentSpec4 /\ MsgInv => VotesSentSpec4'
+    TypeOK /\ Next /\ ReceivedSpec /\ VotesSentSpec1 /\ VotesSentSpec4 /\ 2avSentSpec2 /\ 2avSentSpec3 /\
+    MsgInv => VotesSentSpec4'
 PROOF
-<1> SUFFICES ASSUME TypeOK, Next, ReceivedSpec, VotesSentSpec1, VotesSentSpec4, MsgInv,
+<1> SUFFICES ASSUME TypeOK, Next, ReceivedSpec, VotesSentSpec1, VotesSentSpec4,
+                    2avSentSpec2, 2avSentSpec3, MsgInv,
                     NEW A \in SafeAcceptor,
                     NEW vote1 \in votesSent'[A], NEW vote2 \in votesSent'[A],
                     <<vote1.lr, vote1.lr>> \in Ent,
@@ -957,6 +960,10 @@ PROOF
 <1> USE DEF VotesSentSpec4, MsgInv
 <1>0a. TypeOK OBVIOUS
 <1>0b. TypeOK' BY TypeOKInvariant
+<1>0c. votesSent'[A] \in SUBSET [lr : Learner, bal : Ballot, val : Value]
+       BY <1>0b, SafeAcceptorIsAcceptor DEF TypeOK
+<1>0d. vote1.val \in Value BY <1>0c
+<1>0e. vote2.val \in Value BY <1>0c
 <1>1. CASE ProposerAction BY <1>1 DEF ProposerAction, Phase1a, Phase1c, Send
 <1>2. CASE AcceptorSendAction
   <2>. SUFFICES ASSUME NEW lrn \in Learner,
@@ -1029,8 +1036,8 @@ PROOF
               /\ m2av1.bal = bal
               /\ m2av1.val = vote1.val
               BY <5>8, SafeAcceptorIsAcceptor DEF ReceivedSpec, TypeOK
-        <5>10. [lr |-> lrn, bal |-> bal, val |-> vote1.val] \in votesSent[S]
-          <6>10. QED
+        <5>10. [lr |-> lrn, bal |-> bal, val |-> vote1.val] \in 2avSent[S]
+               BY <5>9, <1>0d DEF 2avSentSpec2, Proposed
         <5>11. PICK m2av2 \in received[lrn, acc]:
                     /\ m2av2.type = "2av"
                     /\ m2av2.acc = S
@@ -1044,15 +1051,83 @@ PROOF
                /\ m2av2.bal = bal
                /\ m2av2.val = val
                BY <5>11, SafeAcceptorIsAcceptor DEF ReceivedSpec, TypeOK
-        <5>20. QED BY <5>9, <5>11
+        <5>13. [lr |-> lrn, bal |-> bal, val |-> val] \in 2avSent[S]
+               BY <5>12, SafeAcceptorIsAcceptor DEF 2avSentSpec2, Proposed
+        <5>14. vote1.val = val BY <5>10, <5>13, <1>0d DEF 2avSentSpec3
+        <5>20. QED BY <5>1, <5>14
       <4>3. CASE vote1 \notin votesSent[A] /\ vote2 \in votesSent[A]
-        <5>10. QED OMITTED
+        <5>1. vote1 = [lr |-> lrn, bal |-> bal, val |-> val] BY <4>3
+        <5>2. PICK Q1 \in ByzQuorum :
+                /\ [lr |-> lrn, q |-> Q1] \in TrustLive
+                /\ \A aa \in Q1 :
+                    \E m \in {mm \in received[lrn, acc] :
+                                /\ mm.type = "2av"
+                                /\ mm.bal = bal} :
+                        /\ m.val = val
+                        /\ m.acc = aa
+              BY <5>1, <2>3 DEF Phase2b
+        <5>3. vote2.lr = lrn /\ vote2.bal = bal BY <5>1
+        <5>4. PICK m2 \in msgs :
+                /\ m2.type = "2b"
+                /\ m2.lr = lrn
+                /\ m2.acc = A
+                /\ m2.bal = bal
+                /\ m2.val = vote2.val
+              BY <3>1, <4>3 DEF VotesSentSpec1, VotedFor
+        <5>5. PICK Q2 \in ByzQuorum :
+                /\ [lr |-> lrn, q |-> Q2] \in TrustLive
+                /\ \A ba \in Q2 :
+                    \E m2av \in received[lrn, acc] :
+                        /\ m2av.type = "2av"
+                        /\ m2av.acc = ba
+                        /\ m2av.bal = bal
+                        /\ m2av.val = vote2.val
+          <6>1. \E Q2 \in ByzQuorum :
+                    /\ [lr |-> m2.lr, q |-> Q2] \in TrustLive
+                    /\ \A ba \in Q2 :
+                        \E m2av \in received[m2.lr, m2.acc] :
+                            /\ m2av.type = "2av"
+                            /\ m2av.acc = ba
+                            /\ m2av.bal = m2.bal
+                            /\ m2av.val = m2.val
+              BY <5>4, <3>1 DEF MsgInv2b, TypeOK
+          <6>2. QED BY <5>4, <6>1, <3>1
+        <5>6. <<lrn, lrn>> \in Ent BY <5>3
+        <5>7. PICK S \in SafeAcceptor : S \in Q1 /\ S \in Q2 BY <5>2, <5>5, <5>6, EntanglementTrustLive
+        <5>8. PICK m2av2 \in received[lrn, acc]:
+                    /\ m2av2.type = "2av"
+                    /\ m2av2.acc = S
+                    /\ m2av2.bal = bal
+                    /\ m2av2.val = vote2.val
+             BY <5>7, <5>5
+        <5>9. /\ m2av2 \in msgs
+              /\ m2av2.type = "2av"
+              /\ m2av2.lr = lrn
+              /\ m2av2.acc = S
+              /\ m2av2.bal = bal
+              /\ m2av2.val = vote2.val
+              BY <5>8, SafeAcceptorIsAcceptor DEF ReceivedSpec, TypeOK
+        <5>10. [lr |-> lrn, bal |-> bal, val |-> vote2.val] \in 2avSent[S]
+               BY <5>9, <1>0e DEF 2avSentSpec2, Proposed
+        <5>11. PICK m2av1 \in received[lrn, acc]:
+                    /\ m2av1.type = "2av"
+                    /\ m2av1.acc = S
+                    /\ m2av1.bal = bal
+                    /\ m2av1.val = val
+               BY <5>7, <5>2
+        <5>12. /\ m2av1 \in msgs
+               /\ m2av1.type = "2av"
+               /\ m2av1.lr = lrn
+               /\ m2av1.acc = S
+               /\ m2av1.bal = bal
+               /\ m2av1.val = val
+               BY <5>11, SafeAcceptorIsAcceptor DEF ReceivedSpec, TypeOK
+        <5>13. [lr |-> lrn, bal |-> bal, val |-> val] \in 2avSent[S]
+               BY <5>12, SafeAcceptorIsAcceptor DEF 2avSentSpec2, Proposed
+        <5>14. vote2.val = val BY <5>10, <5>13, <1>0e DEF 2avSentSpec3
+        <5>20. QED BY <5>1, <5>14
       <4>4. CASE vote1 \notin votesSent[A] /\ vote2 \notin votesSent[A] BY <4>4
       <4>5. QED BY <4>1, <4>2, <4>3, <4>4
-\*      <4>1. CASE \A P \in votesSent[A] : P.lr = V.lr => P.bal >= B
-\*            BY <3>1, <4>1, <1>0b DEF Ballot, TypeOK, MaxVote
-\*      <4>2. CASE \E P \in votesSent[A] : P.lr = V.lr /\ P.bal < B BY <4>2
-\*      <4>3. QED BY <4>1, <4>2 DEF Ballot, TypeOK
     <3>2. CASE A # acc BY <3>2
     <3>3. QED BY <3>1, <3>2
   <2>4. QED BY <2>1, <2>2, <2>3
@@ -1145,10 +1220,10 @@ PROOF
 LEMMA 2avSentSpec3Invariant == Next /\ 2avSentSpec3 => 2avSentSpec3'
 PROOF
 <1> SUFFICES ASSUME Next, 2avSentSpec3,
-             NEW A \in SafeAcceptor, NEW B \in Ballot,
+             NEW L \in Learner, NEW A \in SafeAcceptor, NEW B \in Ballot,
              NEW V1 \in Value, NEW V2 \in Value,
-             [bal |-> B, val |-> V1] \in 2avSent'[A],
-             [bal |-> B, val |-> V2] \in 2avSent'[A]
+             [lr |-> L, bal |-> B, val |-> V1] \in 2avSent'[A],
+             [lr |-> L, bal |-> B, val |-> V2] \in 2avSent'[A]
              PROVE V1 = V2
     BY DEF 2avSentSpec3
 <1> USE DEF 2avSentSpec3
