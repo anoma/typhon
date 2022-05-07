@@ -1963,16 +1963,20 @@ PROOF
       <4>4. QED BY <4>3a, <4>3b, <4>2 DEF KnowsSafeAt
     <3>3. QED BY <3>1, <3>2
   <2>3. CASE Phase2b(lrn, bal, acc, val)
-    <3>1. m \in msgs BY <2>3, <1>0b, <1>0c, MessageType DEF Phase2b, Send
+    <3>1. m \in msgs BY <2>3, <1>0b, <1>0c DEF Phase2b, Send, TypeOK
     <3>2. QED BY <3>1 DEF HeterogeneousSpec
   <2>4. QED BY <2>1, <2>2, <2>3
-\*BY <1>2 DEF AcceptorSendAction, Phase1b, Phase2av, Phase2b, Next, Send
-<1>3. CASE AcceptorReceiveAction
-      BY <1>3, <1>0c\*, MessageType
-      DEF AcceptorReceiveAction, Next, Recv, HeterogeneousSpec, LeftBallot, VotedFor\*, TypeOK
+<1>3. CASE AcceptorReceiveAction BY <1>3 DEF AcceptorReceiveAction, Next, Recv, HeterogeneousSpec
 <1>4. CASE AcceptorDisconnectAction BY <1>4 DEF AcceptorDisconnectAction, Disconnect, Next, HeterogeneousSpec
-<1>5. CASE LearnerAction BY <1>5, <1>0b, <1>0c \*, MessageType
-          DEF LearnerAction, LearnerRecv, LearnerDecide, Next, HeterogeneousSpec, TypeOK, ConnectedSpec
+<1>5. CASE LearnerAction
+  <2> SUFFICES ASSUME NEW lrn \in Learner, NEW bal \in Ballot,
+                      \/ LearnerDecide(lrn, bal)
+                      \/ LearnerRecv(lrn)
+               PROVE CannotDecide(Q1, L1, B1, V1)'
+      BY <1>5 DEF LearnerAction
+  <2>2. CASE LearnerDecide(lrn, bal) BY <2>2 DEF LearnerDecide, Next, HeterogeneousSpec
+  <2>3. CASE LearnerRecv(lrn) BY <2>2 DEF LearnerRecv, Next, HeterogeneousSpec
+  <2>4. QED BY <2>2, <2>3
 <1>6. CASE FakeAcceptorAction BY <1>6, SafeAcceptorAssumption DEF FakeAcceptorAction, FakeSend, Send, HeterogeneousSpec
 <1>7. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6 DEF Next
 
@@ -2044,7 +2048,7 @@ PROOF
 <1>17a. initializedBallot(L1, B1) BY <1>15 DEF MsgInv2av
 <1>17b. announcedValue(L1, B1, V1) BY <1>15 DEF MsgInv2av
 <1>17c. KnowsSafeAt(L1, A0, B1, V1) BY <1>15 DEF MsgInv2av
-<1>17d. [bal |-> B1, val |-> V1] \in 2avSent[A0] BY <1>15 DEF MsgInv2av
+<1>17d. [lr |-> L1, bal |-> B1, val |-> V1] \in 2avSent[A0] BY <1>15 DEF MsgInv2av
 <1>17e. PICK S1 \in ByzQuorum :
              /\ [lr |-> L1, q |-> S1] \in TrustLive
              /\ \A ba \in S1 :
@@ -2056,7 +2060,7 @@ PROOF
 <1>18a. initializedBallot(L2, B2) BY <1>16 DEF MsgInv2av
 <1>18b. announcedValue(L2, B2, V2) BY <1>16 DEF MsgInv2av
 <1>18c. KnowsSafeAt(L2, A0, B2, V2) BY <1>16 DEF MsgInv2av
-<1>18d. [bal |-> B2, val |-> V2] \in 2avSent[A0] BY <1>16 DEF MsgInv2av
+<1>18d. [lr |-> L2, bal |-> B2, val |-> V2] \in 2avSent[A0] BY <1>16 DEF MsgInv2av
 <1>18e. PICK S2 \in ByzQuorum :
              /\ [lr |-> L2, q |-> S2] \in TrustLive
              /\ \A ba \in S2 :
