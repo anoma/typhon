@@ -19,6 +19,9 @@ PROOF BY DEF Ballot
 LEMMA BallotLeNotLeq == ASSUME NEW A \in Ballot, NEW B \in Ballot, A < B PROVE \neg B =< A
 PROOF BY DEF Ballot
 
+LEMMA BallotOrderCases == ASSUME NEW A \in Ballot, NEW B \in Ballot PROVE A < B \/ B < A \/ A = B
+PROOF BY DEF Ballot
+
 CONSTANT Value
 ASSUME ValueNotEmpty == Value # {}
 
