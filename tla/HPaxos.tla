@@ -1408,9 +1408,11 @@ PROOF
       <4>5. (m.votes = { p \in votesSent[m.acc] : MaxVote(m.acc, m.bal, p) })'
         <5>1. CASE m \in msgs BY <1>1b, <3>1, <5>1 DEF MsgInv1b, Phase1b
         <5>2. CASE m \notin msgs
-          <6>1. m.votes = { p \in votesSent[m.acc] : MaxVote(m.acc, m.bal, p) }
-            BY <3>1, <5>2 DEF Phase1b, Send
-          <6>2. QED BY <6>1, <3>1 DEF Phase1b, Send
+          <6>0. m = [type |-> "1b", lr |-> lrn, acc |-> acc, bal |-> bal,
+                     votes |-> {p \in votesSent[acc] : MaxVote(acc, bal, p)},
+                     proposals |-> {p \in 2avSent[acc] : p.bal < bal /\ p.lr = lrn}]
+                BY <3>1, <5>2 DEF Phase1b, Send
+          <6>2. QED BY <6>0, <3>1 DEF Phase1b, Send
         <5>3. QED BY <5>1, <5>2
       <4>6. (m.proposals = {p \in 2avSent[m.acc] : p.bal < m.bal /\ p.lr = m.lr})'
         <5>1. CASE m \in msgs BY <1>1b, <3>1, <5>1 DEF Phase1b, MsgInv1b
