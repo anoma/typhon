@@ -1753,7 +1753,7 @@ PROOF
   <2>5. CASE AcceptorDisconnectAction BY <1>2b, <2>5 DEF AcceptorDisconnectAction, Disconnect, MsgInv2b, Next
   <2>6. CASE LearnerAction BY <1>2b, <2>6 DEF LearnerAction, LearnerRecv, LearnerDecide, MsgInv2b, Next
   <2>7. CASE FakeAcceptorAction
-            BY <1>2b, <2>7, SafeAcceptorAssumption DEF FakeAcceptorAction, FakeSend, MsgInv2b, Send
+        BY <1>2b, <2>7, SafeAcceptorAssumption DEF FakeAcceptorAction, FakeSend, MsgInv2b, Send
   <2>8. QED BY <1>2b, <2>0a, <2>1, <2>2, <2>4, <2>5, <2>6, <2>7 DEF Next
 <1>3. QED BY <1>1b, <1>2av, <1>2b
 
