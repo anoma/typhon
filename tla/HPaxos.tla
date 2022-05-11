@@ -1990,7 +1990,7 @@ LEMMA ChosenSafe ==
                NEW B1 \in Ballot, NEW B2 \in Ballot,
                NEW V1 \in Value, NEW V2 \in Value,
                TypeOK, ReceivedSpec, ReceivedByLearnerSpec, MsgInv,
-               \*2avSentSpec1, 2avSentSpec3, \* TODO remove if not needed
+               HeterogeneousSpec,
                <<L1, L2>> \in Ent,
                ChosenIn(L1, B1, V1), ChosenIn(L2, B2, V2)
     PROVE V1 = V2
