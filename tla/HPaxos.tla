@@ -1985,6 +1985,148 @@ PROOF
 <1>6. CASE FakeAcceptorAction BY <1>6, SafeAcceptorAssumption DEF FakeAcceptorAction, FakeSend, Send, HeterogeneousSpec
 <1>7. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6 DEF Next
 
+LEMMA ChosenSafeCaseEq ==
+    ASSUME NEW L1 \in Learner, NEW L2 \in Learner,
+               NEW B \in Ballot,
+               NEW V1 \in Value, NEW V2 \in Value,
+               TypeOK, MsgInv,
+               ReceivedSpec, ReceivedByLearnerSpec, VotesSentSpec4,
+               HeterogeneousSpec,
+               <<L1, L2>> \in Ent,
+               ChosenIn(L1, B, V1), ChosenIn(L2, B, V2)
+    PROVE V1 = V2
+PROOF
+<1> USE DEF MsgInv
+<1>1. PICK Q1 \in ByzQuorum :
+        /\ [lr |-> L1, q |-> Q1] \in TrustLive
+        /\ \A aa \in Q1 :
+            \E m \in {mm \in receivedByLearner[L1] : mm.bal = B} :
+                /\ m.val = V1
+                /\ m.acc = aa
+      BY DEF ChosenIn
+<1>2. PICK Q2 \in ByzQuorum :
+        /\ [lr |-> L2, q |-> Q2] \in TrustLive
+        /\ \A aa \in Q2 :
+            \E m \in {mm \in receivedByLearner[L2] : mm.bal = B} :
+                /\ m.val = V2
+                /\ m.acc = aa
+      BY DEF ChosenIn
+<1>3. PICK A \in SafeAcceptor : A \in Q1 /\ A \in Q2 BY EntanglementTrustLive, <1>1, <1>2
+<1>4. PICK m1 \in receivedByLearner[L1] : m1.acc = A /\ m1.bal = B /\ m1.val = V1 BY <1>1, <1>3 DEF ChosenIn
+<1>5. PICK m2 \in receivedByLearner[L2] : m2.acc = A /\ m2.bal = B /\ m2.val = V2 BY <1>2, <1>3 DEF ChosenIn
+<1>6. /\ m1 \in msgs
+      /\ m1.type = "2b"
+      /\ m1.lr = L1
+      /\ m1.acc = A \* TODO: could be another safe node?
+      /\ m1.bal = B
+      /\ m1.val = V1
+      BY <1>4 DEF ReceivedByLearnerSpec, TypeOK
+<1>7. /\ m2 \in msgs
+      /\ m2.type = "2b"
+      /\ m2.lr = L2
+      /\ m2.acc = A
+      /\ m2.bal = B
+      /\ m2.val = V2
+      BY <1>5 DEF ReceivedByLearnerSpec, TypeOK
+<1>8. [lr |-> L1, bal |-> B, val |-> V1] \in votesSent[A] BY <1>6 DEF MsgInv2b
+<1>9. [lr |-> L2, bal |-> B, val |-> V2] \in votesSent[A] BY <1>7 DEF MsgInv2b
+\*VotesSentSpec4 ==
+\*    \A A \in SafeAcceptor : \A vote1, vote2 \in votesSent[A] :
+\*        << vote1.lr, vote1.lr >> \in Ent /\
+\*        vote1.lr = vote2.lr /\
+\*        vote1.bal = vote2.bal => vote1.val = vote2.val
+<1>100. QED BY <1>8, <1>9 DEF VotesSentSpec4
+
+LEMMA ChosenSafeCaseLt ==
+    ASSUME NEW L1 \in Learner, NEW L2 \in Learner,
+               NEW B1 \in Ballot, NEW B2 \in Ballot,
+               NEW V1 \in Value, NEW V2 \in Value,
+               TypeOK, ReceivedSpec, ReceivedByLearnerSpec, MsgInv,
+               HeterogeneousSpec,
+               <<L1, L2>> \in Ent,
+               B1 < B2,
+               ChosenIn(L1, B1, V1), ChosenIn(L2, B2, V2)
+    PROVE V1 = V2
+PROOF
+<1> USE DEF MsgInv
+<1> SUFFICES ASSUME V1 # V2 PROVE FALSE OBVIOUS
+<1>1. PICK Q1 \in ByzQuorum :
+        /\ [lr |-> L1, q |-> Q1] \in TrustLive
+        /\ \A aa \in Q1 :
+            \E m \in {mm \in receivedByLearner[L1] : mm.bal = B1} :
+                /\ m.val = V1
+                /\ m.acc = aa
+      BY DEF ChosenIn
+<1>2. PICK Q2 \in ByzQuorum :
+        /\ [lr |-> L2, q |-> Q2] \in TrustLive
+        /\ \A aa \in Q2 :
+            \E m \in {mm \in receivedByLearner[L2] : mm.bal = B2} :
+                /\ m.val = V2
+                /\ m.acc = aa
+      BY DEF ChosenIn
+<1>3. PICK A \in SafeAcceptor : A \in Q1 /\ A \in Q2 BY EntanglementTrustLive, <1>1, <1>2
+<1>4. PICK m1 \in receivedByLearner[L1] : m1.acc = A /\ m1.bal = B1 /\ m1.val = V1 BY <1>1, <1>3 DEF ChosenIn
+<1>5. PICK m2 \in receivedByLearner[L2] : m2.acc = A /\ m2.bal = B2 /\ m2.val = V2 BY <1>2, <1>3 DEF ChosenIn
+<1>6. /\ m1 \in msgs
+      /\ m1.type = "2b"
+      /\ m1.lr = L1
+      /\ m1.acc = A \* TODO: could be another safe node?
+      /\ m1.bal = B1
+      /\ m1.val = V1
+      BY <1>4 DEF ReceivedByLearnerSpec, TypeOK
+<1>7. /\ m2 \in msgs
+      /\ m2.type = "2b"
+      /\ m2.lr = L2
+      /\ m2.acc = A
+      /\ m2.bal = B2
+      /\ m2.val = V2
+      BY <1>5 DEF ReceivedByLearnerSpec, TypeOK
+\*<1>8. [lr |-> L1, bal |-> B1, val |-> V1] \in votesSent[A] BY <1>6 DEF MsgInv2b
+\*<1>9. [lr |-> L2, bal |-> B2, val |-> V2] \in votesSent[A] BY <1>7 DEF MsgInv2b
+<1>10. PICK R1 \in ByzQuorum :
+            /\ [lr |-> L1, q |-> R1] \in TrustLive
+\*            /\ \A aa \in R1 :
+\*                \E m2av \in received[L1, A] :
+\*                    /\ m2av.type = "2av"
+\*                    /\ m2av.acc = aa
+\*                    /\ m2av.bal = B1
+\*                    /\ m2av.val = V1
+       BY <1>6 DEF MsgInv2b
+<1>11. PICK R2 \in ByzQuorum :
+            /\ [lr |-> L2, q |-> R2] \in TrustLive
+            /\ \A aa \in R2 :
+                \E m2av \in received[L2, A] :
+                    /\ m2av.type = "2av"
+                    /\ m2av.acc = aa
+                    /\ m2av.bal = B2
+                    /\ m2av.val = V2
+       BY <1>7 DEF MsgInv2b
+\*<1>12. PICK A0 \in SafeAcceptor : A0 \in R1 /\ A0 \in R2 BY EntanglementTrustLive, <1>10, <1>11
+<1>12. PICK A0 \in SafeAcceptor : A0 \in R2 BY EntanglementTrustLive, <1>10, <1>11
+<1>14. PICK m2av2 \in received[L2, A] :
+            m2av2.type = "2av" /\ m2av2.acc = A0 /\ m2av2.bal = B2 /\ m2av2.val = V2
+       BY <1>12, <1>11
+<1>16. /\ m2av2 \in msgs
+       /\ m2av2.type = "2av"
+       /\ m2av2.lr = L2
+       /\ m2av2.acc = A0
+       /\ m2av2.bal = B2
+       /\ m2av2.val = V2
+       BY <1>14, SafeAcceptorIsAcceptor DEF ReceivedSpec, TypeOK
+<1>17. CannotDecide(Q1, L1, B1, V1)
+  <2>1. [lr |-> L1, q |-> Q1] \in TrustLive BY <1>1
+  <2>5. QED BY <1>16, <2>1 DEF HeterogeneousSpec
+<1>18. PICK S \in SafeAcceptor : S \in Q1 /\ ~VotedFor(L1, S, B1, V1) BY <1>17 DEF CannotDecide
+<1>19. PICK m \in receivedByLearner[L1] : m.acc = S /\ m.bal = B1 /\ m.val = V1
+       BY <1>18, <1>1 DEF CannotDecide
+<1>20. /\ m \in {mm \in msgs : mm.type = "2b"}
+       /\ m.lr = L1
+       /\ m.acc = S
+       /\ m.bal = B1
+       /\ m.val = V1
+       BY <1>19 DEF ReceivedByLearnerSpec, TypeOK
+<1>50. QED BY <1>20, <1>18 DEF CannotDecide, VotedFor, ReceivedByLearnerSpec, TypeOK
+
 LEMMA ChosenSafe ==
     ASSUME NEW L1 \in Learner, NEW L2 \in Learner,
                NEW B1 \in Ballot, NEW B2 \in Ballot,
