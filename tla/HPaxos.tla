@@ -75,7 +75,8 @@ ASSUME LearnerGraphAssumption ==
             [from |-> E.from, to |-> E.to, q |-> Q] \in TrustSafe
         (* validity *)
         /\ \A E \in TrustSafe : \A Q1, Q2 \in ByzQuorum :
-            ([lr |-> E.from, q |-> Q1] \in TrustLive /\ [lr |-> E.to, q |-> Q2] \in TrustLive) =>
+            [lr |-> E.from, q |-> Q1] \in TrustLive /\
+            [lr |-> E.to, q |-> Q2] \in TrustLive =>
             \E N \in E.q : N \in Q1 /\ N \in Q2
 
 \*CONSTANT TrustWeak
@@ -172,7 +173,7 @@ ChosenIn(lr, bal, v) ==
     \E Q \in ByzQuorum:
         /\ [lr |-> lr, q |-> Q] \in TrustLive
         /\ \A aa \in Q :
-            \E m \in {mm \in receivedByLearner[lr] : mm.bal = bal} :
+            \E m \in { mm \in receivedByLearner[lr] : mm.bal = bal } :
                 /\ m.val = v
                 /\ m.acc = aa
 
@@ -185,7 +186,7 @@ KnowsSafeAt1(l, ac, b, v) ==
         /\ \A a \in BQ :
             \E m \in S :
                 /\ m.acc = a
-                /\ \A p \in {pp \in m.votes : <<pp.lr, l>> \in connected[ac]} :
+                /\ \A p \in { pp \in m.votes : <<pp.lr, l>> \in connected[ac] } :
                         b =< p.bal
 
 KnowsSafeAt2(l, ac, b, v) ==
@@ -197,7 +198,7 @@ KnowsSafeAt2(l, ac, b, v) ==
             /\ \A a \in BQ :
                 \E m \in S :
                     /\ m.acc = a
-                    /\ \A p \in {pp \in m.votes : <<pp.lr, l>> \in connected[ac]} :
+                    /\ \A p \in { pp \in m.votes : <<pp.lr, l>> \in connected[ac] } :
                         /\ p.bal =< c
                         /\ (p.bal = c) => (p.val = v)
         /\ \E WQ \in ByzQuorum :
@@ -445,22 +446,7 @@ MsgInv1b(m) ==
         /\ pr.bal < m.bal
         /\ Proposed(pr.lr, m.acc, pr.bal, pr.val)
     /\ m.votes = { p \in votesSent[m.acc] : MaxVote(m.acc, m.bal, p) }
-    \* cannot prove this for now
     /\ m.proposals = { p \in 2avSent[m.acc] : p.bal < m.bal /\ p.lr = m.lr }
-    \*/\ m.votes = {} =>
-    \*    \A L \in Learner : \A B \in Ballot : \A V \in Value :
-    \*        B < m.bal => ~VotedFor(L, m.acc, B, V)
-    \*/\ m.proposals = {} =>
-    \*    \A B \in Ballot : \A V \in Value : (m.bal =< B) => ~Proposed(B, V)
-
-\*    [
-\*        type : {"1b"},
-\*        lr   : Learner,
-\*        acc  : Acceptor,
-\*        bal  : Ballot,
-\*        votes : SUBSET [lr : Learner, bal : Ballot, val : Value],
-\*        proposals : SUBSET [bal : Ballot, val : Value]
-\*    ]
 
 MsgInv2av(m) ==
     /\ initializedBallot(m.lr, m.bal)
