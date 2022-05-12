@@ -76,7 +76,7 @@ ASSUME LearnerGraphAssumption ==
         (* validity *)
         /\ \A E \in TrustSafe : \A Q1, Q2 \in ByzQuorum :
             ([lr |-> E.from, q |-> Q1] \in TrustLive /\ [lr |-> E.to, q |-> Q2] \in TrustLive) =>
-            \E N \in SafeAcceptor : N \in Q1 /\ N \in Q2
+            \E N \in E.q : N \in Q1 /\ N \in Q2
 
 \*CONSTANT TrustWeak
 \*ASSUME TrustWeakAssumption == TrustWeak \in SUBSET [lr : Learner, q : ByzQuorum]
