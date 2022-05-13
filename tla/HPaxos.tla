@@ -16,7 +16,7 @@ LEMMA BallotLeqLeTrans ==
     ASSUME NEW A \in Ballot, NEW B \in Ballot, NEW C \in Ballot, A =< B, B < C PROVE A < C
 PROOF BY DEF Ballot
 
-LEMMA BallotLeNotLeq == ASSUME NEW A \in Ballot, NEW B \in Ballot, A < B PROVE \neg B =< A
+LEMMA BallotLeNotLeq == ASSUME NEW A \in Ballot, NEW B \in Ballot, A < B PROVE ~B =< A
 PROOF BY DEF Ballot
 
 LEMMA BallotOrderCases == ASSUME NEW A \in Ballot, NEW B \in Ballot PROVE A < B \/ B < A \/ A = B
@@ -1654,7 +1654,7 @@ CannotDecide(Q, L, B, V) ==
     \E A \in SafeAcceptor :
         /\ A \in Q
         /\ \E L0 \in Learner : LeftBallot(L0, A, B) \* TODO: check if used
-        /\ \neg VotedFor(L, A, B, V)
+        /\ ~VotedFor(L, A, B, V)
 
 HeterogeneousSpec ==
     \A L1, L2 \in Learner :
@@ -1752,7 +1752,7 @@ PROOF
               BY <5>3, SafeAcceptorIsAcceptor DEF TypeOK, ReceivedSpec
         <5>5. WITNESS S \in SafeAcceptor
         <5>6. \E L \in Learner : LeftBallot(L, S, B1)' BY <5>4, <3>0 DEF LeftBallot
-        <5>7. \neg VotedFor(L1, S, B1, V1)'
+        <5>7. ~VotedFor(L1, S, B1, V1)'
           <6>1. SUFFICES ASSUME VotedFor(L1, S, B1, V1) PROVE FALSE OBVIOUS
           <6>2. [lr |-> L1, bal |-> B1, val |-> V1] \in votesSent[S] BY <6>1 DEF VotesSentSpec2
           <6>3. m1b.votes = { p \in votesSent[S] : MaxVote(S, B2, p) } BY <5>4 DEF MsgInv1b
