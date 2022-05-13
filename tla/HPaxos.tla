@@ -34,9 +34,6 @@ CONSTANTS Acceptor,
           ByzQuorum,
           Learner
 
-\*ASSUME AcceptorNotEmpty == Acceptor # {}
-\*ASSUME LearnerNotEmpty == Learner # {}
-
 ASSUME SafeAcceptorAssumption ==
         /\ SafeAcceptor \cap FakeAcceptor = {}
         /\ SafeAcceptor \cup FakeAcceptor = Acceptor
