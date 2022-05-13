@@ -79,30 +79,6 @@ ASSUME LearnerGraphAssumption ==
             [lr |-> E.to, q |-> Q2] \in TrustLive =>
             \E N \in E.q : N \in Q1 /\ N \in Q2
 
-\*CONSTANT TrustWeak
-\*ASSUME TrustWeakAssumption == TrustWeak \in SUBSET [lr : Learner, q : ByzQuorum]
-\*
-\*ASSUME WeakQuorumAssumption ==
-\*    (* closure *)
-\*    /\ \A L \in Learner : \A Q1, Q2 \in ByzQuorum :
-\*        Q1 \subseteq Q2 /\
-\*        [lr |-> L, q |-> Q1] \in TrustWeak =>
-\*        [lr |-> L, q |-> Q2] \in TrustWeak
-\*    (* validity *)
-\*    /\ \A L \in Learner : \A WQ \in ByzQuorum :
-\*        [lr |-> L, q |-> WQ] \in TrustWeak =>
-\*        \A Q \in ByzQuorum :
-\*            [from |-> L, to |-> L, q |-> Q] \in TrustSafe =>
-\*            \E N \in SafeAcceptor : N \in Q
-\*
-\*CONSTANT WeakQuorum
-\*ASSUME WeakQuorumIsByzQuorum == WeakQuorum \subseteq ByzQuorum
-\*
-\*ASSUME WeakQuorumAssumption1 ==
-\*    \A WQ \in WeakQuorum : \A L \in Learner :
-\*        [from |-> L, to |-> L, q |-> WQ] \in TrustSafe =>
-\*        \E S \in SafeAcceptor : S \in WQ
-
 CONSTANT Ent
 ASSUME EntanglementAssumption ==
         /\ Ent \in SUBSET(Learner \X Learner)
@@ -126,13 +102,6 @@ LEMMA EntanglementTrustLive ==
            [lr |-> L2, q |-> Q2] \in TrustLive
     PROVE  \E N \in SafeAcceptor : N \in Q1 /\ N \in Q2
 PROOF BY EntanglementAssumption, LearnerGraphAssumption
-
-\*LEMMA EntanglementWeakQuorum ==
-\*    ASSUME NEW L1 \in Learner, NEW L2 \in Learner,
-\*           NEW WQ \in WeakQuorum,
-\*           <<L1, L2>> \in Ent
-\*    PROVE  \E N \in SafeAcceptor : N \in WQ
-\*PROOF BY EntanglementAssumption, WeakQuorumAssumption
 
 -----------------------------------------------------------------------------
 (* Messages *)
@@ -205,7 +174,7 @@ KnowsSafeAt2(l, ac, b, v) ==
                 \E m \in S :
                     /\ m.acc = a
                     /\ \E p \in m.proposals :
-                        /\ p.lr = l \* NB differs from the ivy model
+                        /\ p.lr = l
                         /\ p.bal = c
                         /\ p.val = v
 
@@ -263,7 +232,6 @@ Phase1b(l, b, a) ==
          bal |-> b,
          votes |-> { p \in votesSent[a] : MaxVote(a, b, p) },
          proposals |-> { p \in 2avSent[a] : p.bal < b /\ p.lr = l }
-         \* NB p.lr = l condition needed to prove uniquness of votes (?)
        ])
     /\ UNCHANGED << votesSent, 2avSent, received, connected, receivedByLearner, decision >>
 
@@ -437,7 +405,7 @@ MsgInv2av(m) ==
     /\ InitializedBallot(m.lr, m.bal)
     /\ AnnouncedValue(m.lr, m.bal, m.val)
     /\ KnowsSafeAt(m.lr, m.acc, m.bal, m.val)
-    /\ [lr |-> m.lr, bal |-> m.bal, val |-> m.val] \in 2avSent[m.acc] \* TODO check if necessary
+    /\ [lr |-> m.lr, bal |-> m.bal, val |-> m.val] \in 2avSent[m.acc] \* TODO check if used
     /\ \E Q \in ByzQuorum :
         /\ [lr |-> m.lr, q |-> Q] \in TrustLive
         /\ \A ba \in Q :
@@ -758,20 +726,6 @@ PROOF
 <1>5. CASE LearnerAction BY <1>5 DEF LearnerAction, LearnerDecide, LearnerRecv
 <1>6. CASE FakeAcceptorAction BY <1>6 DEF FakeAcceptorAction, FakeSend, Send
 <1>7. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6 DEF Next
-
-\*LEMMA InitializedBallotInvariant ==
-\*    \A L \in Learner : \A B \in Ballot : Next /\ InitializedBallot(L, B) => InitializedBallot(L, B)'
-\*PROOF
-\*<1> SUFFICES ASSUME NEW L \in Learner, NEW B \in Ballot, Next, InitializedBallot(L, B)
-\*             PROVE InitializedBallot(L, B)'
-\*    OBVIOUS
-\*<1>1. CASE ProposerAction BY <1>1 DEF ProposerAction, Phase1a, Phase1c, Next
-\*<1>2. CASE AcceptorSendAction BY <1>2 DEF Phase1b, Phase2b, Phase2av, Next
-\*<1>3. CASE AcceptorReceiveAction BY <1>3 DEF AcceptorReceiveAction, Recv, Next
-\*<1>4. CASE AcceptorDisconnectAction BY <1>4 DEF AcceptorDisconnectAction, Disconnect, Next
-\*<1>5. CASE LearnerAction BY <1>5 DEF LearnerAction, LearnerRecv, LearnerDecide, Next
-\*<1>6. CASE FakeAcceptorAction BY <1>6 DEF FakeAcceptorAction, FakeSend, Send
-\*<1>7. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6 DEF Next
 
 LEMMA VotesSentSpec1Invariant == Next /\ VotesSentSpec1 => VotesSentSpec1'
 PROOF
@@ -2024,12 +1978,6 @@ PROOF
       BY <1>5 DEF ReceivedByLearnerSpec, TypeOK
 <1>10. PICK R1 \in ByzQuorum :
             /\ [lr |-> L1, q |-> R1] \in TrustLive
-\*            /\ \A aa \in R1 :
-\*                \E m2av \in received[L1, A] :
-\*                    /\ m2av.type = "2av"
-\*                    /\ m2av.acc = aa
-\*                    /\ m2av.bal = B1
-\*                    /\ m2av.val = V1
        BY <1>6 DEF MsgInv2b
 <1>11. PICK R2 \in ByzQuorum :
             /\ [lr |-> L2, q |-> R2] \in TrustLive
@@ -2156,7 +2104,7 @@ PROOF
 <1>32. CASE B1 = B2 BY <1>32, ChosenSafeCaseEq
 <1>33. QED BY <1>30, <1>31, <1>32, BallotOrderCases
 
-Safety == (* safety *)
+Safety ==
     \A L1, L2 \in Learner: \A B1, B2 \in Ballot : \A V1, V2 \in Value :
         <<L1, L2>> \in Ent /\
         V1 \in decision[L1, B1] /\ V2 \in decision[L2, B2] => V1 = V2
