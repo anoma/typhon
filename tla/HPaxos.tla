@@ -433,9 +433,6 @@ DecisionSpec ==
 
 MsgInv1b(m) ==
     /\ m.bal =< maxBal[m.lr, m.acc]
-    /\ \A pr \in m.proposals : \* TODO duplication, remove
-        /\ pr.bal < m.bal
-        /\ Proposed(pr.lr, m.acc, pr.bal, pr.val)
     /\ m.votes = { p \in votesSent[m.acc] : MaxVote(m.acc, m.bal, p) }
     /\ m.proposals = { p \in 2avSent[m.acc] : p.bal < m.bal /\ p.lr = m.lr }
 
@@ -1361,49 +1358,6 @@ PROOF
           <6>5. maxBal'[<<lrn, acc>>] = bal BY <6>4, <2>0c, <2>0d
           <6>6. QED BY <6>0, <6>5 DEF Ballot
         <5>8. QED BY <5>6, <5>7
-\*      <4>2. ASSUME NEW vote \in m.votes
-\*            PROVE vote.bal < m.bal /\ VotedFor(vote.lr, m.acc, vote.bal, vote.val)'
-\*        <5>1. CASE m \in msgs BY <1>1b, <5>1, <2>0e, <4>2 DEF MsgInv1b
-\*        <5>2. CASE m \notin msgs
-\*          <6>0. m.bal = bal BY <3>1, <5>2 DEF Next, Phase1b, Send
-\*          <6>1. <<m.lr, m.acc>> = <<lrn, acc>> BY <3>1, <5>2 DEF Next, Phase1b, Send
-\*          <6>2. m.votes = {p \in votesSent[acc] : MaxVote(acc, bal, p)} BY <5>2, <3>1 DEF Phase1b, Send
-\*          <6>3. QED BY <6>0, <3>1, <1>1b, <6>2, <6>1 DEF VotesSentSpec1, Phase1b, Send, MaxVote
-\*        <5>10. QED BY <5>1, <5>2
-      <4>3. ASSUME NEW pr \in m.proposals
-            PROVE pr.bal < m.bal /\ Proposed(pr.lr, m.acc, pr.bal, pr.val)'
-        <5>1. CASE m \in msgs BY <1>1b, <5>1, <2>0e, <4>3 DEF MsgInv1b
-        <5>2. CASE m \notin msgs
-          <6>0. m = [type |-> "1b", lr |-> lrn, acc |-> acc, bal |-> bal,
-                     votes |-> {p \in votesSent[acc] : MaxVote(acc, bal, p)},
-                     proposals |-> {p \in 2avSent[acc] : p.bal < bal /\ p.lr = lrn}]
-                BY <3>1, <5>2 DEF Next, Phase1b, Send
-          <6>3. QED BY <6>0, <3>1, <1>1b DEF 2avSentSpec1, Phase1b, Send
-        <5>3. QED BY <5>1, <5>2
-\*      <4>4. ASSUME m.votes = {}, NEW L \in Learner, NEW B \in Ballot, NEW V \in Value, B < m.bal
-\*            PROVE ~VotedFor(L, m.acc, B, V)'
-\*        <5>1. CASE m \in msgs
-\*          <6>1. SUFFICES ASSUME VotedFor(L, m.acc, B, V)' PROVE FALSE OBVIOUS
-\*          <6>2. PICK m1 \in msgs' : m1.type = "2b" /\ m1.lr =  L /\ m1.acc = m.acc /\ m1.bal = B /\ m1.val = V
-\*              BY <6>1 DEF VotedFor
-\*          <6>3. m1 \in msgs BY <3>1, <6>2, <2>0a DEF Phase1b, Send, TypeOK, Message
-\*          <6>4. ~VotedFor(L, m.acc, B, V) BY <1>1b, <4>4, <5>1 DEF MsgInv1b
-\*          <6>5. QED BY <6>2, <6>3, <6>4 DEF VotedFor
-\*       <5>2. CASE m \notin msgs
-\*         <6>0a. m.bal = bal BY <3>1, <5>2 DEF Next, Phase1b, Send
-\*         <6>0b. m.lr =lrn BY <3>1, <5>2 DEF Next, Phase1b, Send
-\*         <6>0c. m.acc = acc BY <3>1, <5>2 DEF Next, Phase1b, Send
-\*         <6>0d. m.type = "1b" BY <3>1, <5>2 DEF Next, Phase1b, Send
-\*         <6>0e. m.votes = {p \in votesSent[acc] : MaxVote(acc, bal, p)} BY <3>1, <5>2 DEF Next, Phase1b, Send
-\*         <6>1. \A p \in votesSent[acc] : p.bal >= bal
-\*           <7>1. SUFFICES ASSUME NEW P \in votesSent[acc], P.bal < bal PROVE FALSE
-\*               BY <1>1b, SafeAcceptorIsAcceptor DEF TypeOK, Ballot
-\*           <7>2. QED BY <6>0e, <1>1b, <7>1, <4>4 DEF VotesSentSpec3l
-\*         <6>2. SUFFICES ASSUME VotedFor(L, m.acc, B, V)' PROVE FALSE OBVIOUS
-\*         <6>3. VotedFor(L, m.acc, B, V) BY <6>2, <3>1 DEF Phase1b, Send
-\*         <6>4. [lr |-> L, bal |-> B, val |-> V] \in votesSent[acc] BY <6>0c, <6>3, <1>1b DEF VotesSentSpec2
-\*         <6>5. QED BY <6>4, <6>0a, <6>1, <4>4 DEF Ballot
-\*       <5>3. QED BY <5>1, <5>2
       <4>5. (m.votes = { p \in votesSent[m.acc] : MaxVote(m.acc, m.bal, p) })'
         <5>1. CASE m \in msgs BY <1>1b, <3>1, <5>1 DEF MsgInv1b, Phase1b
         <5>2. CASE m \notin msgs
@@ -1416,14 +1370,13 @@ PROOF
       <4>6. (m.proposals = {p \in 2avSent[m.acc] : p.bal < m.bal /\ p.lr = m.lr})'
         <5>1. CASE m \in msgs BY <1>1b, <3>1, <5>1 DEF Phase1b, MsgInv1b
         <5>2. CASE m \notin msgs
-          \*<6>0. m.lr = lrn /\ m.acc = acc BY <3>1, <5>2 DEF Phase1b, Send
           <6>0. m = [type |-> "1b", lr |-> lrn, acc |-> acc, bal |-> bal,
                      votes |-> {p \in votesSent[acc] : MaxVote(acc, bal, p)},
                      proposals |-> {p \in 2avSent[acc] :
                                     p.bal < bal /\ p.lr = lrn}] BY <3>1, <5>2 DEF Phase1b, Send
           <6>2. QED BY <6>0, <3>1 DEF Phase1b, Send
         <5>3. QED BY <5>1, <5>2
-      <4>10. QED BY <4>1, <4>3, <4>5, <4>6 DEF MsgInv1b
+      <4>10. QED BY <4>1, <4>5, <4>6 DEF MsgInv1b
     <3>2. CASE Phase2av(lrn, bal, acc, val)
       <4> SUFFICES
             ASSUME maxBal[lrn, acc] =< bal,
@@ -1435,8 +1388,6 @@ PROOF
       <4>1. m \in msgs BY <2>0e DEF Send
       <4>1a. m.acc \in Acceptor BY <4>1, MessageType, <2>0e, <2>0 DEF TypeOK
       <4>2. (m.bal =< maxBal[m.lr, m.acc])' BY <1>1b, <4>1, <3>2 DEF Phase2av, Send, MsgInv1b
-      <4>3. (\A pr \in m.proposals: pr.bal < m.bal /\ Proposed(pr.lr, m.acc, pr.bal, pr.val))'
-            BY <1>1b, <4>1, <3>2 DEF Phase2av, Send, MsgInv1b
       <4>4. (m.votes = { p \in votesSent[m.acc] : MaxVote(m.acc, m.bal, p) })'
             BY <1>1b, <4>1, <3>2 DEF Phase2av, Send, MsgInv1b
       <4>5. (m.proposals = {p \in 2avSent[m.acc] : p.bal < m.bal /\ p.lr = m.lr})'
@@ -1459,7 +1410,7 @@ PROOF
             <7>10. QED BY <7>1, <7>4, <6>6, <6>3, BallotLeNotLeq
           <6>10. QED BY <6>7, <6>8
         <5>3. QED BY <5>1, <5>2
-      <4>10. QED BY <4>2, <4>3, <4>4, <4>5 DEF MsgInv1b
+      <4>10. QED BY <4>2, <4>4, <4>5 DEF MsgInv1b
     <3>3. CASE Phase2b(lrn, bal, acc, val)
       <4> SUFFICES
             ASSUME \A L \in Learner : maxBal[L, acc] =< bal,
@@ -1471,14 +1422,6 @@ PROOF
       <4>1. m \in msgs BY <2>0e DEF Send
       <4>1a. m.acc \in Acceptor BY <4>1, MessageType, <2>0e, <2>0 DEF TypeOK
       <4>2. (m.bal =< maxBal[m.lr, m.acc])' BY <4>1, <1>1b, <3>3 DEF Phase2b, MsgInv1b
-      <4>3. (
-\*             /\ m.bal =< maxBal[m.lr, m.acc]
-\*             /\ \A vote \in m.votes :
-\*                    /\ vote.bal < m.bal
-\*                    /\ VotedFor(vote.lr, m.acc, vote.bal, vote.val)
-             /\ \A pr \in m.proposals :
-                    /\ pr.bal < m.bal
-                    /\ Proposed(pr.lr, m.acc, pr.bal, pr.val))' BY <4>1, <1>1b, <3>3 DEF Phase2b, MsgInv1b
       <4>4. (m.proposals = {p \in 2avSent[m.acc] : p.bal < m.bal /\ p.lr = m.lr})'
             BY <4>1, <1>1b, <3>3 DEF Phase2b, MsgInv1b
       <4>5. (m.votes = { p \in votesSent[m.acc] : MaxVote(m.acc, m.bal, p) })'
@@ -1507,7 +1450,7 @@ PROOF
                <7>3. QED BY <7>2, <7>1, <6>4, <6>3, BallotLeNotLeq DEF MaxVote
             <6>8. QED BY <6>6, <6>7
           <5>3. QED BY <5>1, <5>2
-      <4>6. QED BY <4>2, <4>3, <4>4, <4>5 DEF MsgInv1b
+      <4>6. QED BY <4>2, <4>4, <4>5 DEF MsgInv1b
     <3>4. QED BY <3>1, <3>2, <3>3
   <2>4. CASE AcceptorReceiveAction BY <1>1b, <2>4 DEF AcceptorReceiveAction, Recv, MsgInv1b, Next
   <2>5. CASE AcceptorDisconnectAction BY <1>1b, <2>5 DEF AcceptorDisconnectAction, Disconnect, MsgInv1b, Next
@@ -1759,7 +1702,7 @@ PROOF
 CannotDecide(Q, L, B, V) ==
     \E A \in SafeAcceptor :
         /\ A \in Q
-        /\ \E L0 \in Learner : LeftBallot(L0, A, B) \* TODO: not used?
+        /\ \E L0 \in Learner : LeftBallot(L0, A, B) \* TODO: check if used
         /\ \neg VotedFor(L, A, B, V)
 
 HeterogeneousSpec ==
@@ -1779,10 +1722,12 @@ HeterogeneousSpec ==
 
 LEMMA HeterogeneousSpecInvariant ==
     TypeOK /\ Next /\ ReceivedSpec /\
-    VotesSentSpec2 /\ VotesSentSpec3 /\ VotesSentSpec4 /\ ConnectedSpec /\ MsgInv /\
+    2avSentSpec1 /\
+    VotesSentSpec2 /\ VotesSentSpec3 /\ VotesSentSpec4 /\
+    ConnectedSpec /\ MsgInv /\
     HeterogeneousSpec => HeterogeneousSpec'
 PROOF
-<1> SUFFICES ASSUME TypeOK, Next, ReceivedSpec, VotesSentSpec2, VotesSentSpec3, VotesSentSpec4,
+<1> SUFFICES ASSUME TypeOK, Next, ReceivedSpec, 2avSentSpec1, VotesSentSpec2, VotesSentSpec3, VotesSentSpec4,
                     ConnectedSpec, MsgInv, HeterogeneousSpec,
                     NEW L1 \in Learner, NEW L2 \in Learner,
                     NEW B1 \in Ballot, NEW B2 \in Ballot,
@@ -1957,7 +1902,9 @@ PROOF
                       /\ p2.bal = c
                       /\ p2.val = V2
               BY <6>8, SafeAcceptorIsAcceptor DEF TypeOK, ReceivedSpec
-          <6>10. Proposed(L2, S2, c, V2) BY <6>9 DEF MsgInv1b
+          <6>10. Proposed(L2, S2, c, V2)
+            <7>1. p2 \in 2avSent[S2] BY <6>9 DEF MsgInv1b
+            <7>2. QED BY <7>1, <6>9 DEF 2avSentSpec1
           <6>11. PICK m2av \in msgs :
                     /\ m2av.type = "2av"
                     /\ m2av.lr =  L2
