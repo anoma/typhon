@@ -44,8 +44,7 @@ PROOF BY SafeAcceptorAssumption
 LEMMA FakeAcceptorIsAcceptor == FakeAcceptor \subseteq Acceptor
 PROOF BY SafeAcceptorAssumption
 
-ASSUME BQAssumption ==
-        /\ \A Q \in ByzQuorum : Q \subseteq Acceptor
+ASSUME BQAssumption == \A Q \in ByzQuorum : Q \subseteq Acceptor
 
 ASSUME BallotAssumption ==
         /\ (Ballot \cup {-1}) \cap Acceptor = {}
@@ -277,7 +276,7 @@ FakeSend(a) ==
                       \/ mm.type = "2av"
                       \/ mm.type = "2b" } :
         Send(m)
-   /\ UNCHANGED << maxBal, votesSent, 2avSent, received, connected, receivedByLearner, decision >>
+    /\ UNCHANGED << maxBal, votesSent, 2avSent, received, connected, receivedByLearner, decision >>
 
 LearnerDecide(l, b) ==
     /\ \E v \in {vv \in Value : ChosenIn(l, b, vv)}:
