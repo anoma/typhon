@@ -386,7 +386,7 @@ LeftBallot(lr, acc, bal) ==
 
 -----------------------------------------------------------------------------
 
-ReceivedSpec == \A A \in SafeAcceptor : received[A] \subseteq msgs 
+ReceivedSpec == \A A \in SafeAcceptor : received[A] \subseteq msgs
 
 ReceivedByLearnerSpec ==
     /\ receivedByLearner \in [Learner -> SUBSET {mm \in msgs : mm.type = "2b"}]
@@ -2324,6 +2324,6 @@ PROOF
 <1>3. QED BY <1>1, <1>2
 
 THEOREM SafetyResult == Spec => []Safety
-PROOF BY PTL, FullSafetyInvariantInit, FullSafetyInvariantNext DEF Spec, FullSafetyInvariant 
+PROOF BY PTL, FullSafetyInvariantInit, FullSafetyInvariantNext DEF Spec, FullSafetyInvariant
 
 ==============================================================================
