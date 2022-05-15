@@ -1432,8 +1432,7 @@ PROOF
       <4>2. QED BY <1>2av, <4>1, <3>1 DEF Phase1b, MsgInv2av, Send
     <3>2. CASE Phase2av(lrn, bal, acc, val)
       <4> SUFFICES
-            ASSUME \*InitializedBallot(lrn, bal),
-                   AnnouncedValue(lrn, bal, val),
+            ASSUME AnnouncedValue(lrn, bal, val),
                    KnowsSafeAt(lrn, acc, bal, val),
                    Send([type |-> "2av", lr |-> lrn, acc |-> acc, bal |-> bal, val |-> val]),
                    2avSent' = [2avSent EXCEPT ![acc] =
@@ -2270,4 +2269,4 @@ PROOF
 THEOREM SafetyResult == Spec => []Safety
 PROOF BY PTL, FullSafetyInvariantInit, FullSafetyInvariantNext DEF Spec, FullSafetyInvariant
 
-==============================================================================
+=============================================================================
