@@ -94,7 +94,7 @@ InitializedBallot(lr, bal) ==
     \E m \in msgs : m.type = "1a" /\ m.lr = lr /\ m.bal = bal
 
 AnnouncedValue(lr, bal, val) ==
-    \E m \in msgs : m.type = "1c" /\ m.bal = bal /\ m.val = val
+    \E m \in msgs : m.type = "1c" /\ m.bal = bal /\ m.val = val \* TODO fix it
 
 ChosenIn(lr, bal, v) ==
     \E Q \in ByzQuorum:
