@@ -137,7 +137,7 @@ KnowsSafeAt2(l, ac, b, v) ==
                         /\ p.val = v
 
 KnowsSafeAt(l, ac, b, v) ==
-    \/ KnowsSafeAt1(l, ac, b, v)
+    \/ KnowsSafeAt1(l, ac, b, v) \* TODO remove v
     \/ KnowsSafeAt2(l, ac, b, v)
 
 vars == << maxBal, votesSent, 2avSent, received, connected, receivedByLearner, decision, msgs >>
