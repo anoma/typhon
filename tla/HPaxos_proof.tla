@@ -1113,7 +1113,7 @@ PROOF
                   BY <4>1, <2>0e, <1>1b, <5>2 DEF MsgInv1b
             <6>6. {p \in votesSent[acc] : MaxVote(acc, m.bal, p)} \subseteq
                   {p \in votesSent'[acc] : MaxVote(acc, m.bal, p)'}
-               BY <4>1a, <2>0, VotesSentMonotone, <6>4 DEF TypeOK
+               BY <4>1a, <2>0, VotesSentMonotone, <6>4, SafeAcceptorIsAcceptor DEF TypeOK
             <6>7. {p \in votesSent'[acc] : MaxVote(acc, m.bal, p)'} \subseteq
                   {p \in votesSent[acc] : MaxVote(acc, m.bal, p)}
                <7>1. SUFFICES ASSUME NEW p \in votesSent'[acc],
@@ -1121,7 +1121,8 @@ PROOF
                                      p \notin votesSent[acc]
                               PROVE FALSE
                      OBVIOUS
-               <7>2. p = [lr |-> lrn, bal |-> bal, val |-> val] BY <7>1, <5>2, <2>0 DEF TypeOK
+               <7>2. p = [lr |-> lrn, bal |-> bal, val |-> val]
+                     BY <7>1, <5>2, <2>0a, SafeAcceptorIsAcceptor DEF TypeOK
                <7>3. QED BY <7>2, <7>1, <6>4, <6>3, BallotLeNotLeq DEF MaxVote
             <6>8. QED BY <6>6, <6>7
           <5>3. QED BY <5>1, <5>2
@@ -1153,7 +1154,7 @@ PROOF
                  PROVE  MsgInv2av(m)'
       BY <2>2 DEF AcceptorSendAction
     <3>1. CASE Phase1b(lrn, bal, acc)
-      <4>1. m \in msgs BY <3>1, <2>0e DEF Phase1b, Send
+      <4>1. m \in msgs BY <3>1, <2>0e, <2>0b DEF Phase1b, Send, TypeOK
       <4>2. QED BY <1>2av, <4>1, <3>1 DEF Phase1b, MsgInv2av, Send
     <3>2. CASE Phase2av(lrn, bal, acc, val)
       <4> SUFFICES
@@ -1167,7 +1168,8 @@ PROOF
             BY <3>2 DEF Phase2av
       <4>1. CASE m \in msgs
         <5>1. InitializedBallot(m.lr, m.bal)' BY <4>1, <2>0e, <1>2av, MsgsMonotone DEF MsgInv2av, InitializedBallot
-        <5>2. AnnouncedValue(m.lr, m.bal, m.val)' BY <4>1, <2>0e, <1>2av, MsgsMonotone DEF MsgInv2av, AnnouncedValue
+        <5>2. AnnouncedValue(m.lr, m.bal, m.val)'
+            BY <4>1, <2>0e, <1>2av, MsgsMonotone DEF MsgInv2av, AnnouncedValue, TypeOK
         <5>3. KnowsSafeAt(m.lr, m.acc, m.bal, m.val)' BY <4>1, <1>2av DEF Phase2av, MsgInv2av
         <5>4. [lr |-> m.lr, bal |-> m.bal, val |-> m.val] \in 2avSent'[m.acc]
             BY <4>1, <2>0e, <1>2av, 2avSentMonotone, MessageType DEF MsgInv2av, TypeOK
@@ -1592,7 +1594,7 @@ PROOF
       <4>4. QED BY <4>3a, <4>3b, <4>2 DEF KnowsSafeAt
     <3>3. QED BY <3>1, <3>2
   <2>3. CASE Phase2b(lrn, bal, acc, val)
-    <3>1. m \in msgs BY <2>3, <1>0b DEF Phase2b, Send, TypeOK
+    <3>1. m \in msgs BY Isa, <2>3, <1>0b, <1>0a DEF Phase2b, Send, TypeOK
     <3>2. QED BY <3>1 DEF HeterogeneousSpec
   <2>4. QED BY <2>1, <2>2, <2>3
 <1>3. CASE AcceptorReceiveAction BY <1>3 DEF AcceptorReceiveAction, Next, Recv, HeterogeneousSpec
