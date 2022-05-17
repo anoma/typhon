@@ -1,6 +1,5 @@
 ---------------------------- MODULE HPaxos_proof ----------------------------
 EXTENDS HPaxos, TLAPS, TLC
-
 -----------------------------------------------------------------------------
 
 LEMMA BallotLeqTrans ==
@@ -1197,7 +1196,7 @@ PROOF
                        /\ m1b.lr = m.lr
                        /\ m1b.acc = ba
                        /\ m1b.bal = m.bal)'
-          <6>1. CASE KnowsSafeAt1(lrn, acc, bal, val)
+          <6>1. CASE KnowsSafeAt1(lrn, acc, bal)
             <7>1. PICK Q1 \in ByzQuorum :
                         /\ [lr |-> lrn, q |-> Q1] \in TrustLive
                         /\ \A a \in Q1 :
@@ -1445,7 +1444,7 @@ PROOF
       <4>0a. lrn = L2 /\ acc = A2 /\ bal = B2 /\ val = V2 BY <4>0
       <4>1. maxBal[L2, A2] =< B2 BY <2>2, <4>0a DEF Phase2av
       <4>2. KnowsSafeAt(L2, A2, B2, V2) BY <2>2, <4>0a DEF Phase2av
-      <4>3a. CASE KnowsSafeAt1(L2, A2, B2, V2)
+      <4>3a. CASE KnowsSafeAt1(L2, A2, B2)
         <5>0. USE DEF CannotDecide
         <5>1. PICK Q2 \in ByzQuorum :
             /\ [lr |-> L2, q |-> Q2] \in TrustLive

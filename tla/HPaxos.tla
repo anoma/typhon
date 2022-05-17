@@ -94,7 +94,7 @@ InitializedBallot(lr, bal) ==
     \E m \in msgs : m.type = "1a" /\ m.lr = lr /\ m.bal = bal
 
 AnnouncedValue(lr, bal, val) ==
-    \E m \in msgs : m.type = "1c" /\ m.bal = bal /\ m.val = val \* TODO fix it
+    \E m \in msgs : m.type = "1c" /\ m.lr = lr /\ m.bal = bal /\ m.val = val
 
 ChosenIn(lr, bal, v) ==
     \E Q \in ByzQuorum:
@@ -104,7 +104,7 @@ ChosenIn(lr, bal, v) ==
                 /\ m.val = v
                 /\ m.acc = aa
 
-KnowsSafeAt1(l, ac, b, v) ==
+KnowsSafeAt1(l, ac, b) ==
     LET S == { mm \in received[ac] : mm.type = "1b" /\ mm.lr = l /\ mm.bal = b }
     IN \E BQ \in ByzQuorum :
         /\ [lr |-> l, q |-> BQ] \in TrustLive
@@ -137,7 +137,7 @@ KnowsSafeAt2(l, ac, b, v) ==
                         /\ p.val = v
 
 KnowsSafeAt(l, ac, b, v) ==
-    \/ KnowsSafeAt1(l, ac, b, v) \* TODO remove v
+    \/ KnowsSafeAt1(l, ac, b)
     \/ KnowsSafeAt2(l, ac, b, v)
 
 vars == << maxBal, votesSent, 2avSent, received, connected, receivedByLearner, decision, msgs >>
