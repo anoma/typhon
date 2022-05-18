@@ -1028,7 +1028,7 @@ PROOF
                      proposals |-> {p \in 2avSent[acc] : p.bal < bal /\ p.lr = lrn}]
                 BY <3>1, <5>7 DEF Next, Phase1b, Send
           <6>3. SUFFICES bal =< maxBal'[lrn, acc] BY <6>0
-          <6>4. maxBal' = [maxBal EXCEPT ![lrn, acc] = bal] BY <3>1 DEF Phase1b, Send
+          <6>4. maxBal' = [maxBal EXCEPT ![<<lrn, acc>>] = bal] BY <3>1 DEF Phase1b, Send
           <6>5. maxBal'[<<lrn, acc>>] = bal BY <6>4, <2>0c, <2>0d
           <6>6. QED BY <6>0, <6>5 DEF Ballot
         <5>8. QED BY <5>6, <5>7

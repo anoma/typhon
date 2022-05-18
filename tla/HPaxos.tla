@@ -180,9 +180,9 @@ MaxVote(a, b, vote) ==
           other.bal =< vote.bal
 
 Phase1b(l, b, a) ==
-    /\ maxBal[l, a] =< b
+    /\ maxBal[<<l, a>>] =< b
     /\ InitializedBallot(l, b)
-    /\ maxBal' = [maxBal EXCEPT ![l, a] = b]
+    /\ maxBal' = [maxBal EXCEPT ![<<l, a>>] = b]
     /\ Send([
          type |-> "1b",
          lr |-> l,
@@ -239,7 +239,7 @@ FakeSend(a) ==
 
 LearnerDecide(l, b) ==
     /\ \E v \in {vv \in Value : ChosenIn(l, b, vv)}:
-        decision' = [decision EXCEPT ![l, b] = decision[l, b] \cup {v}]
+        decision' = [decision EXCEPT ![<<l, b>>] = decision[l, b] \cup {v}]
     /\ UNCHANGED << msgs, maxBal, votesSent, 2avSent, received, connected, receivedByLearner >>
 
 LearnerRecv(l) ==
