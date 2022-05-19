@@ -457,7 +457,7 @@ PROOF
     PROVE VotedFor(vote.lr, A, vote.bal, vote.val)'
     BY DEF VotesSentSpec1
 <1> USE DEF VotesSentSpec1
-<1>1. CASE ProposerAction BY <1>1, SafeAcceptorIsAcceptor DEF ProposerAction, Phase1a, Phase1c, Next, Send
+<1>1. CASE ProposerAction BY <1>1, SafeAcceptorIsAcceptor DEF ProposerAction, Phase1a, Phase1c, Send, VotedFor
 <1>2. CASE AcceptorSendAction
   <2>. SUFFICES ASSUME NEW lrn \in Learner,
                        NEW bal \in Ballot,
