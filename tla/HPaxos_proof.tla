@@ -468,8 +468,8 @@ PROOF
                        \/ Phase2b(lrn, bal, acc, val)
                 PROVE  VotedFor(vote.lr, A, vote.bal, vote.val)'
       BY <1>2 DEF AcceptorSendAction
-  <2>1. CASE Phase1b(lrn, bal, acc) BY <2>1 DEF Phase1b
-  <2>2. CASE Phase2av(lrn, bal, acc, val) BY <2>2 DEF Phase2av
+  <2>1. CASE Phase1b(lrn, bal, acc) BY <2>1 DEF Phase1b, Send, VotedFor
+  <2>2. CASE Phase2av(lrn, bal, acc, val) BY <2>2 DEF Phase2av, Send, VotedFor
   <2>3. CASE Phase2b(lrn, bal, acc, val)
     <3> SUFFICES ASSUME Send([type |-> "2b", lr |-> lrn, acc |-> acc, bal |-> bal, val |-> val]),
                         votesSent' = [votesSent EXCEPT ![acc] =
@@ -485,13 +485,13 @@ PROOF
         <5>3. WITNESS <5>2
         <5>10 QED BY <3>2, <4>3
       <4>4. QED BY <4>2, <4>3
-    <3>3. CASE acc # A BY <3>3
+    <3>3. CASE acc # A BY <3>3 DEF Send, VotedFor
     <3>4 QED BY <3>2, <3>3
   <2>5. QED BY <2>1, <2>2, <2>3
-<1>3. CASE AcceptorReceiveAction BY <1>3 DEF AcceptorReceiveAction, Recv, Next
-<1>4. CASE AcceptorDisconnectAction BY <1>4 DEF AcceptorDisconnectAction, Disconnect, Next
-<1>5. CASE LearnerAction BY <1>5 DEF LearnerAction, LearnerRecv, LearnerDecide, Next
-<1>6. CASE FakeAcceptorAction BY <1>6 DEF FakeAcceptorAction, FakeSend, Send
+<1>3. CASE AcceptorReceiveAction BY <1>3 DEF AcceptorReceiveAction, Recv, VotedFor
+<1>4. CASE AcceptorDisconnectAction BY <1>4 DEF AcceptorDisconnectAction, Disconnect, VotedFor
+<1>5. CASE LearnerAction BY <1>5 DEF LearnerAction, LearnerRecv, LearnerDecide, VotedFor
+<1>6. CASE FakeAcceptorAction BY <1>6 DEF FakeAcceptorAction, FakeSend, Send, VotedFor
 <1>7. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6 DEF Next
 
 LEMMA VotesSentSpec2Invariant == TypeOK /\ Next /\ VotesSentSpec2 => VotesSentSpec2'
