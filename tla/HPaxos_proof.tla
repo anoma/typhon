@@ -1477,8 +1477,9 @@ PROOF
         <5>5. WITNESS S \in SafeAcceptor
         <5>6. \E L \in Learner : LeftBallot(L, S, B1)' BY <5>4, <3>0 DEF LeftBallot
         <5>7. ~VotedFor(L1, S, B1, V1)'
-          <6>1. SUFFICES ASSUME VotedFor(L1, S, B1, V1) PROVE FALSE OBVIOUS
-          <6>2. [lr |-> L1, bal |-> B1, val |-> V1] \in votesSent[S] BY <6>1 DEF VotesSentSpec2
+          <6>1. SUFFICES ASSUME VotedFor(L1, S, B1, V1)' PROVE FALSE OBVIOUS
+          <6>1a. VotedFor(L1, S, B1, V1) BY <6>1, <3>2, <2>2 DEF VotedFor, Phase2av, Send
+          <6>2. [lr |-> L1, bal |-> B1, val |-> V1] \in votesSent[S] BY <6>1a DEF VotesSentSpec2
           <6>3. m1b.votes = { p \in votesSent[S] : MaxVote(S, B2, p) } BY <5>4 DEF MsgInv1b
           <6>4. PICK P \in votesSent[S] : MaxVote(S, B2, P) /\ P.lr = L1 /\ B1 =< P.bal
             <7>1. SUFFICES ASSUME NEW P0 \in votesSent[S],
