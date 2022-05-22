@@ -1534,7 +1534,7 @@ PROOF
                     /\ p.bal = c => p.val = V2
               BY <5>4, SafeAcceptorIsAcceptor DEF TypeOK, ReceivedSpec
         <5>6. CASE ~VotedFor(L1, S1, B1, V1)
-          <6>1. ~VotedFor(L1, S1, B1, V1)' BY <5>6, <2>2 DEF VotedFor, Phase2av, Send
+          <6>1. ~VotedFor(L1, S1, B1, V1)' BY <5>6, <3>2, <2>2 DEF VotedFor, Phase2av, Send
           <6>2. QED BY <6>1, <5>2, <5>5, MsgsMonotone DEF LeftBallot, CannotDecide
         <5>7. CASE VotedFor(L1, S1, B1, V1)
           <6>1. [lr |-> L1, bal |-> B1, val |-> V1] \in votesSent[S1] BY <5>7 DEF VotesSentSpec2
