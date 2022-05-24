@@ -550,7 +550,7 @@ PROOF
 <1> USE DEF VotesSentSpec3
 <1>0a. TypeOK OBVIOUS
 <1>0b. TypeOK' BY TypeOKInvariant
-<1>1. CASE ProposerAction BY <1>1 DEF ProposerAction, Phase1a, Phase1c, Send
+<1>1. CASE ProposerAction BY <1>1 DEF ProposerAction, Phase1a, Phase1c, Send, MaxVote
 <1>2. CASE AcceptorSendAction
   <2>. SUFFICES ASSUME NEW lrn \in Learner,
                        NEW bal \in Ballot,
@@ -561,8 +561,8 @@ PROOF
                        \/ Phase2b(lrn, bal, acc, val)
                 PROVE (\E P \in votesSent[A] : MaxVote(A, B, P) /\ P.lr = V.lr /\ V.bal =< P.bal)'
       BY <1>2 DEF AcceptorSendAction
-  <2>1. CASE Phase1b(lrn, bal, acc) BY <2>1 DEF Phase1b
-  <2>2. CASE Phase2av(lrn, bal, acc, val) BY <2>2 DEF Phase2av
+  <2>1. CASE Phase1b(lrn, bal, acc) BY <2>1 DEF Phase1b, MaxVote
+  <2>2. CASE Phase2av(lrn, bal, acc, val) BY <2>2 DEF Phase2av, MaxVote
   <2>3. CASE Phase2b(lrn, bal, acc, val)
     <3> SUFFICES ASSUME votesSent' = [votesSent EXCEPT ![acc] =
                                         votesSent[acc] \cup { [lr |-> lrn, bal |-> bal, val |-> val] }]
@@ -571,7 +571,25 @@ PROOF
     <3>1. CASE A = acc
       <4>0. DEFINE v0 == [lr |-> lrn, bal |-> bal, val |-> val]
       <4>1. v0 \in votesSent[A]' BY <3>1, <1>0b DEF TypeOK
-      <4>2. CASE V \in votesSent[A] BY <4>2
+      <4>2. CASE V \in votesSent[A]
+        <5>1. PICK Pmax \in votesSent[A] : MaxVote(A, B, Pmax) /\ Pmax.lr = V.lr /\ V.bal =< Pmax.bal
+              BY <4>2
+        <5>1a. Pmax.bal \in Ballot BY SafeAcceptorIsAcceptor DEF TypeOK
+        <5>2. CASE lrn # V.lr BY <3>1, <5>1, <5>2 DEF MaxVote, Ballot
+        <5>3. CASE lrn = V.lr
+          <6>1. CASE B =< bal BY <3>1, <5>1, <5>3, <6>1 DEF MaxVote, Ballot
+          <6>2. CASE bal < B
+            <7>1. CASE bal <= Pmax.bal BY <5>1, <5>3, <6>2, <7>1 DEF MaxVote
+            <7>2. CASE Pmax.bal < bal
+              <8>1. WITNESS v0 \in votesSent[A]'
+              <8>2. V.bal \in Ballot BY <4>2, SafeAcceptorIsAcceptor DEF TypeOK
+              <8>3. V.bal <= bal BY <8>2, <5>1, <5>1a, <7>2 DEF Ballot
+              <8>5. SUFFICES MaxVote(A, B, v0)' BY <5>3, <8>3
+              <8>10. QED BY <3>1, <5>1, <5>3, <6>2, <7>2, SafeAcceptorIsAcceptor
+                         DEF Ballot, MaxVote, TypeOK
+            <7>3. QED BY <5>1a, <7>1, <7>2 DEF Ballot
+          <6>10. QED BY <6>1, <6>2 DEF Ballot
+        <5>10. QED BY <5>2, <5>3
       <4>3. CASE V \notin votesSent[A]
         <5>0. V = v0 BY <4>3, <3>1
         <5>1. CASE \A P \in votesSent[A] : P.lr = lrn => P.bal >= B
@@ -587,17 +605,17 @@ PROOF
             <7>3. QED BY <5>0, <6>4, <6>2, <1>0b, <3>1 DEF Ballot, TypeOK, MaxVote
           <6>5. CASE bal =< Pmax.bal
             <7>1. WITNESS Pmax \in votesSent[A]'
-            <7>20. QED BY <5>0, <6>5, <6>2, <1>0b, <3>1 DEF Ballot, TypeOK
-          <6>20. QED BY <6>4, <6>5 DEF Ballot, TypeOK
-        <5>3. QED BY <5>1, <5>2 DEF Ballot, TypeOK
+            <7>20. QED BY <5>0, <6>5, <6>2, <1>0b, <3>1 DEF TypeOK, MaxVote
+          <6>20. QED BY <6>4, <6>5, SafeAcceptorIsAcceptor DEF Ballot, TypeOK
+        <5>3. QED BY <5>1, <5>2, SafeAcceptorIsAcceptor DEF Ballot, TypeOK
       <4>4. QED BY <4>2, <4>3
-    <3>2. CASE A # acc BY <3>2
+    <3>2. CASE A # acc BY <3>2 DEF MaxVote
     <3>3. QED BY <3>1, <3>2
   <2>5. QED BY <2>1, <2>2, <2>3
-<1>3. CASE AcceptorReceiveAction BY <1>3 DEF AcceptorReceiveAction, Recv, Next
-<1>4. CASE AcceptorDisconnectAction BY <1>4 DEF AcceptorDisconnectAction, Disconnect, Next
-<1>5. CASE LearnerAction BY <1>5 DEF LearnerAction, LearnerRecv, LearnerDecide, Next
-<1>6. CASE FakeAcceptorAction BY <1>6 DEF FakeAcceptorAction, FakeSend, Send
+<1>3. CASE AcceptorReceiveAction BY <1>3 DEF AcceptorReceiveAction, Recv, MaxVote
+<1>4. CASE AcceptorDisconnectAction BY <1>4 DEF AcceptorDisconnectAction, Disconnect, MaxVote
+<1>5. CASE LearnerAction BY <1>5 DEF LearnerAction, LearnerRecv, LearnerDecide, MaxVote
+<1>6. CASE FakeAcceptorAction BY <1>6 DEF FakeAcceptorAction, FakeSend, Send, MaxVote
 <1>7. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6 DEF Next
 
 LEMMA VotesSentSpec4Invariant ==
