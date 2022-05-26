@@ -826,9 +826,8 @@ PROOF
              PROVE Proposed(p.lr, A, p.bal, p.val)'
     BY DEF 2avSentSpec1
 <1> USE DEF 2avSentSpec1
-<1>1. CASE ProposerAction BY <1>1 DEF ProposerAction, Phase1a, Phase1c, Next, Send
+<1>1. CASE ProposerAction BY <1>1 DEF ProposerAction, Phase1a, Phase1c, Send, Proposed
 <1>2. CASE AcceptorSendAction
-  <2> HIDE DEF Next
   <2> SUFFICES ASSUME NEW lrn \in Learner,
                       NEW bal \in Ballot,
                       NEW acc \in SafeAcceptor,
@@ -838,7 +837,7 @@ PROOF
                       \/ Phase2b(lrn, bal, acc, val)
                 PROVE  Proposed(p.lr, A, p.bal, p.val)'
       BY <1>2 DEF AcceptorSendAction
-  <2>1. CASE Phase1b(lrn, bal, acc) BY <2>1 DEF Phase1b
+  <2>1. CASE Phase1b(lrn, bal, acc) BY <2>1 DEF Phase1b, Send, Proposed
   <2>2. CASE Phase2av(lrn, bal, acc, val)
     <3> SUFFICES ASSUME Send([type |-> "2av", lr |-> lrn, acc |-> acc, bal |-> bal, val |-> val]),
                         2avSent' = [2avSent EXCEPT ![acc] =
@@ -854,9 +853,9 @@ PROOF
           <5>3. WITNESS <5>2
           <5>10. QED BY <3>2, <4>3
         <4>10. QED BY <4>2, <4>3
-    <3>3. CASE acc # A BY <3>3
+    <3>3. CASE acc # A BY <3>3 DEF Send, Proposed
     <3>4. QED BY <3>2, <3>3
-  <2>3. CASE Phase2b(lrn, bal, acc, val) BY <2>3 DEF Phase2b
+  <2>3. CASE Phase2b(lrn, bal, acc, val) BY <2>3 DEF Phase2b, Send, Proposed
   <2>5. QED BY <2>1, <2>2, <2>3
 <1>3. CASE AcceptorReceiveAction BY <1>3 DEF AcceptorReceiveAction, Recv, Proposed
 <1>4. CASE AcceptorDisconnectAction BY <1>4 DEF AcceptorDisconnectAction, Disconnect, Proposed
