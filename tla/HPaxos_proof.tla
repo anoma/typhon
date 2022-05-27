@@ -863,15 +863,16 @@ PROOF
 <1>6. CASE FakeAcceptorAction BY <1>6 DEF FakeAcceptorAction, FakeSend, Send, Proposed
 <1>7. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6 DEF Next
 
-LEMMA 2avSentSpec2Invariant == Next /\ 2avSentSpec2 => 2avSentSpec2'
+LEMMA 2avSentSpec2Invariant == TypeOK /\ Next /\ 2avSentSpec2 => 2avSentSpec2'
 PROOF
-<1> SUFFICES ASSUME Next, 2avSentSpec2,
+<1> SUFFICES ASSUME TypeOK, Next, 2avSentSpec2,
                     NEW L \in Learner, NEW A \in SafeAcceptor, NEW B \in Ballot, NEW V \in Value,
                     Proposed(L, A, B, V)'
              PROVE ([lr |-> L, bal |-> B, val |-> V] \in 2avSent[A])'
     BY DEF 2avSentSpec2
 <1> USE DEF 2avSentSpec2
-<1>1. CASE ProposerAction BY <1>1 DEF ProposerAction, Phase1a, Phase1c, Next, Send
+<1>0. TypeOK' BY TypeOKInvariant
+<1>1. CASE ProposerAction BY <1>1 DEF ProposerAction, Phase1a, Phase1c, Send, Proposed
 <1>2. CASE AcceptorSendAction
   <2> SUFFICES ASSUME NEW lrn \in Learner,
                       NEW bal \in Ballot,
@@ -882,20 +883,30 @@ PROOF
                       \/ Phase2b(lrn, bal, acc, val)
                 PROVE ([lr |-> L, bal |-> B, val |-> V] \in 2avSent[A])'
       BY <1>2 DEF AcceptorSendAction
-  <2>1. CASE Phase1b(lrn, bal, acc) BY <2>1 DEF Phase1b
+  <2>1. CASE Phase1b(lrn, bal, acc) BY <2>1 DEF Phase1b, Send, Proposed
   <2>2. CASE Phase2av(lrn, bal, acc, val)
     <3> SUFFICES ASSUME Send([type |-> "2av", lr |-> lrn, acc |-> acc, bal |-> bal, val |-> val]),
                         2avSent' = [2avSent EXCEPT ![acc] =
                                     2avSent[acc] \cup { [lr |-> lrn, bal |-> bal, val |-> val] }]
                  PROVE ([lr |-> L, bal |-> B, val |-> V] \in 2avSent[A])'
           BY <2>2 DEF Phase2av
-    <3>1. QED OBVIOUS
-  <2>3. CASE Phase2b(lrn, bal, acc, val) BY <2>3 DEF Phase2b
+    <3>1. QED BY <1>0 DEF Send, Proposed, TypeOK
+  <2>3. CASE Phase2b(lrn, bal, acc, val)
+    <3>1. SUFFICES [lr |-> L, bal |-> B, val |-> V] \in 2avSent[A] BY <2>3 DEF Phase2b
+    <3>2. PICK m \in msgs' :
+           /\ m.type = "2av"
+           /\ m.lr = L
+           /\ m.acc = A
+           /\ m.bal = B
+           /\ m.val = V
+          BY DEF Proposed
+    <3>3. m \in msgs BY <2>3, <3>2 DEF Phase2b, Send
+    <3>4. QED BY <3>2, <3>3 DEF Proposed
   <2>5. QED BY <2>1, <2>2, <2>3
-<1>3. CASE AcceptorReceiveAction BY <1>3 DEF AcceptorReceiveAction, Recv, Next
-<1>4. CASE AcceptorDisconnectAction BY <1>4 DEF AcceptorDisconnectAction, Disconnect, Next
-<1>5. CASE LearnerAction BY <1>5 DEF LearnerAction, LearnerRecv, LearnerDecide, Next
-<1>6. CASE FakeAcceptorAction BY <1>6 DEF FakeAcceptorAction, FakeSend, Send
+<1>3. CASE AcceptorReceiveAction BY <1>3 DEF AcceptorReceiveAction, Recv, Proposed
+<1>4. CASE AcceptorDisconnectAction BY <1>4 DEF AcceptorDisconnectAction, Disconnect, Proposed
+<1>5. CASE LearnerAction BY <1>5 DEF LearnerAction, LearnerRecv, LearnerDecide, Proposed
+<1>6. CASE FakeAcceptorAction BY <1>6, SafeAcceptorAssumption DEF FakeAcceptorAction, FakeSend, Send, Proposed
 <1>7. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6 DEF Next
 
 LEMMA 2avSentSpec3Invariant == Next /\ ConnectedSpec /\ 2avSentSpec3 => 2avSentSpec3'
