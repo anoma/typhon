@@ -436,6 +436,20 @@ PROOF
 <1>6. CASE FakeAcceptorAction BY <1>6 DEF FakeAcceptorAction, FakeSend, Send
 <1>7. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6 DEF Next
 
+LEMMA ReceivedByLearnerMonotone ==
+    TypeOK /\ Next => \A L \in Learner : receivedByLearner[L] \subseteq receivedByLearner'[L]
+PROOF
+<1> SUFFICES ASSUME TypeOK, Next, NEW L \in Learner
+             PROVE receivedByLearner[L] \subseteq receivedByLearner'[L] OBVIOUS
+<1>0b. TypeOK' BY TypeOKInvariant
+<1>1. CASE ProposerAction BY <1>1 DEF ProposerAction, Phase1a, Phase1c, Send
+<1>2. CASE AcceptorSendAction BY <1>2 DEF AcceptorSendAction, Send, Phase1b, Phase2av, Phase2b
+<1>3. CASE AcceptorReceiveAction BY <1>3 DEF AcceptorReceiveAction, Recv, TypeOK
+<1>4. CASE AcceptorDisconnectAction BY <1>4 DEF AcceptorDisconnectAction, Disconnect
+<1>5. CASE LearnerAction BY <1>5, <1>0b DEF LearnerAction, LearnerDecide, LearnerRecv, TypeOK
+<1>6. CASE FakeAcceptorAction BY <1>6 DEF FakeAcceptorAction, FakeSend, Send
+<1>7. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6 DEF Next
+
 LEMMA VotesSentMonotone ==
     TypeOK /\ Next => \A A \in Acceptor : votesSent[A] \subseteq votesSent'[A]
 PROOF
@@ -973,10 +987,10 @@ PROOF
              PROVE ChosenIn(L, B, V)'
     BY DEF DecisionSpec
 <1> USE DEF DecisionSpec
-<1>1. CASE ProposerAction BY <1>1 DEF ProposerAction, Phase1a, Phase1c, Next, Send
-<1>2. CASE AcceptorSendAction BY <1>2 DEF AcceptorSendAction, Phase1b, Phase2av, Phase2b, Next, Send
-<1>3. CASE AcceptorReceiveAction BY <1>3 DEF AcceptorReceiveAction, Recv, Next
-<1>4. CASE AcceptorDisconnectAction BY <1>4 DEF AcceptorDisconnectAction, Disconnect, Next
+<1>1. CASE ProposerAction BY <1>1 DEF ProposerAction, Phase1a, Phase1c, Send, ChosenIn
+<1>2. CASE AcceptorSendAction BY <1>2 DEF AcceptorSendAction, Phase1b, Phase2av, Phase2b, Send, ChosenIn
+<1>3. CASE AcceptorReceiveAction BY <1>3 DEF AcceptorReceiveAction, Recv, ChosenIn
+<1>4. CASE AcceptorDisconnectAction BY <1>4 DEF AcceptorDisconnectAction, Disconnect, ChosenIn
 <1>5. CASE LearnerAction
   <2> SUFFICES ASSUME NEW lrn \in Learner, NEW bal \in Ballot,
                       \/ LearnerDecide(lrn, bal)
@@ -990,9 +1004,20 @@ PROOF
     <3>2. CASE V \notin decision[L, B] BY <3>2, <2>2, <3>0a, <3>0b DEF ChosenIn, LearnerDecide, TypeOK
     <3>3. QED BY <3>1, <3>2
   <2>3. CASE LearnerRecv(lrn)
-    <3>1. QED BY <2>3 DEF LearnerRecv
+    <3>0. V \in decision[L, B] BY <2>3 DEF LearnerRecv
+    <3>2. PICK Q \in ByzQuorum :
+                        /\ [lr |-> L, q |-> Q] \in TrustLive
+                        /\ \A aa \in Q :
+                             \E m
+                                \in {mm \in receivedByLearner[L] :
+                                       mm.bal = B} :
+                                /\ m.val = V
+                                /\ m.acc = aa BY <3>0 DEF ChosenIn
+    <3> USE DEF ChosenIn
+    <3>3. WITNESS Q \in ByzQuorum
+    <3>10. QED BY <3>2, ReceivedByLearnerMonotone
   <2>4. QED BY <2>2, <2>3 DEF LearnerAction
-<1>6. CASE FakeAcceptorAction BY <1>6 DEF FakeAcceptorAction, FakeSend, Send
+<1>6. CASE FakeAcceptorAction BY <1>6 DEF FakeAcceptorAction, FakeSend, Send, ChosenIn
 <1>7. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6 DEF Next
 
 LEMMA ConnectedSpecInvariant == Next /\ ConnectedSpec => ConnectedSpec'
