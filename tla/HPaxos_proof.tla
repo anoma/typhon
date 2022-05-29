@@ -1037,6 +1037,45 @@ PROOF
 <1>6. CASE FakeAcceptorAction BY <1>6 DEF FakeAcceptorAction, FakeSend, Send
 <1>7. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6 DEF Next
 
+LEMMA ConnectedMonotone ==
+    Next => \A A \in SafeAcceptor : connected'[A] \subseteq connected[A]
+PROOF
+<1> SUFFICES ASSUME Next, NEW A \in SafeAcceptor PROVE connected'[A] \subseteq connected[A] OBVIOUS
+<1>1. CASE ProposerAction BY <1>1 DEF ProposerAction, Phase1a, Phase1c, Send
+<1>2. CASE AcceptorSendAction BY <1>2 DEF AcceptorSendAction, Send, Phase1b, Phase2av, Phase2b
+<1>3. CASE AcceptorReceiveAction BY <1>3 DEF AcceptorReceiveAction, Recv, TypeOK
+<1>4. CASE AcceptorDisconnectAction BY <1>4 DEF AcceptorDisconnectAction, Disconnect
+<1>5. CASE LearnerAction BY <1>5 DEF LearnerAction, LearnerDecide, LearnerRecv
+<1>6. CASE FakeAcceptorAction BY <1>6 DEF FakeAcceptorAction, FakeSend, Send
+<1>7. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6 DEF Next
+
+LEMMA InitializedBallotInv ==
+    Next =>
+    \A L \in Learner : \A B \in Ballot :
+        InitializedBallot(L, B) => InitializedBallot(L, B)'
+PROOF BY MsgsMonotone DEF InitializedBallot
+
+LEMMA AnnouncedValueInv ==
+    Next =>
+    \A L \in Learner : \A B \in Ballot : \A V \in Value :
+        AnnouncedValue(L, B, V) => AnnouncedValue(L, B, V)'
+PROOF BY MsgsMonotone DEF AnnouncedValue
+
+LEMMA KnowsSafeAtInv ==
+    TypeOK /\ Next =>
+    \A L \in Learner : \A A \in SafeAcceptor : \A B \in Ballot : \A V \in Value :
+        KnowsSafeAt(L, A, B, V) => KnowsSafeAt(L, A, B, V)'
+PROOF
+<1> SUFFICES ASSUME TypeOK, Next,
+                    NEW L \in Learner, NEW A \in SafeAcceptor, NEW B \in Ballot, NEW V \in Value,
+                    KnowsSafeAt(L, A, B, V)
+             PROVE KnowsSafeAt(L, A, B, V)' OBVIOUS
+<1>1. CASE KnowsSafeAt1(L, A, B)
+      BY <1>1, ReceivedMonotone, ConnectedMonotone DEF KnowsSafeAt1, KnowsSafeAt
+<1>2. CASE KnowsSafeAt2(L, A, B, V)
+      BY <1>2, ReceivedMonotone, ConnectedMonotone DEF KnowsSafeAt2, KnowsSafeAt
+<1>3. QED BY <1>1, <1>2 DEF KnowsSafeAt
+
 LEMMA MsgInvInvariant ==
     TypeOK /\ MsgInv /\ VotesSentSpec1 /\ VotesSentSpec2 /\ VotesSentSpec3 /\ 2avSentSpec1 /\
     Next => MsgInv'
