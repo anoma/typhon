@@ -39,12 +39,52 @@ CONSTANT Batch
 CONSTANT Hash
 
 (* The following is essentially a non-operational definition of *)
-(* a hash function. *)
+(* a unique hash function. *)
 (* `CHOOSE always assigns the same value given equivalent predicates` *)
 (* [https://pron.github.io/posts/tlaplus_part2] *)
+(* Hopefully, this specific choice is as good as any other choice ... *)
+(* ... in theory, one would have to show that any other choice works as well *)
 hash == CHOOSE v : v \in Injection(Batch, Hash)
 
+
+
 --------------------------------------------------------------------------------
+
+(* Narwhal makes the usual assumption about Byzantine failures. *)
+(* That is, besides a partially synchronous network, we have *)
+(* - a total number of validators of the form N >= 3f+1 where *)
+(* - at most f validators are erroneous *)
+(* Moreoer,
+(* - a _quorum_ is any set that contains more than 2/3-rds of all nodes *)
+(* - a _weak quorum_ is a set of nodes s.t. it intersection with any quorum is non-empty *)
+
+CONSTANT f
+
+ASSUME f \in Int /\ F >= 1
+
+N == 3f + 1
+
+CONSTANT Validator
+
+ASSUME IsFiniteSet(Validator) /\ Cardinality(S) >= N
+
+CONSTANTS Quorum, WQuorum
+
+ASSUME QuorumAssumptions == /\ \A Q \in Quorum :
+                                /\ Q \subseteq Validator 
+                                /\ Cardinality(Q) > ((2/3) * Cardinality(Validator))
+                            /\ \A W \in WQuorum :
+                                /\ W \subseteq Validator
+                                /\ \A Q in Quorum W \cap Q # {}
+
+CONSTANT BYZANTINE
+
+ASSUME ByzantineAssumption == /\ BYZANTINE \subseteq Validator
+                              /\ Cardinality(BYZANTINE) <= f
+
+
+
+
 
 
 
