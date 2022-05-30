@@ -84,6 +84,26 @@ ASSUME ByzantineAssumption == /\ BYZANTINE \subseteq Validator
 
 
 
+--------------------------------------------------------------------------------
+
+(* One idea of Narwhal is explicit parallelism via a number of workers *)
+
+CONSTANT WorkerIndex
+
+ASSUME IsFiniteSet(WorkerIndex)
+
+(* A specific worker has a worker index and a validator *)
+
+Worker == WorkerIndex \X Validator
+
+(* There is a bijection between Validators and Primaries *)
+(* We can just identify them for the purpose of the specification *)
+
+Primary == Validator
+
+--------------------------------------------------------------------------------
+
+
 
 
 
