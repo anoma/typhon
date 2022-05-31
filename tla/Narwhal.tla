@@ -1,5 +1,5 @@
 ------------------------------ MODULE Narwhal -------------------------------
-EXTENDS Integers, FiniteSets, Functions
+EXTENDS Naturals, FiniteSets, Functions, Sequences
 
 -----------------------------------------------------------------------------
 
@@ -11,6 +11,14 @@ EXTENDS Integers, FiniteSets, Functions
 
 
 -----------------------------------------------------------------------------
+
+(* BEGIN of `General Setup` *)
+
+
+(* -----------------------------------------------------------------------------*)
+(*			    GENERAL SETUP                                   *)
+(* -----------------------------------------------------------------------------*)
+
 
 (* For the purposes of the formal verification, *)
 (* batches and their hashes are arbitrary sets: `Batch` and `Hash`. *)
@@ -44,9 +52,8 @@ CONSTANT Hash
 (* [https://pron.github.io/posts/tlaplus_part2] *)
 (* Hopefully, this specific choice is as good as any other choice ... *)
 (* ... in theory, one would have to show that any other choice works as well *)
+ASSUME Injection(Batch, Hash) /= {}
 hash == CHOOSE v : v \in Injection(Batch, Hash)
-
-
 
 --------------------------------------------------------------------------------
 
@@ -58,11 +65,11 @@ hash == CHOOSE v : v \in Injection(Batch, Hash)
 (* - a _quorum_ is any set that contains more than 2/3-rds of all nodes *)
 (* - a _weak quorum_ is a set of nodes s.t. it intersection with any quorum is non-empty *)
 
-CONSTANT f
+CONSTANT F
 
-ASSUME f \in Int /\ F >= 1
+ASSUME F \in Nat 
 
-N == 3f + 1
+N == 3F + 1
 
 CONSTANT Validator
 
@@ -80,7 +87,7 @@ ASSUME QuorumAssumptions == /\ \A Q \in Quorum :
 CONSTANT BYZANTINE
 
 ASSUME ByzantineAssumption == /\ BYZANTINE \subseteq Validator
-                              /\ Cardinality(BYZANTINE) <= f
+                              /\ Cardinality(BYZANTINE) <= F
 
 
 
@@ -96,17 +103,114 @@ ASSUME IsFiniteSet(WorkerIndex)
 
 Worker == WorkerIndex \X Validator
 
+(* To avoid silly bugs (swaping first and second component of Worker *)
+
+ASSUME WorkerIndex \cap Validator = {} /\ WorkerIndex \cap Validator = {}
+
 (* There is a bijection between Validators and Primaries *)
 (* We can just identify them for the purpose of the specification *)
 
 Primary == Validator
 
+(* END of `General Setup` *)
+
 --------------------------------------------------------------------------------
 
 
+(* BEGIN of `Data Structures` *)
 
+(* -------------------------------------------------------------------------------- *)
+(*			  Data Structures                                           *)
+(* -------------------------------------------------------------------------------- *)
 
+(* The data structures for blocks, certificates and the like are essentially *)
+(* the ones described in the Narwhal paper in *)
+(* but with batches instead of transactions *)
 
+(* Note: On signatures *)
+(* The effect of signatures will have to be modelled by *
+(* a set of constraints on the messages that Byzantine nodes can send *)
+(* E.g., all messages will have a sender *)
 
+(* The set of Hashes of blocks, called digest to avoid *)
+(* accidental confusion *) 
+CONSTANT BlockDigest
+
+(* "If a block is valid, *)
+(* the other validators store it and acknowledge it by *)
+(* signing its _block digest_, _round number_, and _creator’s identity_." *)
+(* (In most cases, the signature will not be the creator, but could be.) *)
+Ack == [digest : BlockDigest,
+	creator : Validator,
+	rnd : Nat,
+	sig : Validator]
+
+(* "Once the creator gets 2𝑓 + 1 distinct acknowledgments for a block, *)
+(* it combines them into a certificate of block availability, that includes *)
+(* the block digest, current round, and creator identity." *)
+
+(* We first make precise what >= "2𝑓 + 1 distinct acknowledgments" are *)
+(* and we make explicit that they talk about the same block digest *)
+AckQuorum == { ax \in UNION {[Q -> Ack] : Q \in Quorum} :
+	       /\ \A v,w \in DOMAIN ax :
+	          /\ ax[v].digest = ax[w].digest 
+                  /\ ax[v].rnd = ax[w].rnd 	       
+	          /\ ax[v].creator = ax[w].creator
+	       /\ \A v \in DOMAIN ax : ax[v].sig = v
+	       }
+(* The second conjuct "\A v \in DOMAIN ax : ax[v].sig = v" implies that *)
+(* we actually have distinct acknowledgments of the same digest *)
+
+\*LEMMA DistinctAcknowledgments 
+
+(* Now, a Certificate is just an AckQuorum with the core info copied once, *)
+(* viz. the digest, round number and the creator id *)
+Certificate == { c \in [digest : BlockDigest,
+			rnd : Nat,
+			creator : Validator,
+			aq : AckQuorum ] :
+		 \A v \in DOMAIN aq :
+		 /\ digest = aq[v].digest 
+                 /\ rnd = aq[v].rnd 		 
+                 /\ creator = aq[v].creator 		 
+		 }		 
+
+(* A valid block must *)
+(* 1. contain a valid signature from its creator, *)
+(* 2. be at the local round 𝑟 of the validator checking it, *)
+(* 3. be at round 0 (genesis), or *)
+(*    contain certificates for at least 2𝑓 + 1 blocks of round 𝑟 − 1, *)
+(* 4. be the first one received from the creator for round 𝑟 . *)
+
+(* We first mode  "certificates for at least 2𝑓 + 1 blocks" *)
+
+CertQuorum == { cq \in UNION {[Q -> Certificate] : Q\in Quorum \cup {} } :
+		\A v,w \in DOMAIN cq :
+		/\ cq[v].rnd = cq[w].rnd
+		/\ (v /= w => cq[v].digest /= cq[w].digest)
+		}		
+(* It should follow that also the creators are different *)
+
+\* LEMMA 
+
+(* Blocks are now defined easily, *)
+(* given the above representation of sets of certificates of availability. *)
+
+Block == { b \in [ creator : Validator,
+		   rnd : Nat,
+		   bxh : Seq(BatchHash),
+		   cq  : CertQuorum,
+		   sig : Validator		   
+		   ] :
+	   /\ \/ (b.rnd = 0 /\ DOMAIN cq = {})
+	      \/ (b.rnd > 0 /\ \A Q \in DOMAIN cq : Q \in Quorum /\ cq[Q].rnd = (b.rnd - 1))
+           /\ b.creator = b.sig
+	   }	   
+
+(* For hashing blocks *)
+ASSUME Injection(Block, BlockDigest) /= {}
+blockHash == CHOOSE v : v \in Injection(Block, BlockDigest)
+  
+(* END of `Data Structures` *)    
 
 
