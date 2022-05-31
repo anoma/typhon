@@ -238,3 +238,40 @@ QueuesTypeOK == /\ batchQueues \in [Worker -> Seq(Batch)]
 (* END of `Local State` *)
   
 --------------------------------------------------------------------------------
+
+
+(* BEGIN of `Message Structure` *)  
+(* -------------------------------------------------------------------------------- *)
+(*			  Message Structure                                   *)
+(* -------------------------------------------------------------------------------- *)
+
+
+(* Following Lamport's specification of Paxos *)
+(* [https://bit.ly/3a6ydfc], *)
+(* we use a set of (broadcast) messages, that all nodes can access *)
+(* *)       
+(* There are the following types of message.
+(* - "newB" a new batch arriving **at** a specific worker *)
+(* - "bcB" broadcast a batch, **from** a worker (to workers of the same index) *)
+(* - "hashB" a worker sends a (received) batch to its primary for block production *)
+(* - "block" a block creator broadcasts a new block (and its batches) *)
+(* - "ack" acknowledgment of a broadcast new block *by* a Validator  *)  
+
+
+Message == 
+       [type : {"newB"}, batch : Batch, at : Worker]
+  \cup [type : {"bcB"}, batch : Batch, from : Worker] 
+  \cup [type : {"hashB"}, h : Hash, worker : Worker] 
+  \cup [type : {"block"}, block: Block, creator : Validator]
+  \cup [type : {"ack"}, ack : Ack, by : Validator]
+  \cup [type : {"cert"}, cert : Certificate, from : Validator]
+
+(* END of `Message Structure` *)
+  
+--------------------------------------------------------------------------------
+  
+
+
+
+
+
