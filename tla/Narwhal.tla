@@ -213,4 +213,28 @@ blockHash == CHOOSE v : v \in Injection(Block, BlockDigest)
   
 (* END of `Data Structures` *)    
 
+--------------------------------------------------------------------------------
 
+(* BEGIN of `Local State` *)
+
+(*--------------------------------------------------------------------------------*)
+(*			     Local State                                      *)
+(*--------------------------------------------------------------------------------*)
+
+(* Each Validator has a local round number (initially 0) *)
+
+VARIABLE valRounds
+
+RoundsTypeOK == valRounds \in [Validator -> Nat]
+
+(* Each Worker has a batch queue (initially empty) *)
+(* Each Primary has a queue of batchHashes (initially empty)*)
+
+VARIABLES batchQueues, hashQueues
+
+QueuesTypeOK == /\ batchQueues \in [Worker -> Seq(Batch)]
+                /\ hashQueues \in [Primary -> Seq(BatchHash)]
+    
+(* END of `Local State` *)
+  
+--------------------------------------------------------------------------------
