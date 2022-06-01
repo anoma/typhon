@@ -1386,31 +1386,70 @@ PROOF
       <4>5. QED BY <4>0, <4>1, <4>2, <4>3, <4>4, <1>2av DEF MsgInv2av
     <3>4. QED BY <3>1, <3>2, <3>3
   <2>4. CASE AcceptorReceiveAction
-    <3>1. m \in msgs BY <2>4 DEF AcceptorReceiveAction, Recv
-    <3>6. (\E Q \in ByzQuorum :
-              /\ [lr |-> m.lr, q |-> Q] \in TrustLive
-              /\ \A ba \in Q :
-                    \E m1b \in received[m.acc] :
-                       /\ m1b.type = "1b"
-                       /\ m1b.lr = m.lr
-                       /\ m1b.acc = ba
-                       /\ m1b.bal = m.bal)'
-      <7>1. PICK Q0 \in ByzQuorum :
-              /\ [lr |-> m.lr, q |-> Q0] \in TrustLive
-              /\ \A ba \in Q0 :
-                     \E m1b \in received[m.acc] :
-                        /\ m1b.type = "1b"
-                        /\ m1b.lr = m.lr
-                        /\ m1b.acc = ba
-                        /\ m1b.bal = m.bal
-            BY <1>2av, <3>1, <2>0e DEF MsgInv2av
-      <7>2. WITNESS Q0 \in ByzQuorum
-      <7>3. QED BY <1>2av, <7>1, ReceivedMonotone, MessageType, <3>1 DEF MsgInv2av, TypeOK
-    <3>20. QED BY <1>2av, <2>4, <3>6, MessageType, ReceivedMonotone DEF MsgInv2av, AcceptorReceiveAction, Recv
-  <2>5. CASE AcceptorDisconnectAction BY <1>2av, <2>5 DEF AcceptorDisconnectAction, Disconnect, MsgInv2av, Next
-  <2>6. CASE LearnerAction BY <1>2av, <2>6 DEF LearnerAction, LearnerRecv, LearnerDecide, MsgInv2av, Next
+    <3>0. /\ m \in msgs
+          /\ m.lr \in Learner
+          /\ m.acc \in SafeAcceptor
+          /\ m.bal \in Ballot
+          /\ m.val \in Value
+          BY <1>2av, <2>4, <2>0b, <2>0e, MessageType DEF AcceptorReceiveAction, Recv, TypeOK
+    <3>1. UNCHANGED <<msgs, maxBal, 2avSent, votesSent, connected, receivedByLearner, decision>>
+          BY <2>4 DEF Phase1a, Phase1c, AcceptorReceiveAction, Recv
+    <3>2. InitializedBallot(m.lr, m.bal)'
+          BY <3>0, <1>2av, InitializedBallotInv DEF MsgInv2av
+    <3>3. AnnouncedValue(m.lr, m.bal, m.val)'
+          BY <3>0, <1>2av, AnnouncedValueInv DEF MsgInv2av
+    <3>4. KnowsSafeAt(m.lr, m.acc, m.bal, m.val)'
+          BY <3>0, <1>2av, KnowsSafeAtInv DEF MsgInv2av
+    <3>10. QED BY <3>0, <3>1, <3>2, <3>3, <3>4, <1>2av, ReceivedMonotone DEF MsgInv2av
+  <2>5. CASE AcceptorDisconnectAction
+    <3>0. /\ m \in msgs
+          /\ m.lr \in Learner
+          /\ m.acc \in SafeAcceptor
+          /\ m.bal \in Ballot
+          /\ m.val \in Value
+          BY <1>2av, <2>5, <2>0b, <2>0e, MessageType DEF AcceptorDisconnectAction, Disconnect, TypeOK
+    <3>1. UNCHANGED << received, 2avSent >>
+          BY <2>5 DEF AcceptorDisconnectAction, Disconnect
+    <3>2. InitializedBallot(m.lr, m.bal)'
+          BY <3>0, <1>2av, InitializedBallotInv DEF MsgInv2av
+    <3>3. AnnouncedValue(m.lr, m.bal, m.val)'
+          BY <3>0, <1>2av, AnnouncedValueInv DEF MsgInv2av
+    <3>4. KnowsSafeAt(m.lr, m.acc, m.bal, m.val)'
+          BY <3>0, <1>2av, KnowsSafeAtInv DEF MsgInv2av
+    <3>10. QED BY <3>0, <3>1, <3>2, <3>3, <3>4, <1>2av DEF MsgInv2av
+  <2>6. CASE LearnerAction
+    <3>0. /\ m \in msgs
+          /\ m.lr \in Learner
+          /\ m.acc \in SafeAcceptor
+          /\ m.bal \in Ballot
+          /\ m.val \in Value
+          BY <1>2av, <2>6, <2>0b, <2>0e, MessageType DEF LearnerAction, LearnerDecide, LearnerRecv, TypeOK
+    <3>1. UNCHANGED << received, 2avSent >>
+          BY <2>6 DEF LearnerAction, LearnerDecide, LearnerRecv
+    <3>2. InitializedBallot(m.lr, m.bal)'
+          BY <3>0, <1>2av, InitializedBallotInv DEF MsgInv2av
+    <3>3. AnnouncedValue(m.lr, m.bal, m.val)'
+          BY <3>0, <1>2av, AnnouncedValueInv DEF MsgInv2av
+    <3>4. KnowsSafeAt(m.lr, m.acc, m.bal, m.val)'
+          BY <3>0, <1>2av, KnowsSafeAtInv DEF MsgInv2av
+    <3>10. QED BY <3>0, <3>1, <3>2, <3>3, <3>4, <1>2av DEF MsgInv2av
   <2>7. CASE FakeAcceptorAction
-            BY <1>2av, <2>7, SafeAcceptorAssumption DEF FakeAcceptorAction, FakeSend, MsgInv2av, Send
+    <3>0. /\ m \in msgs
+          /\ m.lr \in Learner
+          /\ m.acc \in SafeAcceptor
+          /\ m.bal \in Ballot
+          /\ m.val \in Value
+          BY <1>2av, <2>7, <2>0b, <2>0e, MessageType, SafeAcceptorAssumption
+          DEF FakeAcceptorAction, FakeSend, Send, TypeOK
+    <3>1. UNCHANGED 2avSent
+          BY <2>7 DEF FakeAcceptorAction, FakeSend, Send
+    <3>2. InitializedBallot(m.lr, m.bal)'
+          BY <3>0, <1>2av, InitializedBallotInv DEF MsgInv2av
+    <3>3. AnnouncedValue(m.lr, m.bal, m.val)'
+          BY <3>0, <1>2av, AnnouncedValueInv DEF MsgInv2av
+    <3>4. KnowsSafeAt(m.lr, m.acc, m.bal, m.val)'
+          BY <3>0, <1>2av, KnowsSafeAtInv DEF MsgInv2av
+    <3>10. QED BY <3>0, <3>1, <3>2, <3>3, <3>4, <1>2av, ReceivedMonotone DEF MsgInv2av
   <2>8. QED BY <1>2av, <2>0b, <2>1, <2>2, <2>4, <2>5, <2>6, <2>7 DEF Next
 <1>2b. ASSUME TypeOK, Next, \A m \in msgs : m.acc \in SafeAcceptor /\ m.type = "2b" => MsgInv2b(m),
         NEW m \in msgs', m.acc \in SafeAcceptor, m.type = "2b"
