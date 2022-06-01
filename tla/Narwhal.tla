@@ -21,39 +21,22 @@ EXTENDS Naturals, FiniteSets, Functions, Sequences
 
 
 (* For the purposes of the formal verification, *)
-(* batches and their hashes are arbitrary sets: `Batch` and `Hash`. *)
-(* We use an injective hash function from Batches to hashes, called `hash`. *)
-
-(* -------------------------------------------------------------------------------- *)
-(* ATTENTION: TLC will not like this ! *)
-(* For the purposes of TLC, we might have sth like *)
-(* hash(x) == [ "hash" |-> x ] *)
-(* -------------------------------------------------------------------------------- *)
-
-
-(* Note *)
-(* The treatment of single transaction is at a finer level of granularity, *)
-(* i.e., the full specification that takes into account *)
-(* the arrival of single transactions from the wallet/matchmakers/... *)
-(* will be a _refined_ specification. *)
-
-
-
+(* hash functions need to be treated in a peculiar manner, *)
+(* for the simple reason that collisions are not strictly impossible. *)
+(* (After all, we are interested in qualitative properties, *)
+(* as opposed to probabilitstic ones.) *)
 
 (* The set of batches. *)
 CONSTANT Batch
+ASSUME Batch # {}
 
-(* The set of Hashes of batches. *)
-CONSTANT Hash
+(* This is one specifically simple way to represent hash functions *)
 
-(* The following is essentially a non-operational definition of *)
-(* a unique hash function. *)
-(* `CHOOSE always assigns the same value given equivalent predicates` *)
-(* [https://pron.github.io/posts/tlaplus_part2] *)
-(* Hopefully, this specific choice is as good as any other choice ... *)
-(* ... in theory, one would have to show that any other choice works as well *)
-ASSUME Injection(Batch, Hash) /= {}
-hash == CHOOSE v : v \in Injection(Batch, Hash)
+hash == [
+	 b \in Batch
+	 |->
+	 ["hash" |-> b]
+	 ]
 
 --------------------------------------------------------------------------------
 
@@ -65,31 +48,33 @@ hash == CHOOSE v : v \in Injection(Batch, Hash)
 (* - a _quorum_ is any set that contains more than 2/3-rds of all nodes *)
 (* - a _weak quorum_ is a set of nodes s.t. it intersection with any quorum is non-empty *)
 
-CONSTANT F
-
-ASSUME F \in Nat 
-
-N == 3F + 1
+(* In fact, we can generalize this to infinite sets of validators *)
 
 CONSTANT Validator
 
-ASSUME IsFiniteSet(Validator) /\ Cardinality(S) >= N
-
 CONSTANTS Quorum, WQuorum
 
-ASSUME QuorumAssumptions == /\ \A Q \in Quorum :
-                                /\ Q \subseteq Validator 
-                                /\ Cardinality(Q) > ((2/3) * Cardinality(Validator))
-                            /\ \A W \in WQuorum :
-                                /\ W \subseteq Validator
-                                /\ \A Q in Quorum W \cap Q # {}
+ASSUME QuorumAssumptions ==
+        /\ Quorum \subseteq (SUBSET Validator)
+        /\ WQuorum \subseteq (SUBSET Validator)
+        /\ Quorum \subseteq WQuorum
+        /\ \A W \in WQuorum :		                     
+             /\ (Validator \ W) \notin Quorum
+             /\ \E V \in WQuorum : (V \cup W) \in Quorum
+        /\ \A X \in SUBSET Validator :
+           \/ X \in WQuorum
+	   \/ (Validator \ X) \in WQuorum
 
-CONSTANT BYZANTINE
+\* LEMMA \A Q \in Quorum \A W \in WQuorum : Q \cap W \neq {} 
 
-ASSUME ByzantineAssumption == /\ BYZANTINE \subseteq Validator
-                              /\ Cardinality(BYZANTINE) <= F
+CONSTANTS CorrectValidator, ByzValidator
 
+ASSUME ValidatorAssumption ==
+        /\ CorrectValidator \cap ByzValidator = {}
+        /\ CorrectValidator \cup ByzValidator = Validator
+        /\ CorrectValidator \in Quorum
 
+\* LEMMA ByzValidator \notin WQuorum
 
 --------------------------------------------------------------------------------
 
@@ -105,7 +90,7 @@ Worker == WorkerIndex \X Validator
 
 (* To avoid silly bugs (swaping first and second component of Worker *)
 
-ASSUME WorkerIndex \cap Validator = {} /\ WorkerIndex \cap Validator = {}
+ASSUME WorkerIndex \cap Validator = {} /\ Worker \cap Validator = {}
 
 (* There is a bijection between Validators and Primaries *)
 (* We can just identify them for the purpose of the specification *)
@@ -115,7 +100,6 @@ Primary == Validator
 (* END of `General Setup` *)
 
 --------------------------------------------------------------------------------
-
 
 (* BEGIN of `Data Structures` *)
 
@@ -161,7 +145,7 @@ AckQuorum == { ax \in UNION {[Q -> Ack] : Q \in Quorum} :
 (* The second conjuct "\A v \in DOMAIN ax : ax[v].sig = v" implies that *)
 (* we actually have distinct acknowledgments of the same digest *)
 
-\*LEMMA DistinctAcknowledgments 
+\*LEMMA DistinctAcknowledgments
 
 (* Now, a Certificate is just an AckQuorum with the core info copied once, *)
 (* viz. the digest, round number and the creator id *)
@@ -188,7 +172,7 @@ CertQuorum == { cq \in UNION {[Q -> Certificate] : Q\in Quorum \cup {} } :
 		\A v,w \in DOMAIN cq :
 		/\ cq[v].rnd = cq[w].rnd
 		/\ (v /= w => cq[v].digest /= cq[w].digest)
-		}		
+		}
 (* It should follow that also the creators are different *)
 
 \* LEMMA 
@@ -214,7 +198,6 @@ blockHash == CHOOSE v : v \in Injection(Block, BlockDigest)
 (* END of `Data Structures` *)    
 
 --------------------------------------------------------------------------------
-
 (* BEGIN of `Local State` *)
 
 (*--------------------------------------------------------------------------------*)
@@ -255,7 +238,8 @@ QueuesTypeOK == /\ batchQueues \in [Worker -> Seq(Batch)]
 (* - "bcB" broadcast a batch, **from** a worker (to workers of the same index) *)
 (* - "hashB" a worker sends a (received) batch to its primary for block production *)
 (* - "block" a block creator broadcasts a new block (and its batches) *)
-(* - "ack" acknowledgment of a broadcast new block *by* a Validator  *)  
+(* - "ack" acknowledgment of a broadcast new block *by* a Validator  *)
+(* - "cert" broadcasting a certificate from a validator  *)    
 
 
 Message == 
@@ -270,6 +254,16 @@ Message ==
   
 --------------------------------------------------------------------------------
   
+
+  (*			      Variables                                         *)
+
+\* VARIABLES msgs
+
+\* TypeOK == msg
+
+(* -------------------------------------------------------------------------------- *)
+(*			  Actions                                    *)
+(* -------------------------------------------------------------------------------- *)
 
 
 
