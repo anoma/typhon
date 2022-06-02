@@ -73,6 +73,9 @@ LeftBallot(lr, acc, bal) ==
         /\ bal < m.bal
 
 -----------------------------------------------------------------------------
+MaxBalSpec ==
+    \A L \in Learner : \A A \in SafeAcceptor : \A B \in Ballot :
+        maxBal[L, A] =< B => ~LeftBallot(L, A, B)
 
 ReceivedSpec == \A A \in SafeAcceptor : received[A] \subseteq msgs
 
@@ -396,6 +399,65 @@ PROOF
 <1>6. CASE FakeAcceptorAction
   <2>1. UNCHANGED maxBal BY <1>6 DEF FakeAcceptorAction, FakeSend
   <2>2. QED BY <2>1, SafeAcceptorIsAcceptor DEF TypeOK, Ballot
+<1>7. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6 DEF Next
+
+LEMMA MaxBalSpecInvariant == TypeOK /\ Next /\ MaxBalSpec => MaxBalSpec'
+PROOF
+<1> SUFFICES ASSUME TypeOK, Next, MaxBalSpec
+PROVE MaxBalSpec' OBVIOUS
+<1> USE DEF MaxBalSpec
+<1>0. TypeOK' BY TypeOKInvariant
+<1>1. CASE ProposerAction
+  <2>0. SUFFICES ASSUME NEW lrn \in Learner, NEW bal \in Ballot, NEW val \in Value,
+                        Phase1a(lrn, bal) \/ Phase1c(lrn, bal, val)
+                 PROVE MaxBalSpec'
+        BY <1>1, ValueNotEmpty DEF ProposerAction
+  <2>1. CASE Phase1a(lrn, bal) BY Isa, <2>1 DEF Phase1a, Send, LeftBallot
+  <2>2. CASE Phase1c(lrn, bal, val) BY Isa, <2>2 DEF Phase1c, Send, LeftBallot
+  <2>3. QED BY <2>0, <2>1, <2>2
+<1>2. CASE AcceptorSendAction
+  <2>0. SUFFICES ASSUME NEW lrn \in Learner, NEW bal \in Ballot,
+                        NEW acc \in SafeAcceptor, NEW val \in Value,
+                        \/ Phase1b(lrn, bal, acc)
+                        \/ Phase2av(lrn, bal, acc, val)
+                        \/ Phase2b(lrn, bal, acc, val)
+                 PROVE MaxBalSpec'
+        BY <1>2 DEF AcceptorSendAction
+  <2>1. CASE Phase1b(lrn, bal, acc)
+    <3> SUFFICES ASSUME NEW L \in Learner, NEW A \in SafeAcceptor, NEW B \in Ballot,
+                        maxBal'[L, A] =< B,
+                        NEW M \in msgs', M.type = "1b", M.lr = L, M.acc = A, B < M.bal
+                 PROVE FALSE
+        BY <2>1 DEF Phase1b, Send, LeftBallot
+    <3>1. CASE M \in msgs
+      <4>1. maxBal[L, A] =< maxBal'[L, A] BY MaxBalMonotone
+      <4>1a. maxBal[L, A] \in Ballot BY SafeAcceptorIsAcceptor DEF TypeOK
+      <4>1b. maxBal'[L, A] \in Ballot BY SafeAcceptorIsAcceptor, <1>0 DEF TypeOK
+      <4>2. maxBal[L, A] =< B BY <4>1, <4>1a, <4>1b, BallotLeqTrans
+      <4>3. QED BY <3>1, <4>2 DEF LeftBallot
+    <3>2. CASE M \notin msgs
+      <4>1. M = [ type |-> "1b",
+                  lr |-> lrn,
+                  acc |-> acc,
+                  bal |-> bal,
+                  votes |-> { p \in votesSent[acc] : MaxVote(acc, bal, p) },
+                  proposals |-> { p \in 2avSent[acc] : p.bal < bal /\ p.lr = lrn } ]
+            BY <2>1, <3>2 DEF Phase1b, Send
+      <4>2. L = lrn /\ A = acc BY <4>1
+      <4>3. maxBal'[lrn, acc] = bal BY <2>1, <1>0, SafeAcceptorIsAcceptor DEF Phase1b, TypeOK
+      <4>4. maxBal'[L, A] = bal BY <4>3, <4>2
+      <4>5. bal =< B BY <4>4
+      <4>6. B < bal BY <4>1
+      <4>10. QED BY <4>5, <4>6, BallotLeNotLeq
+    <3>3. QED BY <3>1, <3>2
+  <2>2. CASE Phase2av(lrn, bal, acc, val) BY Isa, <2>2 DEF Phase2av, Send, LeftBallot
+  <2>3. CASE Phase2b(lrn, bal, acc, val) BY Isa, <2>3 DEF Phase2b, Send, LeftBallot
+  <2>4. QED BY <2>0, <2>1, <2>2, <2>3
+<1>3. CASE AcceptorReceiveAction BY <1>3 DEF AcceptorReceiveAction, Recv, LeftBallot
+<1>4. CASE AcceptorDisconnectAction BY <1>4 DEF AcceptorDisconnectAction, Disconnect, LeftBallot
+<1>5. CASE LearnerAction BY <1>5 DEF LearnerAction, LearnerDecide, LearnerRecv, LeftBallot
+<1>6. CASE FakeAcceptorAction
+      BY <1>6, SafeAcceptorAssumption DEF FakeAcceptorAction, FakeSend, Send, LeftBallot
 <1>7. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6 DEF Next
 
 LEMMA 2avSentMonotone == TypeOK /\ Next => \A A \in SafeAcceptor : 2avSent[A] \subseteq 2avSent'[A]
