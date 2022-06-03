@@ -533,9 +533,10 @@ PROOF
     PROVE VotedFor(vote.lr, A, vote.bal, vote.val)'
     BY DEF VotesSentSpec1
 <1> USE DEF VotesSentSpec1
-<1>1. CASE ProposerAction BY <1>1, SafeAcceptorIsAcceptor DEF ProposerAction, Phase1a, Phase1c, Send, VotedFor
+<1>1. CASE ProposerAction
+      BY <1>1, SafeAcceptorIsAcceptor DEF ProposerAction, Phase1a, Phase1c, Send, VotedFor
 <1>2. CASE AcceptorSendAction
-  <2>. SUFFICES ASSUME NEW lrn \in Learner,
+  <2>0. SUFFICES ASSUME NEW lrn \in Learner,
                        NEW bal \in Ballot,
                        NEW acc \in SafeAcceptor,
                        NEW val \in Value,
@@ -545,7 +546,9 @@ PROOF
                 PROVE  VotedFor(vote.lr, A, vote.bal, vote.val)'
       BY <1>2 DEF AcceptorSendAction
   <2>1. CASE Phase1b(lrn, bal, acc) BY <2>1 DEF Phase1b, Send, VotedFor
-  <2>2. CASE Phase2av(lrn, bal, acc, val) BY <2>2 DEF Phase2av, Send, VotedFor
+  <2>2. CASE Phase2av(lrn, bal, acc, val)
+    <3>1. vote \in votesSent[A] BY <2>2 DEF Phase2av
+    <3>2. QED BY Isa, <3>1, <2>2 DEF Phase2av, Send, VotedFor
   <2>3. CASE Phase2b(lrn, bal, acc, val)
     <3> SUFFICES ASSUME Send([type |-> "2b", lr |-> lrn, acc |-> acc, bal |-> bal, val |-> val]),
                         votesSent' = [votesSent EXCEPT ![acc] =
@@ -563,7 +566,7 @@ PROOF
       <4>4. QED BY <4>2, <4>3
     <3>3. CASE acc # A BY <3>3 DEF Send, VotedFor
     <3>4 QED BY <3>2, <3>3
-  <2>5. QED BY <2>1, <2>2, <2>3
+  <2>5. QED BY <2>0, <2>1, <2>2, <2>3
 <1>3. CASE AcceptorReceiveAction BY <1>3 DEF AcceptorReceiveAction, Recv, VotedFor
 <1>4. CASE AcceptorDisconnectAction BY <1>4 DEF AcceptorDisconnectAction, Disconnect, VotedFor
 <1>5. CASE LearnerAction BY <1>5 DEF LearnerAction, LearnerRecv, LearnerDecide, VotedFor
