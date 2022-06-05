@@ -953,7 +953,7 @@ PROOF
 <1>0. TypeOK' BY TypeOKInvariant
 <1>1. CASE ProposerAction BY <1>1 DEF ProposerAction, Phase1a, Phase1c, Send, Proposed
 <1>2. CASE AcceptorSendAction
-  <2> SUFFICES ASSUME NEW lrn \in Learner,
+  <2>0. SUFFICES ASSUME NEW lrn \in Learner,
                       NEW bal \in Ballot,
                       NEW acc \in SafeAcceptor,
                       NEW val \in Value,
@@ -981,7 +981,7 @@ PROOF
           BY DEF Proposed
     <3>3. m \in msgs BY <2>3, <3>2 DEF Phase2b, Send
     <3>4. QED BY <3>2, <3>3 DEF Proposed
-  <2>5. QED BY <2>1, <2>2, <2>3
+  <2>5. QED BY <2>0, <2>1, <2>2, <2>3
 <1>3. CASE AcceptorReceiveAction BY <1>3 DEF AcceptorReceiveAction, Recv, Proposed
 <1>4. CASE AcceptorDisconnectAction BY <1>4 DEF AcceptorDisconnectAction, Disconnect, Proposed
 <1>5. CASE LearnerAction BY <1>5 DEF LearnerAction, LearnerRecv, LearnerDecide, Proposed
