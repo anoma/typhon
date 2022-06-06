@@ -1306,7 +1306,8 @@ PROOF
     <3>4. QED BY <3>1, <3>2, <3>3
   <2>4. CASE AcceptorReceiveAction BY <1>1b, <2>4 DEF AcceptorReceiveAction, Recv, MsgInv1b, MaxVote
   <2>5. CASE AcceptorDisconnectAction
-        BY <2>5, <1>1b DEF AcceptorDisconnectAction, Disconnect, MaxVote, MsgInv1b
+    <3>0. m \in msgs BY <1>1b, <2>5 DEF AcceptorDisconnectAction, Disconnect, MaxVote
+    <3>1. QED BY <3>0, <1>1b, <2>5 DEF AcceptorDisconnectAction, Disconnect, MaxVote, MsgInv1b
   <2>6. CASE LearnerAction BY <1>1b, <2>6 DEF LearnerAction, LearnerRecv, LearnerDecide, MsgInv1b, MaxVote
   <2>7. CASE FakeAcceptorAction
     <3>0. m \in msgs BY <1>1b, <2>7, SafeAcceptorAssumption DEF FakeAcceptorAction, FakeSend, Send
