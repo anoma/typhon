@@ -1640,7 +1640,7 @@ PROOF
 CannotDecide(Q, L, B, V) ==
     \E A \in SafeAcceptor :
         /\ A \in Q
-        /\ \E L0 \in Learner : LeftBallot(L0, A, B) \* TODO: check if used
+        /\ \E L0 \in Learner : LeftBallot(L0, A, B)
         /\ ~VotedFor(L, A, B, V)
 
 HeterogeneousSpec ==
@@ -1657,6 +1657,12 @@ HeterogeneousSpec ==
         /\ V1 # V2
         =>
         CannotDecide(Q, L1, B1, V1)
+
+LEMMA CannotDecideSend ==
+    \A m \in Message : m.type # "2b" /\ Send(m) =>
+    \A Q \in ByzQuorum : \A L \in Learner : \A B \in Ballot : \A V \in Value :
+        CannotDecide(Q, L, B, V) => CannotDecide(Q, L, B, V)'
+PROOF BY DEF CannotDecide, LeftBallot, VotedFor, Send
 
 LEMMA HeterogeneousSpecInvariant ==
     TypeOK /\ Next /\ ReceivedSpec /\
