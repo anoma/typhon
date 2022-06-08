@@ -1665,13 +1665,14 @@ LEMMA CannotDecideSend ==
 PROOF BY DEF CannotDecide, LeftBallot, VotedFor, Send
 
 LEMMA HeterogeneousSpecInvariant ==
-    TypeOK /\ Next /\ ReceivedSpec /\
+    TypeOK /\ Next /\ ReceivedSpec /\ MaxBalSpec /\
     2avSentSpec1 /\
     VotesSentSpec2 /\ VotesSentSpec3 /\ VotesSentSpec4 /\
     ConnectedSpec /\ MsgInv /\
     HeterogeneousSpec => HeterogeneousSpec'
 PROOF
-<1> SUFFICES ASSUME TypeOK, Next, ReceivedSpec, 2avSentSpec1, VotesSentSpec2, VotesSentSpec3, VotesSentSpec4,
+<1> SUFFICES ASSUME TypeOK, Next, ReceivedSpec, MaxBalSpec,
+                    2avSentSpec1, VotesSentSpec2, VotesSentSpec3, VotesSentSpec4,
                     ConnectedSpec, MsgInv, HeterogeneousSpec,
                     NEW L1 \in Learner, NEW L2 \in Learner,
                     NEW B1 \in Ballot, NEW B2 \in Ballot,
@@ -1690,9 +1691,11 @@ PROOF
 <1>0a. TypeOK OBVIOUS
 <1>0b. TypeOK' BY TypeOKInvariant
 <1>0c. m \in Message BY <1>0b DEF TypeOK
-<1>1. CASE ProposerAction BY <1>1 DEF ProposerAction, Phase1a, Phase1c, Next, Send, HeterogeneousSpec
+<1>1. CASE ProposerAction
+      BY <1>1 DEF ProposerAction, Phase1a, Phase1c, Next, Send,
+                  HeterogeneousSpec, CannotDecide, LeftBallot, VotedFor
 <1>2. CASE AcceptorSendAction
-  <2> SUFFICES ASSUME NEW lrn \in Learner,
+  <2>0. SUFFICES ASSUME NEW lrn \in Learner,
                       NEW bal \in Ballot,
                       NEW acc \in SafeAcceptor,
                       NEW val \in Value,
@@ -1703,14 +1706,18 @@ PROOF
       BY <1>2 DEF AcceptorSendAction
   <2>1. CASE Phase1b(lrn, bal, acc)
     <3>1. m \in msgs BY <2>1, <1>0b DEF Phase1b, Send, TypeOK, Message
-    <3>2. QED BY <3>1 DEF HeterogeneousSpec
+    <3>2. CannotDecide(Q1, L1, B1, V1) BY <3>1 DEF HeterogeneousSpec
+    <3>3. QED BY <3>2, <2>1 DEF CannotDecide, LeftBallot, VotedFor, Phase1b, Send
   <2>2. CASE Phase2av(lrn, bal, acc, val)
-    <3>0. msgs \subseteq msgs' BY <2>2 DEF Phase2av, Send
-    <3>1. CASE m \in msgs BY <3>1 DEF HeterogeneousSpec
+    <3>0. DEFINE m0 == [type |-> "2av", lr |-> lrn, acc |-> acc, bal |-> bal, val |-> val]
+    <3>0a. m0 \in Message BY SafeAcceptorIsAcceptor DEF Message
+    <3>1. CASE m \in msgs
+      <4>2. CannotDecide(Q1, L1, B1, V1) BY <3>1 DEF HeterogeneousSpec
+      <4>3. QED BY CannotDecideSend, <4>2, <2>2, <3>0a DEF Phase2av, Message
     <3>2. CASE m \notin msgs
-      <4>0. m = [type |-> "2av", lr |-> lrn, acc |-> acc, bal |-> bal, val |-> val]
-             BY <3>2, <2>2 DEF Phase2av, Send
+      <4>0. m = m0 BY <3>2, <2>2 DEF Phase2av, Send
       <4>0a. lrn = L2 /\ acc = A2 /\ bal = B2 /\ val = V2 BY <4>0
+      <4>0b. msgs' = msgs \cup {m} BY <3>2, <2>2 DEF Phase2av, Send
       <4>1. maxBal[L2, A2] =< B2 BY <2>2, <4>0a DEF Phase2av
       <4>2. KnowsSafeAt(L2, A2, B2, V2) BY <2>2, <4>0a DEF Phase2av
       <4>3a. CASE KnowsSafeAt1(L2, A2, B2)
@@ -1744,10 +1751,10 @@ PROOF
                     B2 =< p.bal
               BY <5>3, SafeAcceptorIsAcceptor DEF TypeOK, ReceivedSpec
         <5>5. WITNESS S \in SafeAcceptor
-        <5>6. \E L \in Learner : LeftBallot(L, S, B1)' BY <5>4, <3>0 DEF LeftBallot
+        <5>6. \E L \in Learner : LeftBallot(L, S, B1)' BY <5>4, MsgsMonotone DEF LeftBallot
         <5>7. ~VotedFor(L1, S, B1, V1)'
           <6>1. SUFFICES ASSUME VotedFor(L1, S, B1, V1)' PROVE FALSE OBVIOUS
-          <6>1a. VotedFor(L1, S, B1, V1) BY <6>1, <3>2, <2>2 DEF VotedFor, Phase2av, Send
+          <6>1a. VotedFor(L1, S, B1, V1) BY <4>0b, <6>1 DEF VotedFor
           <6>2. [lr |-> L1, bal |-> B1, val |-> V1] \in votesSent[S] BY <6>1a DEF VotesSentSpec2
           <6>3. m1b.votes = { p \in votesSent[S] : MaxVote(S, B2, p) } BY <5>4 DEF MsgInv1b
           <6>4. PICK P \in votesSent[S] : MaxVote(S, B2, P) /\ P.lr = L1 /\ B1 =< P.bal
@@ -1857,27 +1864,49 @@ PROOF
                     /\ m2av.bal = c
                     /\ m2av.val = V2
                  BY <6>10 DEF Proposed
-          <6>12. SUFFICES CannotDecide(Q1, L1, B1, V1) BY DEF CannotDecide
+          <6>12. SUFFICES CannotDecide(Q1, L1, B1, V1) BY <4>0b DEF CannotDecide, LeftBallot, VotedFor
           <6>15. QED BY <6>11, <6>6 DEF HeterogeneousSpec
         <5>8. QED BY <5>6, <5>7
       <4>4. QED BY <4>3a, <4>3b, <4>2 DEF KnowsSafeAt
     <3>3. QED BY <3>1, <3>2
   <2>3. CASE Phase2b(lrn, bal, acc, val)
-    <3>1. m \in msgs BY Isa, <2>3, <1>0b, <1>0a DEF Phase2b, Send, TypeOK
-    <3>2. QED BY <3>1 DEF HeterogeneousSpec
-  <2>4. QED BY <2>1, <2>2, <2>3
-<1>3. CASE AcceptorReceiveAction BY <1>3 DEF AcceptorReceiveAction, Next, Recv, HeterogeneousSpec
-<1>4. CASE AcceptorDisconnectAction BY <1>4 DEF AcceptorDisconnectAction, Disconnect, Next, HeterogeneousSpec
+    <3>1. m \in msgs BY <2>3, <1>0b DEF Phase2b, Send, TypeOK, Message
+    <3>2. CannotDecide(Q1, L1, B1, V1) BY <3>1 DEF HeterogeneousSpec
+    <3>3. PICK A \in SafeAcceptor :
+            /\ A \in Q1
+            /\ \E L0 \in Learner : LeftBallot(L0, A, B1)
+            /\ ~VotedFor(L1, A, B1, V1)
+          BY <3>2 DEF CannotDecide
+    <3>4. USE DEF CannotDecide
+    <3>5. WITNESS A \in SafeAcceptor
+    <3>6. \E L0 \in Learner : LeftBallot(L0, A, B1)' BY <3>3, <2>3 DEF Phase2b, Send, LeftBallot
+    <3>7. SUFFICES ASSUME VotedFor(L1, A, B1, V1)' PROVE FALSE BY <3>6, <3>3
+    <3>8. PICK mvote \in msgs' :
+            /\ mvote.type = "2b"
+            /\ mvote.lr = L1
+            /\ mvote.acc = A
+            /\ mvote.bal = B1
+            /\ mvote.val = V1
+          BY <3>7, <1>0b DEF VotedFor, TypeOK
+    <3>9. mvote = [type |-> "2b", lr |-> lrn, acc |-> acc, bal |-> bal, val |-> val]
+          BY <2>3, <3>3, <3>8 DEF Phase2b, Send, VotedFor
+    <3>10. \A L \in Learner : maxBal[L, acc] =< bal BY <2>3 DEF Phase2b
+    <3>11. \A L \in Learner : ~LeftBallot(L, acc, bal) BY <3>10 DEF MaxBalSpec
+    <3>12. QED BY <3>11, <3>8, <3>9, <3>3
+  <2>4. QED BY <2>0, <2>1, <2>2, <2>3
+<1>3. CASE AcceptorReceiveAction
+      BY <1>3 DEF AcceptorReceiveAction, Next, Recv,
+                  HeterogeneousSpec, CannotDecide, LeftBallot, VotedFor
+<1>4. CASE AcceptorDisconnectAction
+      BY <1>4 DEF AcceptorDisconnectAction, Disconnect, Next,
+                  HeterogeneousSpec, CannotDecide, LeftBallot, VotedFor
 <1>5. CASE LearnerAction
-  <2> SUFFICES ASSUME NEW lrn \in Learner, NEW bal \in Ballot,
-                      \/ LearnerDecide(lrn, bal)
-                      \/ LearnerRecv(lrn)
-               PROVE CannotDecide(Q1, L1, B1, V1)'
-      BY <1>5 DEF LearnerAction
-  <2>2. CASE LearnerDecide(lrn, bal) BY <2>2 DEF LearnerDecide, Next, HeterogeneousSpec
-  <2>3. CASE LearnerRecv(lrn) BY <2>2 DEF LearnerRecv, Next, HeterogeneousSpec
-  <2>4. QED BY <2>2, <2>3
-<1>6. CASE FakeAcceptorAction BY <1>6, SafeAcceptorAssumption DEF FakeAcceptorAction, FakeSend, Send, HeterogeneousSpec
+  <2>1. UNCHANGED msgs BY <1>5 DEF LearnerAction, LearnerDecide, LearnerRecv
+  <2>4. QED BY <2>1 DEF HeterogeneousSpec, CannotDecide, LeftBallot, VotedFor
+<1>6. CASE FakeAcceptorAction
+      BY <1>6, SafeAcceptorAssumption
+            DEF FakeAcceptorAction, FakeSend, Send,
+                HeterogeneousSpec, CannotDecide, LeftBallot, VotedFor
 <1>7. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6 DEF Next
 
 LEMMA ChosenSafeCaseEq ==
