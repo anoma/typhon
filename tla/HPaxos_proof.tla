@@ -135,7 +135,7 @@ MsgInv2av(m) ==
     /\ InitializedBallot(m.lr, m.bal)
     /\ AnnouncedValue(m.lr, m.bal, m.val)
     /\ KnowsSafeAt(m.lr, m.acc, m.bal, m.val)
-    /\ [lr |-> m.lr, bal |-> m.bal, val |-> m.val] \in 2avSent[m.acc] \* TODO check if used
+\*    /\ [lr |-> m.lr, bal |-> m.bal, val |-> m.val] \in 2avSent[m.acc]
     /\ \E Q \in ByzQuorum :
         /\ [lr |-> m.lr, q |-> Q] \in TrustLive
         /\ \A ba \in Q :
@@ -1519,7 +1519,16 @@ PROOF
           BY <3>0, <1>2av, AnnouncedValueInv DEF MsgInv2av
     <3>4. KnowsSafeAt(m.lr, m.acc, m.bal, m.val)'
           BY <3>0, <1>2av, KnowsSafeAtInv DEF MsgInv2av
-    <3>10. QED BY <3>0, <3>1, <3>2, <3>3, <3>4, <1>2av, ReceivedMonotone DEF MsgInv2av
+    <3>5. (\E Q_1 \in ByzQuorum :
+              /\ [lr |-> m.lr, q |-> Q_1] \in TrustLive
+              /\ \A ba \in Q_1 :
+                    \E m1b \in received[m.acc] :
+                       /\ m1b.type = "1b"
+                       /\ m1b.lr = m.lr
+                       /\ m1b.acc = ba
+                       /\ m1b.bal = m.bal)'
+          BY <3>0, <1>2av, ReceivedMonotone DEF MsgInv2av
+    <3>10. QED BY <3>2, <3>3, <3>4, <3>5 DEF MsgInv2av
   <2>8. QED BY <1>2av, <2>0b, <2>1, <2>2, <2>4, <2>5, <2>6, <2>7 DEF Next
 <1>2b. ASSUME TypeOK, Next, \A m \in msgs : m.acc \in SafeAcceptor /\ m.type = "2b" => MsgInv2b(m),
         NEW m \in msgs', m.acc \in SafeAcceptor, m.type = "2b"
