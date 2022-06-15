@@ -2,29 +2,26 @@
 EXTENDS Naturals, FiniteSets, Functions, Sequences
 
 -----------------------------------------------------------------------------
-
-(* This is the specification of the Narwhal mempool *)
-(* as described by *)
-(* George Danezis, Eleftherios Kokoris Kogias, *)
-(* Alberto Sonnino, and Alexander Spiegelman *)
-(* in their paper [https://arxiv.org/abs/2105.11827]*)
-
+(***************************************************************************)
+(* This is the specification of the Narwhal mempool as described by George *)
+(* Danezis, Eleftherios Kokoris Kogias, Alberto Sonnino, and Alexander     *)
+(* Spiegelman in their paper [https://arxiv.org/abs/2105.11827]            *)
+(***************************************************************************)
 
 -----------------------------------------------------------------------------
 
 (* BEGIN of `General Setup` *)
 
+(* ------------------------------------------------------------------------*)
+(*                           GENERAL SETUP                                 *)
+(* ------------------------------------------------------------------------*)
 
-(* -----------------------------------------------------------------------------*)
-(*			    GENERAL SETUP                                   *)
-(* -----------------------------------------------------------------------------*)
-
-
-(* For the purposes of the formal verification, *)
-(* hash functions need to be treated in a peculiar manner, *)
-(* for the simple reason that collisions are not strictly impossible. *)
-(* (After all, we are interested in qualitative properties, *)
-(* as opposed to probabilitstic ones.) *)
+(***************************************************************************)
+(* For the purposes of the formal verification, hash functions need to be  *)
+(* treated in a peculiar manner, for the simple reason that collisions are *)
+(* not strictly impossible.  (After all, we are interested in qualitative  *)
+(* properties, as opposed to probabilitstic ones.)                         *)
+(***************************************************************************)
 
 (* The set of batches. *)
 CONSTANT Batch
@@ -32,11 +29,24 @@ ASSUME Batch # {}
 
 (* This is one specifically simple way to represent hash functions *)
 
-hash == [
-	 b \in Batch
-	 |->
-	 ["hash" |-> b]
-	 ]
+\*hash == [
+\*	 b \in Batch
+\*	 |->
+\*	 ["hash" |-> b]
+\*	 ]
+
+CONSTANT Hash
+ASSUME "hash" \in Hash
+
+HashFun == [Batch -> [Hash -> Batch]]
+
+CONSTANT hash
+ASSUME hash \in HashFun
+
+ASSUME HashAssumption ==
+    \A b \in Batch : hash[b]["hash"] = b
+
+CONSTANT BatchHash
 
 --------------------------------------------------------------------------------
 
@@ -44,7 +54,7 @@ hash == [
 (* That is, besides a partially synchronous network, we have *)
 (* - a total number of validators of the form N >= 3f+1 where *)
 (* - at most f validators are erroneous *)
-(* Moreoer,
+(* Moreover, *)
 (* - a _quorum_ is any set that contains more than 2/3-rds of all nodes *)
 (* - a _weak quorum_ is a set of nodes s.t. it intersection with any quorum is non-empty *)
 
@@ -112,7 +122,7 @@ Primary == Validator
 (* but with batches instead of transactions *)
 
 (* Note: On signatures *)
-(* The effect of signatures will have to be modelled by *
+(* The effect of signatures will have to be modelled by *)
 (* a set of constraints on the messages that Byzantine nodes can send *)
 (* E.g., all messages will have a sender *)
 
@@ -125,9 +135,9 @@ CONSTANT BlockDigest
 (* signing its _block digest_, _round number_, and _creator’s identity_." *)
 (* (In most cases, the signature will not be the creator, but could be.) *)
 Ack == [digest : BlockDigest,
-	creator : Validator,
-	rnd : Nat,
-	sig : Validator]
+        creator : Validator,
+        rnd : Nat,
+        sig : Validator]
 
 (* "Once the creator gets 2𝑓 + 1 distinct acknowledgments for a block, *)
 (* it combines them into a certificate of block availability, that includes *)
@@ -135,13 +145,14 @@ Ack == [digest : BlockDigest,
 
 (* We first make precise what >= "2𝑓 + 1 distinct acknowledgments" are *)
 (* and we make explicit that they talk about the same block digest *)
-AckQuorum == { ax \in UNION {[Q -> Ack] : Q \in Quorum} :
-	       /\ \A v,w \in DOMAIN ax :
-	          /\ ax[v].digest = ax[w].digest 
-                  /\ ax[v].rnd = ax[w].rnd 	       
-	          /\ ax[v].creator = ax[w].creator
-	       /\ \A v \in DOMAIN ax : ax[v].sig = v
-	       }
+AckQuorum ==
+    { ax \in UNION {[Q -> Ack] : Q \in Quorum} :
+        /\ (\A v,w \in DOMAIN ax :
+            /\ ax[v].digest = ax[w].digest
+            /\ ax[v].rnd = ax[w].rnd
+            /\ ax[v].creator = ax[w].creator)
+	    /\ \A v \in DOMAIN ax : ax[v].sig = v
+	}
 (* The second conjuct "\A v \in DOMAIN ax : ax[v].sig = v" implies that *)
 (* we actually have distinct acknowledgments of the same digest *)
 
@@ -149,15 +160,16 @@ AckQuorum == { ax \in UNION {[Q -> Ack] : Q \in Quorum} :
 
 (* Now, a Certificate is just an AckQuorum with the core info copied once, *)
 (* viz. the digest, round number and the creator id *)
-Certificate == { c \in [digest : BlockDigest,
-			rnd : Nat,
-			creator : Validator,
-			aq : AckQuorum ] :
+Certificate ==
+    { c \in [digest : BlockDigest,
+	         rnd : Nat,
+			 creator : Validator,
+			 aq : AckQuorum ] :
 		 \A v \in DOMAIN aq :
-		 /\ digest = aq[v].digest 
-                 /\ rnd = aq[v].rnd 		 
-                 /\ creator = aq[v].creator 		 
-		 }		 
+            /\ digest = aq[v].digest
+            /\ rnd = aq[v].rnd
+            /\ creator = aq[v].creator
+    }
 
 (* A valid block must *)
 (* 1. contain a valid signature from its creator, *)
@@ -180,16 +192,18 @@ CertQuorum == { cq \in UNION {[Q -> Certificate] : Q\in Quorum \cup {} } :
 (* Blocks are now defined easily, *)
 (* given the above representation of sets of certificates of availability. *)
 
-Block == { b \in [ creator : Validator,
-		   rnd : Nat,
-		   bxh : Seq(BatchHash),
-		   cq  : CertQuorum,
-		   sig : Validator		   
-		   ] :
-	   /\ \/ (b.rnd = 0 /\ DOMAIN cq = {})
-	      \/ (b.rnd > 0 /\ \A Q \in DOMAIN cq : Q \in Quorum /\ cq[Q].rnd = (b.rnd - 1))
-           /\ b.creator = b.sig
-	   }	   
+Block ==
+    { b \in [ creator : Validator,
+              rnd : Nat,
+              bxh : Seq(BatchHash),
+              cq  : CertQuorum,
+              sig : Validator ] :
+       /\ \/ (b.rnd = 0 /\ DOMAIN b.cq = {})
+          \/ (b.rnd > 0 /\
+              \A Q \in DOMAIN b.cq :
+                Q \in Quorum /\ b.cq[Q].rnd = (b.rnd - 1))
+       /\ b.creator = b.sig
+    }
 
 (* For hashing blocks *)
 ASSUME Injection(Block, BlockDigest) /= {}
@@ -228,19 +242,16 @@ QueuesTypeOK == /\ batchQueues \in [Worker -> Seq(Batch)]
 (*			  Message Structure                                   *)
 (* -------------------------------------------------------------------------------- *)
 
-
 (* Following Lamport's specification of Paxos *)
 (* [https://bit.ly/3a6ydfc], *)
-(* we use a set of (broadcast) messages, that all nodes can access *)
-(* *)       
-(* There are the following types of message.
+(* we use a set of (broadcast) messages, that all nodes can access. *)
+(* There are the following types of message. *)
 (* - "newB" a new batch arriving **at** a specific worker *)
 (* - "bcB" broadcast a batch, **from** a worker (to workers of the same index) *)
 (* - "hashB" a worker sends a (received) batch to its primary for block production *)
 (* - "block" a block creator broadcasts a new block (and its batches) *)
 (* - "ack" acknowledgment of a broadcast new block *by* a Validator  *)
 (* - "cert" broadcasting a certificate from a validator  *)    
-
 
 Message == 
        [type : {"newB"}, batch : Batch, at : Worker]
@@ -261,11 +272,11 @@ Message ==
 
 \* TypeOK == msg
 
-(* -------------------------------------------------------------------------------- *)
+(* --------------------------------------------------------------------------- *)
 (*			  Actions                                    *)
 (* -------------------------------------------------------------------------------- *)
 
 
-
+================================================================================
 
 
