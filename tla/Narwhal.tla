@@ -88,7 +88,7 @@ ASSUME ValidatorAssumption ==
 
 \* LEMMA ByzValidator \notin WQuorum
 
---------------------------------------------------------------------------------
+-----------------------------------------------------------------------------
 
 (* One idea of Narwhal is explicit parallelism via a number of workers *)
 
@@ -111,13 +111,13 @@ Primary == Validator
 
 (* END of `General Setup` *)
 
---------------------------------------------------------------------------------
+-----------------------------------------------------------------------------
 
 (* BEGIN of `Data Structures` *)
 
-(* -------------------------------------------------------------------------------- *)
+(* ----------------------------------------------------------------------- *)
 (*			  Data Structures                                           *)
-(* -------------------------------------------------------------------------------- *)
+(* ----------------------------------------------------------------------- *)
 
 (* The data structures for blocks, certificates and the like are essentially *)
 (* the ones described in the Narwhal paper in *)
@@ -213,12 +213,12 @@ blockHash == CHOOSE v : v \in Injection(Block, BlockDigest)
   
 (* END of `Data Structures` *)    
 
---------------------------------------------------------------------------------
+-----------------------------------------------------------------------------
 (* BEGIN of `Local State` *)
 
-(*--------------------------------------------------------------------------------*)
+(*-------------------------------------------------------------------------*)
 (*			     Local State                                      *)
-(*--------------------------------------------------------------------------------*)
+(*-------------------------------------------------------------------------*)
 
 (* Each Validator has a local round number (initially 0) *)
 
@@ -235,25 +235,27 @@ QueuesTypeOK == /\ batchQueues \in [Worker -> Seq(Batch)]
                 /\ hashQueues \in [Primary -> Seq(BatchHash)]
     
 (* END of `Local State` *)
-  
---------------------------------------------------------------------------------
 
-
+-----------------------------------------------------------------------------
 (* BEGIN of `Message Structure` *)  
-(* -------------------------------------------------------------------------------- *)
-(*			  Message Structure                                   *)
-(* -------------------------------------------------------------------------------- *)
+(* ------------------------------------------------------------------------*)
+(*                        Message Structure                                *)
+(* ----------------------------------------------------------------------- *)
 
-(* Following Lamport's specification of Paxos *)
-(* [https://bit.ly/3a6ydfc], *)
-(* we use a set of (broadcast) messages, that all nodes can access. *)
-(* There are the following types of message. *)
-(* - "newB" a new batch arriving **at** a specific worker *)
-(* - "bcB" broadcast a batch, **from** a worker (to workers of the same index) *)
-(* - "hashB" a worker sends a (received) batch to its primary for block production *)
-(* - "block" a block creator broadcasts a new block (and its batches) *)
-(* - "ack" acknowledgment of a broadcast new block *by* a Validator  *)
-(* - "cert" broadcasting a certificate from a validator  *)    
+(***************************************************************************)
+(* Following Lamport's specification of Paxos                              *)
+(* [https://bit.ly/3a6ydfc],                                               *)
+(* we use a set of (broadcast) messages, that all nodes can access.        *)
+(* There are the following types of message.                               *)
+(* - "newB" a new batch arriving **at** a specific worker                  *)
+(* - "bcB" broadcast a batch, **from** a worker (to workers of the same    *)
+(*   index)                                                                *)
+(* - "hashB" a worker sends a (received) batch to its primary for block    *)
+(*   production                                                            *)
+(* - "block" a block creator broadcasts a new block (and its batches)      *)
+(* - "ack" acknowledgment of a broadcast new block *by* a Validator        *)
+(* - "cert" broadcasting a certificate from a validator                    *)
+(***************************************************************************)
 
 Message == 
        [type : {"newB"}, batch : Batch, at : Worker]
@@ -264,21 +266,14 @@ Message ==
   \cup [type : {"cert"}, cert : Certificate, from : Validator]
 
 (* END of `Message Structure` *)
-  
---------------------------------------------------------------------------------
-  
-
-  (*			      Variables                                         *)
+-----------------------------------------------------------------------------
+(*                             Variables                                   *)
 
 \* VARIABLES msgs
+\* TypeOK == msgs \in SUBSET Message
 
-\* TypeOK == msg
+(* ----------------------------------------------------------------------- *)
+(*                              Actions                                    *)
+(* ----------------------------------------------------------------------- *)
 
-(* --------------------------------------------------------------------------- *)
-(*			  Actions                                    *)
-(* -------------------------------------------------------------------------------- *)
-
-
-================================================================================
-
-
+=============================================================================
