@@ -48,15 +48,17 @@ ASSUME HashAssumption ==
 
 CONSTANT BatchHash
 
---------------------------------------------------------------------------------
-
-(* Narwhal makes the usual assumption about Byzantine failures. *)
-(* That is, besides a partially synchronous network, we have *)
-(* - a total number of validators of the form N >= 3f+1 where *)
-(* - at most f validators are erroneous *)
-(* Moreover, *)
-(* - a _quorum_ is any set that contains more than 2/3-rds of all nodes *)
-(* - a _weak quorum_ is a set of nodes s.t. it intersection with any quorum is non-empty *)
+-----------------------------------------------------------------------------
+(***************************************************************************)
+(* Narwhal makes the usual assumption about Byzantine failures.            *)
+(* That is, besides a partially synchronous network, we have               *)
+(* - a total number of validators of the form N >= 3f+1 where              *)
+(* - at most f validators are erroneous                                    *)
+(* Moreover,                                                               *)
+(* - a _quorum_ is any set that contains more than 2/3-rds of all nodes    *)
+(* - a _weak quorum_ is a set of nodes s.t. it intersection with any       *)
+(*   quorum is non-empty                                                   *)
+(***************************************************************************)
 
 (* In fact, we can generalize this to infinite sets of validators *)
 
