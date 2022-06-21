@@ -2310,24 +2310,28 @@ PROOF BY PTL, FullSafetyInvariantInit, FullSafetyInvariantNext DEF Spec, FullSaf
 (*                               Liveness                                  *)
 (***************************************************************************)
 
-\* TODO need an assumption on connected(?)
 THEOREM Liveness ==
     Spec =>
         \A L \in Learner : \A b \in Ballot, Q \in ByzQuorum :
+            Q \subseteq SafeAcceptor /\
             [lr |-> L, q |-> Q] \in TrustLive =>
             (
-              ( /\ \A m \in msgs :
+              (
+                /\ \A a \in Q : WF_vars(Disconnect(a))
+                /\ \A m \in msgs :
                     m.type = "1a" /\ m.lr = L => m.bal < b
                 /\ \A c \in Ballot :
                     c > b => [][~Phase1a(L, c)]_vars
                 /\ WF_vars(Phase1a(L, b))
                 /\ WF_vars(\E v \in Value : Phase1c(L, b, v))
+                /\ \A a \in Q : WF_vars(Phase1b(L, b, a))
                 /\ \A a \in Q :
                     WF_vars(\E v \in Value : Phase2av(L, b, a, v))
                 /\ \A a \in Q :
-                    /\ WF_vars(Phase1b(L, b, a))
-                    /\ \E v \in Value : WF_vars(Phase2b(L, b, a, v)) )
-                ~>
-                (\E B \in Ballot : decision[L, B] # {})
+                    \E v \in Value : WF_vars(Phase2b(L, b, a, v))
+              )
+              ~>
+              (\E B \in Ballot : decision[L, B] # {})
             )
+OMITTED
 =============================================================================
