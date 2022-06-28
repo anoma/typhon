@@ -107,4 +107,35 @@ ASSUME BQLA ==
           /\ \E Q \in ByzQuorum : Q \subseteq Validator
           /\ \E W \in WeakQuorum : W \subseteq Validator
 
+-----------------------------------------------------------------------------
+
+(***************************************************************************)
+(* One idea of Narwhal is explicit parallelism via a number of workers.    *)
+(* This set is a public parameter, typically finite.  There is no point of *)
+(* using invalid indices by bad validators as these would be ignored.      *)
+(***************************************************************************)
+
+CONSTANT WorkerIndex \* a publicy known set of indices
+
+\* A specific worker has a worker index and serves a (Byzantine) validator 
+
+Worker == WorkerIndex \X ByzValidator
+
+\* Keep workers and their indices disjoint from validators/primaries
+
+ASSUME ConvenienceA ==
+           /\ WorkerIndex \cap ByzValidator = {}
+           /\ Worker \cap ByzValidator = {}
+
+(***************************************************************************)
+(* There is a bijection between ByzValidators and Primaries.  For the sake *)
+(* of simplicity, we identify them in the specification.                   *)
+(***************************************************************************)
+
+Primary == ByzValidator \* co-extensional sets 
+
+\* END of "GENERAL SETUP"
+
+-----------------------------------------------------------------------------
+
 =============================================================================
