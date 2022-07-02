@@ -1,21 +1,26 @@
-                        ---- MODULE Doris ----
+---------------------------- MODULE Doris -----------------------------------
 (***************************************************************************)
-(* This is the TLA-specification of the Doris mempool.  The Doris mempool  *)
-(* is based on the Narwhal mempool with Tusk as consensus as described by  *)
-(* Danezis,  Kokoris Kogias, Sonnino, and                                  *)
-(*  Spiegelman in their                                                    *)
-(* `^\href{https://arxiv.org/abs/2105.11827}{paper}^'.  Further            *)
+(* Doris is a variation of the Narwhal mempool with Tusk as consensus as   *)
+(* described by Danezis, Kokoris Kogias, Sonnino, and Spiegelman in their  *)
+(* `^\href{https://arxiv.org/abs/2105.11827}{paper.}^'  Further            *)
 (* inspiration is taken from                                               *)
-(* `^\href{https://arxiv.org/abs/2102.08325}{DAG-rider}^', which in turn   *)
-(* is a precursor to Narwhal.                                              *)
+(* `^\href{https://arxiv.org/abs/2102.08325}{DAG-rider,}^' a precursor to  *)
+(* Narwhal.                                                                *)
 (*                                                                         *)
-(* We shall refer to these papers as [N&T] and [DAG-R].                    *) 
+(* We shall refer to these papers as [N&T] and [DAG-R], respectively.      *)
+(*                                                                         *)
+(* The following differences deserve mention.                              *)
+(*                                                                         *)
+(* ① In Narwhal, [c]lients send transactions to worker machines at all    *)
+(* validators.  [N&T].  This would lead possibly lead to duplicate         *)
+(* transactions in batches.  "A load balancer ensures transactions data    *)
+(* are received by all workers at a similar rate" [N&T].                   *)
 (***************************************************************************)
 
-EXTENDS Functions, Integers
+EXTENDS Functions, Integers, FiniteSets
 
-\* For the module "Functions", we rely on the
-\* `^\href{https://tinyurl.com/2ybvzsrc}{Community Module.}^'
+\* For the module "Functions", we rely on the \*
+\*`^\href{https://tinyurl.com/2ybvzsrc}{Community Module.}^'
 
 -----------------------------------------------------------------------------
 
@@ -27,24 +32,24 @@ EXTENDS Functions, Integers
 (* We make the usual assumption about Byzantine failures.  That is,        *)
 (* besides a partially synchronous network, we have                        *)
 (*                                                                         *)
-(* - a total number of validators N = 3f+1                                 *)
+(* - a total number of validators                                          *)
 (*                                                                         *)
 (* - of which less than one third exhibit Byzantine behaviour.             *)
 (*                                                                         *)
-(* In this setting,                                                        *)
+(* In the typical setting with N = 3f+1 validators,                        *)
 (*                                                                         *)
 (* - a "quorum" is any set that contains more than two thirds of all       *)
-(* nodes;                                                                  *)
+(*   nodes;                                                                *)
 (*                                                                         *)
 (* - a "weak quorum" is a set of nodes whose intersection with any quorum  *)
 (*   is non-empty.                                                         *)
 (***************************************************************************)
 
-\* Following Lamport's 
-\* `^\href{https://tinyurl.com/2dyuzs6y}{formalization of Paxos}^' and 
-\* `^\href{https://tinyurl.com/7punrbs2}{Byzantine Paxos}^',
+\* Following Lamport's formalization of 
+\* `^\href{https://tinyurl.com/2dyuzs6y}{Paxos}^' and 
+\* `^\href{https://tinyurl.com/7punrbs2}{Byzantine Paxos,}^'
 \* we consider a more general formalization that
-\* even can take care of infinite sets.
+\* even could take care of infinite sets.
 
 CONSTANTS Validator,     \* The set of non-faulty (aka good) validators.
           FakeValidator, \* The set of possibly faulty (aka bad) validators.
@@ -52,19 +57,19 @@ CONSTANTS Validator,     \* The set of non-faulty (aka good) validators.
             (***************************************************************)
             (* A Byzantine quorum is set of validators that includes a     *)
             (* quorum of good ones.  In the case that there are 2f+1 good  *)
-            (* validators and f bad ones, a Byzantine quorum is any set of *)
-            (* 2f+1 validators.                                            *)
+            (* validators and f bad ones, any set that contains at least   *)
+            (* 2f+1 validators is a Byzantine quorum.                      *)
             (***************************************************************)
           WeakQuorum
             (***************************************************************)
             (* A weak quorum is a set of validators that includes at least *)
-            (* one good one.  If there are f bad validators, then a weak   *)
-            (* quorum is any set of f+1 validators.                        *)
+            (* one good one.  If there are f bad validators, then any set  *)
+            (* that contaions f+1 validators is a weak quorum.             *)
             (***************************************************************)
 
 (***************************************************************************)
-(*  ByzValidator is the (disjoint) union of real or fake validators        *)
-(*  (See BQA below)                                                        *)
+(*  ByzValidator is the (disjoint) union of real or fake validators.       *)
+(*  (See BQA below.)                                                       *)
 (***************************************************************************)
 ByzValidator == Validator \cup FakeValidator
 
@@ -80,7 +85,7 @@ ASSUME BQA == /\ Validator \cap FakeValidator = {}
           
 
 (***************************************************************************)
-(* Based on Lamport's assumption for liveness.                             *)
+(* Based on Lamport's assumption for liveness, we assum BQLA               *)
 (***************************************************************************)
 ASSUME BQLA ==
           /\ \E Q \in ByzQuorum : Q \subseteq Validator
@@ -90,8 +95,11 @@ ASSUME BQLA ==
 
 (***************************************************************************)
 (* One idea of Narwhal is explicit parallelism via a number of workers.    *)
-(* This set is a public parameter, typically finite.  There is no point of *)
-(* using invalid indices by bad validators as these would be ignored.      *)
+(* Each worker of a correct validator will have a "mirror" worker at every *)
+(* other validator.  We use a public parameter, typically finite, which    *)
+(* serves to index workers such that mirror workers share the same index.  *)
+(* There is no point of using invalid indices by bad validators as these   *)
+(* would be ignored.                                                       *)
 (***************************************************************************)
 
 CONSTANT WorkerIndex \* a publicy known set of indices
@@ -111,9 +119,10 @@ ASSUME WorkerIds ==
 (* of simplicity, we identify them in the specification.                   *)
 (***************************************************************************)
 
-Primary == ByzValidator \* co-extensional sets 
+Primary == ByzValidator \* no need to distinguish in the TLA-spec
 
-\* END of "GENERAL SETUP"
+
+\* end of "GENERAL SETUP"
 
 -----------------------------------------------------------------------------
 
@@ -160,8 +169,10 @@ hash == [
 
 BatchHash == Range(hash)
 
-\* The following is a definition of a set of several BatchHashes
-SomeHashes == BatchHash
+\* "SomeHashes" is an arbitrary finite set of batch-hashes
+SomeHashes == { X \in SUBSET BatchHash : IsFiniteSet(X) }
+
+
 
 \* Concerning  block digests, we again imitate hashing.
 \* The structure of blocks then later is restricted,
@@ -209,19 +220,21 @@ Ack == [digest : BlockDigest, \* the digest of the acknowledged block
 (* and make explicit that they talk about the same block digest.           *)
 (***************************************************************************)
 
-AckBunch == UNION {[Q -> Ack] : Q \in ByzQuorum} \* a "bunch" of acks
+\* the "Type" of acks
+AckType == UNION {[Q -> Ack] : Q \in ByzQuorum} 
 
 AckByzQuorum ==
-    { ax \in AckBunch : /\ (\A v,w \in DOMAIN ax :               
+    { ax \in AckType : /\ (\A v,w \in DOMAIN ax :               
                             /\ ax[v].digest = ax[w].digest       
                             /\ ax[v].rnd = ax[w].rnd             
                             /\ ax[v].creator = ax[w].creator)    
-                            /\ \A v \in DOMAIN ax : ax[v].sig = v
+                        /\ \A v \in DOMAIN ax : ax[v].sig = v
     }
 
-\* The last conjuct "\A v \in DOMAIN ax : ax[v].sig = v" implies that 
-\* we actually have distinct acknowledgments of the same digest,
-\* making ax an injection
+\* The second conjunct, 
+\* i.e., "\A v \in DOMAIN ax : ax[v].sig = v",
+\* implies that we actually have distinct acknowledgments of the same digest,
+\* thus making ax an injection. 
 
 
 \* LEMMA \A ax \in AckByzQuorum : IsInjective(ax) \* TODO
@@ -234,6 +247,7 @@ AckByzQuorum ==
 (***************************************************************************)
 
 Certificate == AckByzQuorum
+\* CoA == Certificate
 
 getDigest(abq) == abq[CHOOSE v \in DOMAIN abq : TRUE].digest
 getRnd(abq) == abq[CHOOSE v \in DOMAIN abq : TRUE].rnd
@@ -258,35 +272,90 @@ getCreator(abq) == abq[CHOOSE v \in DOMAIN abq : TRUE].creator
 (* independently                                                           *)
 (***************************************************************************)
 
-EmptySet == {}
-CertBuch == UNION {[Q -> Certificate] : Q \in ByzQuorum \cup {EmptySet}}
+\* The "type" of a Certificate of Availability (cf. AckType)
+CertType == UNION {[Q -> Certificate] : Q \in ByzQuorum} 
 
 CertQuorum ==
-    { cq \in CertBuch : \A v,w \in DOMAIN cq :
+    { cq \in CertType : \A v,w \in DOMAIN cq :
           /\ cq[v].rnd = cq[w].rnd                   
           /\ (v /= w => cq[v].digest /= cq[w].digest)
-    }
+    } 
 
 WeakLinks == UNION {[Q -> Certificate] : Q \in SUBSET ByzValidator }
 
-
+noCert == CHOOSE i \in [{} -> Certificate] : TRUE
 
 BlockStructure ==
     { b \in [ creator : ByzValidator, \* the block proposer
               rnd :     Nat, \* the round of the block proposal
-              bxh :     SomeHashes, \* the batch hashes of the block
-              cq :      CertQuorum, \* a CoA-quorum
+              bhxs :    SomeHashes, \* the batch hashes of the block
+              cq :      CertQuorum \cup {noCert}, \* a CoA-quorum 
               wl :      WeakLinks, \* possibly weak links             
-              sig :     ByzValidator \* criators signature
+              sig :     ByzValidator \* creator signature
             ] :
       /\ b.creator = b.sig \* on redundancy: cf. note on signatures
       /\ \A l \in DOMAIN b.wl : getRnd(b.wl[l]) < b.rnd-1 \* weak (!) links 
       /\ \/ /\ b.rnd = 0 \* either round zero and
-            /\ DOMAIN b.cq = EmptySet \* empty domain allowed
+            /\ b.cq = noCert \* empty domain allowed
          \/ /\ b.rnd > 0 \* or round non-zero and
-            /\ DOMAIN b.cq \in ByzQuorum \* a proper domain
-            /\ \A Q \in DOMAIN b.cq : b.cq[Q].rnd = (b.rnd - 1)
+            /\ b.cq # noCert \* a proper certificate
+            /\ \A Q \in DOMAIN b.cq : getRnd(b.cq[Q]) = (b.rnd - 1)
     }
 
 ASSUMPTION BSA == (Block = BlockStructure)
+
+\* end of "DATA STRUCTURES" 
+-----------------------------------------------------------------------------
+
+(* ------------------------------------------------------------------------*)
+(*                        MESSAGE STRUCTURE                                *)
+(* ----------------------------------------------------------------------- *)
+
+
+(***************************************************************************)
+(* Following                                                               *)
+(*  `^\href{https://bit.ly/3a6ydfc}{Lamport's specification of Paxos,}^'   *)
+(* we keep all (broadcast) messages in a single set.  There are the        *)
+(* following types of message.                                             *)
+(*                                                                         *)
+(* - "batch" broadcast a batch, **from** a worker (to workers of the same  *)
+(*   index)                                                                *)
+(*                                                                         *)
+(* - "block" a block creator broadcasts a new block                        *)
+(*                                                                         *)
+(* - "ack" acknowledgment *by* a Validator, storing a received block       *)
+(*                                                                         *)
+(* - "cert" broadcasting a certificate from a validator                    *)
+(*                                                                         *)
+(* We call a "mirror worker" a worker of the same index at a different     *)
+(* validator.  We assume that clients take care of resubmission of         *)
+(* orphaned transactions.  We assume that clients send a transaction/batch *)
+(* only to one validator at a time, and only if the transaction gets       *)
+(* orphaned, resubmission is expected.  This assumes that the probability  *)
+(* of orphaned transactions is extremely low.  Correct validators only     *)
+(* make blocks with batches arriving there in the first place (and not     *)
+(* broadcast by workers).                                                  *)
+(*                                                                         *)
+(* We abstract away all worker-primary communication "inside" validators.  *)
+(* Validators should actually use remote direct memory access.  Further    *)
+(* refinement could be applied if a message passing architecture was       *)
+(* desired.                                                                *)
+(***************************************************************************)
+
+
+\* All messages that can be send between workers/primaries/validators
+Message ==
+    \* broadcast a fresh "batch" from a "worker" (to mirror workes)
+    [type : {"batch"}, batch : Batch, from : Worker]
+    \cup
+    \* creator produces a block and broadcasts it 
+    [type : {"block"}, block: Block, creator : Validator]
+    \cup
+    \* commmitment "by" a validator to have stored a block 
+    [type : {"ack"}, ack : Ack, by : Validator]
+    \cup
+    \* creator aggregates acks into a cert and broadcasts it
+    [type : {"cert"}, cert : Certificate, creator : Validator]
+
+
 =============================================================================
