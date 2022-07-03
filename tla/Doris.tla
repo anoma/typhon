@@ -1,20 +1,23 @@
 ---------------------------- MODULE Doris -----------------------------------
 (***************************************************************************)
-(* Doris is a variation of the Narwhal mempool with Tusk as consensus as   *)
-(* described by Danezis, Kokoris Kogias, Sonnino, and Spiegelman in their  *)
-(* `^\href{https://arxiv.org/abs/2105.11827}{paper.}^'  Further            *)
-(* inspiration is taken from                                               *)
-(* `^\href{https://arxiv.org/abs/2102.08325}{DAG-rider,}^' a precursor to  *)
-(* Narwhal.                                                                *)
+(* Doris is DAG mempool that is similar to the Narwhal mempool with Tusk   *)
+(* as consensus.  The latter was proposed by Danezis, Kokoris Kogias,      *)
+(* Sonnino, and Spiegelman in their                                        *)
+(* `^\href{https://arxiv.org/abs/2105.11827}{paper.}^' Further inspiration *)
+(* is taken from `^\href{https://arxiv.org/abs/2102.08325}{DAG-rider,}^' a *)
+(* precursor to Narwhal.                                                   *)
 (*                                                                         *)
 (* We shall refer to these papers as [N&T] and [DAG-R], respectively.      *)
 (*                                                                         *)
 (* The following differences deserve mention.                              *)
 (*                                                                         *)
-(* ① In Narwhal, [c]lients send transactions to worker machines at all    *)
+(* ① In Narwhal, [c]lients send transactions to worker machines at all     *)
 (* validators.  [N&T].  This would lead possibly lead to duplicate         *)
 (* transactions in batches.  "A load balancer ensures transactions data    *)
 (* are received by all workers at a similar rate" [N&T].                   *)
+(*                                                                         *)
+(* Finally, we define *hashes* of batches and *digests* of blocks; in this *)
+(* way, we get a short term for each of these two entities.                *)
 (***************************************************************************)
 
 EXTENDS Functions, Integers, FiniteSets
@@ -71,7 +74,7 @@ CONSTANTS Validator,     \* The set of non-faulty (aka good) validators.
 (*  ByzValidator is the (disjoint) union of real or fake validators.       *)
 (*  (See BQA below.)                                                       *)
 (***************************************************************************)
-ByzValidator == Validator \cup FakeValidator
+ByzValidator == Validator \cup FakeValidator 
 
 (***************************************************************************)
 (* The following are the assumptions about validators and quorums as used  *)
@@ -357,5 +360,64 @@ Message ==
     \* creator aggregates acks into a cert and broadcasts it
     [type : {"cert"}, cert : Certificate, creator : Validator]
 
+\* end of "MESSAGE STRUCTURE"
+
+-----------------------------------------------------------------------------
+
+(*-------------------------------------------------------------------------*)
+(*                           LOCAL STATE                                   *)
+(*-------------------------------------------------------------------------*)
+
+(***************************************************************************)
+(* The local state of validators and workers at validators is              *)
+(*                                                                         *)
+(* - a local round number (corresponding a layer of DAG mempool);          *)
+(*                                                                         *)
+(* - a worker specific pool of received client batches;                    *)
+(*                                                                         *)
+(* - a local storage for (hashes of) batches;                              *)
+(*                                                                         *)
+(* - a local storage for blocks.                                           *)
+(***************************************************************************)
+
+
+\* Each ByzValidator has a local round number (initially 0) 
+VARIABLE RoundOf
+
+\* The rough type for RoundOf
+RoundOfTypeOK == RoundOf \in [ByzValidator -> Nat]
+
+\* "assert" INIT => \A v \in ByzValidator : RoundOf[v] = 0
+RoundOfINIT ==      \A v \in ByzValidator : RoundOf[v] = 0
+
+
+\* Each Worker has a local pool of unprocessed batches (initially {})
+VARIABLE BatchPool
+
+\* The rough type for BatchPool
+BatchPoolTypeOK == BatchPool \in [Worker -> SUBSET Batch]
+
+\* "assert" INIT => \A w \in Worker : BatchPool[w] = {}
+BatchPoolINIT == \A w \in Worker : BatchPool[w] = {}
+
+\* Each ByzValidator has storage for batch hashes (initially {})
+VARIABLE StoredHashes
+
+\* The rough type of StoredHashes
+StoredHashesTypeOK == StoredHashes \in [ByzValidator -> SUBSET BatchHash]
+
+\* "assert" INIT => \A v \in ByzValidator : StoredHashes[v] = {}
+StoredHashesINIT == \A v \in ByzValidator : StoredHashes[v] = {}
+
+\* Each ByzValidator has storage for blocks (initially {}) 
+VARIABLE StoredBlocks
+\* The rough type of StoredBlocks
+StoredBlocksTypeOK == StoredBlocks \in [ByzValidator -> SUBSET Block]
+
+\* "assert" INIT => \A v \in ByzValidator : StoredBlocks[v] = {}
+StoredBlocksINIT == \A v \in ByzValidator : StoredBlocks[v] = {}
+
+\* end of "LOCAL STATE"
 
 =============================================================================
+
