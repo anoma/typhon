@@ -326,9 +326,11 @@ ASSUMPTION BSA == (Block = BlockStructure)
 (* - "batch" broadcast a batch, **from** a worker (to workers of the same  *)
 (*   index)                                                                *)
 (*                                                                         *)
+(* - "batch-ack" acknowledge a batch (by a worker)                         *)
+(*                                                                         *)
 (* - "block" a block creator broadcasts a new block                        *)
 (*                                                                         *)
-(* - "ack" acknowledgment *by* a Validator, storing a received block       *)
+(* - "block-ack" acknowledgment *by* a Validator, storing a received block *)
 (*                                                                         *)
 (* - "cert" broadcasting a certificate from a validator                    *)
 (*                                                                         *)
@@ -353,11 +355,14 @@ Message ==
     \* broadcast a fresh "batch" from a "worker" (to mirror workes)
     [type : {"batch"}, batch : Batch, from : Worker]
     \cup
+    \* acknowledge a received "batch" (of mirror workes)
+    [type : {"batch-ack"}, hx : BatchHash, sig : Worker]
+    \cup
     \* creator produces a block and broadcasts it 
     [type : {"block"}, block: Block, creator : Validator]
     \cup
     \* commmitment "by" a validator to have stored a block 
-    [type : {"ack"}, ack : Ack, by : Validator]
+    [type : {"block-ack"}, ack : Ack, by : Validator]
     \cup
     \* creator aggregates acks into a cert and broadcasts it
     [type : {"cert"}, cert : Certificate, creator : Validator]
