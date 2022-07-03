@@ -151,6 +151,8 @@ Primary == ByzValidator \* no need to distinguish in the TLA-spec
 \* The set of batches
 CONSTANT Batch
 
+noBatch == CHOOSE x : x \notin Batch
+
 \* Assume there are some batches (for the purpose of liveness)
 ASSUME Batch # {}
 
@@ -371,13 +373,15 @@ Message ==
 (***************************************************************************)
 (* The local state of validators and workers at validators is              *)
 (*                                                                         *)
-(* - a local round number (corresponding a layer of DAG mempool);          *)
+(* 1. a local round number (corresponding a layer of DAG mempool);          *)
 (*                                                                         *)
-(* - a worker specific pool of received client batches;                    *)
+(* 2. a worker specific pool of received client batches;                    *)
 (*                                                                         *)
-(* - a local storage for (hashes of) batches;                              *)
+(* 3. a pool of batch hashes to be included in the next block;              *)
 (*                                                                         *)
-(* - a local storage for blocks.                                           *)
+(* 4. a local storage for (hashes of) batches;                              *)
+(*                                                                         *)
+(* 5. a local storage for blocks.                                           *)
 (***************************************************************************)
 
 
@@ -400,6 +404,18 @@ BatchPoolTypeOK == BatchPool \in [Worker -> SUBSET Batch]
 \* "assert" INIT => \A w \in Worker : BatchPool[w] = {}
 BatchPoolINIT == \A w \in Worker : BatchPool[w] = {}
 
+
+
+\* Primaries have pools of hashes for the next block (initially {}) 
+VARIABLE NextHashes
+
+\* The rough type of NextHashes
+NextHashesTypeOK == NextHashes \in [Primary -> SomeHashes]
+
+\* "assert" INIT => \A p \in Primary : NextHashes[p] = {}
+NextHashesINIT == \A p \in Primary : NextHashes[p] = {}
+
+
 \* Each ByzValidator has storage for batch hashes (initially {})
 VARIABLE StoredHashes
 
@@ -409,6 +425,7 @@ StoredHashesTypeOK == StoredHashes \in [ByzValidator -> SUBSET BatchHash]
 \* "assert" INIT => \A v \in ByzValidator : StoredHashes[v] = {}
 StoredHashesINIT == \A v \in ByzValidator : StoredHashes[v] = {}
 
+
 \* Each ByzValidator has storage for blocks (initially {}) 
 VARIABLE StoredBlocks
 \* The rough type of StoredBlocks
@@ -417,7 +434,13 @@ StoredBlocksTypeOK == StoredBlocks \in [ByzValidator -> SUBSET Block]
 \* "assert" INIT => \A v \in ByzValidator : StoredBlocks[v] = {}
 StoredBlocksINIT == \A v \in ByzValidator : StoredBlocks[v] = {}
 
+\* The combined INIT-predicate
+LocalStateINIT ==
+  /\ RoundOfINIT \* 1.
+  /\ BatchPoolINIT \* 2. 
+  /\ NextHashesINIT \* 3. 
+  /\ StoredHashesINIT \* 4. 
+  /\ StoredBlocksINIT  \* 5. 
 \* end of "LOCAL STATE"
 
 =============================================================================
-
