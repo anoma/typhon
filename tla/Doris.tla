@@ -109,7 +109,7 @@ CONSTANT WorkerIndex \* a publicy known set of indices
 
 \* A specific worker has a worker index and serves a (Byzantine) validator 
 
-Worker == WorkerIndex \X ByzValidator
+Worker == [index : WorkerIndex, val : ByzValidator] 
 
 \* Keep workers and their indices disjoint from validators/primaries
 
@@ -174,8 +174,8 @@ hash == [
 
 BatchHash == Range(hash)
 
-\* "SomeHashes" is an arbitrary finite set of batch-hashes
-SomeHashes == { X \in SUBSET BatchHash : IsFiniteSet(X) }
+\* "SomeHx" is an arbitrary finite set of batch-hashes
+SomeHx == { X \in SUBSET BatchHash : IsFiniteSet(X) }
 
 
 
@@ -226,14 +226,15 @@ Ack == [digest : BlockDigest, \* the digest of the acknowledged block
 (***************************************************************************)
 
 \* the "Type" of acks
-AckType == UNION {[Q -> Ack] : Q \in ByzQuorum} 
+AckQuorumType == UNION {[Q -> Ack] : Q \in ByzQuorum} 
 
-AckByzQuorum ==
-    { ax \in AckType : /\ (\A v,w \in DOMAIN ax :               
-                            /\ ax[v].digest = ax[w].digest       
-                            /\ ax[v].rnd = ax[w].rnd             
-                            /\ ax[v].creator = ax[w].creator)    
-                        /\ \A v \in DOMAIN ax : ax[v].sig = v
+AckQuorum ==
+    { ax \in AckQuorumType :     
+             /\ \A v,w \in DOMAIN ax :                                          
+                /\ ax[v].digest = ax[w].digest                       
+                /\ ax[v].rnd = ax[w].rnd                             
+                /\ ax[v].creator = ax[w].creator                 
+             /\ \A v \in DOMAIN ax : ax[v].sig = v
     }
 
 \* The second conjunct, 
@@ -242,16 +243,16 @@ AckByzQuorum ==
 \* thus making ax an injection. 
 
 
-\* LEMMA \A ax \in AckByzQuorum : IsInjective(ax) \* TODO
+\* LEMMA \A ax \in AckQuorum : IsInjective(ax) \* NTH
 
 (***************************************************************************)
-(* An AckByzQuorum is essentially a Certificate of availability.  We thus  *)
+(* An AckQuorum is essentially a Certificate of availability.  We thus  *)
 (* define an alias and provide commodity functions for reading the fields  *)
 (* of the contained acknowledgments, which must all agree on the digest,   *)
 (* round, and creator.                                                      *)
 (***************************************************************************)
 
-Certificate == AckByzQuorum
+Certificate == AckQuorum
 \* CoA == Certificate
 
 getDigest(abq) == abq[CHOOSE v \in DOMAIN abq : TRUE].digest
@@ -277,29 +278,35 @@ getCreator(abq) == abq[CHOOSE v \in DOMAIN abq : TRUE].creator
 (* independently                                                           *)
 (***************************************************************************)
 
-\* The "type" of a Certificate of Availability (cf. AckType)
-CertType == UNION {[Q -> Certificate] : Q \in ByzQuorum} 
+\* The "type" of a quorums of certificates of availability
+CertQuorumType == UNION {[Q -> Certificate] : Q \in ByzQuorum} 
 
+\* recall, a certificate's c values c[v] are of type Q -> Ack and
+\* have getter methods getXYZ(c[v]) -- not c.XYZ
 CertQuorum ==
-    { cq \in CertType : \A v,w \in DOMAIN cq :
-          /\ cq[v].rnd = cq[w].rnd                   
-          /\ (v /= w => cq[v].digest /= cq[w].digest)
+    { cq \in CertQuorumType : \A v,w \in DOMAIN cq :
+          \* cq[v] and cq[w] are certificates, i.e., quorums of acks
+          /\ getRnd(cq[v]) = getRnd(cq[w])  \* common round 
+          \* each element of the quorum concerns a different block
+          /\ (v # w => getDigest(cq[v]) # getDigest(cq[w])) 
     } 
 
-WeakLinks == UNION {[Q -> Certificate] : Q \in SUBSET ByzValidator }
+\* a bunch of weak Nat
+WeakLinks == SUBSET Certificate
 
 noCert == CHOOSE i \in [{} -> Certificate] : TRUE
+noLinks == {}
 
 BlockStructure ==
     { b \in [ creator : ByzValidator, \* the block proposer
               rnd :     Nat, \* the round of the block proposal
-              bhxs :    SomeHashes, \* the batch hashes of the block
+              bhxs :    SomeHx, \* the batch hashes of the block
               cq :      CertQuorum \cup {noCert}, \* a CoA-quorum 
               wl :      WeakLinks, \* possibly weak links             
               sig :     ByzValidator \* creator signature
             ] :
       /\ b.creator = b.sig \* on redundancy: cf. note on signatures
-      /\ \A l \in DOMAIN b.wl : getRnd(b.wl[l]) < b.rnd-1 \* weak (!) links 
+      /\ \A l \in b.wl : getRnd(l) < b.rnd-1 \* weak (!) links 
       /\ \/ /\ b.rnd = 0 \* either round zero and
             /\ b.cq = noCert \* empty domain allowed
          \/ /\ b.rnd > 0 \* or round non-zero and
@@ -324,7 +331,7 @@ ASSUMPTION BSA == (Block = BlockStructure)
 (* following types of message.                                             *)
 (*                                                                         *)
 (* - "batch" broadcast a batch, **from** a worker (to workers of the same  *)
-(*   index)                                                                *)
+(*   index).                                                               *)
 (*                                                                         *)
 (* - "batch-ack" acknowledge a batch (by a worker)                         *)
 (*                                                                         *)
@@ -349,23 +356,46 @@ ASSUMPTION BSA == (Block = BlockStructure)
 (* desired.                                                                *)
 (***************************************************************************)
 
+\* broadcast a fresh "batch" from a "worker" (to mirror workes)
+BatchMessage == [type : {"batch"}, batch : Batch, from : Worker]
+
+\* acknowledge a received "batch" (of mirror workes)
+BatchAckMessage == [type : {"batch-ack"}, hx : BatchHash, sig : Worker]
+
+\* creator produces a block and broadcasts it 
+BlockMessage == [type : {"block"}, block: Block, creator : ByzValidator]
+
+\* commmitment "by" a validator to have stored a block 
+BlockAckMessage == [type : {"block-ack"}, ack : Ack, by : ByzValidator]
+
+\* creator aggregates quorum of acks into a certificate and broadcasts it
+CertMessage == [type : {"cert"}, cert : Certificate, creator : ByzValidator]
+
 
 \* All messages that can be send between workers/primaries/validators
 Message ==
     \* broadcast a fresh "batch" from a "worker" (to mirror workes)
-    [type : {"batch"}, batch : Batch, from : Worker]
+    BatchMessage
     \cup
     \* acknowledge a received "batch" (of mirror workes)
-    [type : {"batch-ack"}, hx : BatchHash, sig : Worker]
+    BatchAckMessage 
     \cup
     \* creator produces a block and broadcasts it 
-    [type : {"block"}, block: Block, creator : Validator]
+    BlockMessage 
     \cup
     \* commmitment "by" a validator to have stored a block 
-    [type : {"block-ack"}, ack : Ack, by : Validator]
+    BlockAckMessage
     \cup
     \* creator aggregates acks into a cert and broadcasts it
-    [type : {"cert"}, cert : Certificate, creator : Validator]
+    CertMessage
+
+\* The set of all messages that are sent by workers and primaries
+VARIABLE msgs
+
+\* The rough type of msgs
+msgsTypeOK == msgs \in SUBSET Message 
+
+msgsINIT == msgs = {}
 
 \* end of "MESSAGE STRUCTURE"
 
@@ -378,74 +408,334 @@ Message ==
 (***************************************************************************)
 (* The local state of validators and workers at validators is              *)
 (*                                                                         *)
-(* 1. a local round number (corresponding a layer of DAG mempool);          *)
+(* 1. a local round number (corresponding a layer of DAG mempool);         *)
 (*                                                                         *)
-(* 2. a worker specific pool of received client batches;                    *)
+(* 2. a worker specific pool of received client batches;                   *)
 (*                                                                         *)
-(* 3. a pool of batch hashes to be included in the next block;              *)
+(* 3. a pool of batch hashes to be included in the next block;             *)
 (*                                                                         *)
-(* 4. a local storage for (hashes of) batches;                              *)
+(* 4. a local storage for (hashes of) batches;                             *)
 (*                                                                         *)
-(* 5. a local storage for blocks.                                           *)
+(* 5. a local storage for blocks.                                          *)
 (***************************************************************************)
 
 
 \* Each ByzValidator has a local round number (initially 0) 
-VARIABLE RoundOf
+VARIABLE rndOf
 
-\* The rough type for RoundOf
-RoundOfTypeOK == RoundOf \in [ByzValidator -> Nat]
+\* The rough type for rndOf
+rndOfTypeOK == rndOf \in [ByzValidator -> Nat]
 
-\* "assert" INIT => \A v \in ByzValidator : RoundOf[v] = 0
-RoundOfINIT ==      \A v \in ByzValidator : RoundOf[v] = 0
+\* "assert" INIT => \A v \in ByzValidator : rndOf[v] = 0
+rndOfINIT ==      \A v \in ByzValidator : rndOf[v] = 0
 
 
 \* Each Worker has a local pool of unprocessed batches (initially {})
-VARIABLE BatchPool
+VARIABLE batchPool
 
-\* The rough type for BatchPool
-BatchPoolTypeOK == BatchPool \in [Worker -> SUBSET Batch]
+\* The rough type for batchPool
+batchPoolTypeOK == batchPool \in [Worker -> SUBSET Batch]
 
-\* "assert" INIT => \A w \in Worker : BatchPool[w] = {}
-BatchPoolINIT == \A w \in Worker : BatchPool[w] = {}
+\* "assert" INIT => \A w \in Worker : batchPool[w] = {}
+batchPoolINIT == \A w \in Worker : batchPool[w] = {}
 
 
 
 \* Primaries have pools of hashes for the next block (initially {}) 
-VARIABLE NextHashes
+VARIABLE nextHx
 
-\* The rough type of NextHashes
-NextHashesTypeOK == NextHashes \in [Primary -> SomeHashes]
+\* The rough type of nextHx
+nextHxTypeOK == nextHx \in [Primary -> SomeHx]
 
-\* "assert" INIT => \A p \in Primary : NextHashes[p] = {}
-NextHashesINIT == \A p \in Primary : NextHashes[p] = {}
+\* "assert" INIT => \A p \in Primary : nextHx[p] = {}
+nextHxINIT == \A p \in Primary : nextHx[p] = {}
 
 
 \* Each ByzValidator has storage for batch hashes (initially {})
-VARIABLE StoredHashes
+VARIABLE storedHx
 
-\* The rough type of StoredHashes
-StoredHashesTypeOK == StoredHashes \in [ByzValidator -> SUBSET BatchHash]
+\* The rough type of storedHx
+storedHxTypeOK == storedHx \in [ByzValidator -> SUBSET BatchHash]
 
-\* "assert" INIT => \A v \in ByzValidator : StoredHashes[v] = {}
-StoredHashesINIT == \A v \in ByzValidator : StoredHashes[v] = {}
+\* "assert" INIT => \A v \in ByzValidator : storedHx[v] = {}
+storedHxINIT == \A v \in ByzValidator : storedHx[v] = {}
 
 
 \* Each ByzValidator has storage for blocks (initially {}) 
-VARIABLE StoredBlocks
-\* The rough type of StoredBlocks
-StoredBlocksTypeOK == StoredBlocks \in [ByzValidator -> SUBSET Block]
+VARIABLE storedBlx
+\* The rough type of storedBlx
+storedBlxTypeOK == storedBlx \in [ByzValidator -> SUBSET Block]
 
-\* "assert" INIT => \A v \in ByzValidator : StoredBlocks[v] = {}
-StoredBlocksINIT == \A v \in ByzValidator : StoredBlocks[v] = {}
+\* "assert" INIT => \A v \in ByzValidator : storedBlx[v] = {}
+storedBlxINIT == \A v \in ByzValidator : storedBlx[v] = {}
 
 \* The combined INIT-predicate
 LocalStateINIT ==
-  /\ RoundOfINIT \* 1.
-  /\ BatchPoolINIT \* 2. 
-  /\ NextHashesINIT \* 3. 
-  /\ StoredHashesINIT \* 4. 
-  /\ StoredBlocksINIT  \* 5. 
+  /\ rndOfINIT \* 1.
+  /\ batchPoolINIT \* 2. 
+  /\ nextHxINIT \* 3. 
+  /\ storedHxINIT \* 4. 
+  /\ storedBlxINIT  \* 5. 
+
 \* end of "LOCAL STATE"
+
+-----------------------------------------------------------------------------
+
+vars == <<msgs, rndOf, batchPool, nextHx, storedHx, storedBlx>>
+  (*************************************************************************)
+  (* It is convenient to have a shorthand for all variables in a spec.     *)
+  (*************************************************************************)
+-----------------------------------------------------------------------------
+
+
+(***************************************************************************)
+(*                             ACTIONS                                     *)
+(***************************************************************************)
+
+
+(***************************************************************************)
+(* We will specify the following actions.                                  *)
+(*                                                                         *)
+(* - [Batch arrival (no message, combined with 'BatchBC')]:                *)
+(*                                                                         *)
+(*   A new **batch** btch arrives at a **worker** wrkr and is included     *)
+(*   into the worker's batchPool. The arriving batch might already be      *)
+(*   "known" and/or been submitted to other workers, .e.g., if clients     *)
+(*   "misbehave". (Recall that we assume that clients submit their         *)
+(*   (batches of) transactions to only one worker.)  Resubmission of an    *)
+(*   orphaned batch is a case, which we do not put particular attention    *)
+(*   to (yet). We postulate that at most one "copy" of a batch will be     *)
+(*   included within a block. We combine batch arrival with the next type  *)
+(*   of action (for the sake of simplicity).                               *)
+(*                                                                         *)
+(* - Batch broadcast 'BatchBC' (message "batch"):                          *)
+(*                                                                         *)
+(*   A worker 2. broadcasts the                                            *)
+(*   batch; then it has to wait for acknowledgements.                      *)
+(*                                                                         *)
+(* - Batch receive, store, hash, ack  'BatchAck' (message "batch-ack"):    *)
+(*                                                                         *)
+(*   Reception of a batch, storing and hashing such that later blocks can  *)
+(*   be validated and acknowledgements the primary. Finally, a             *)
+(*   "batch-ack" for the received batch is sent.                           *)
+(*                                                                         *)
+(* - Batch ready for block inclusion 'BatchReady' (internal to validator)  *)
+(*                                                                         *)
+(*   A worker collects acks of a batch, removes it from its "queue", and   *)
+(*   puts the batch hash in the primary's pool for the next block.         *)
+(*                                                                         *)
+(*   "[A] worker [...] creates a batch of transactions, and sends it to the*)
+(* [mirror] worker node of each of the other validators; once an           *)
+(* [ack]nowledgment has been received by a quorum of these, the            *)
+(* cryptographic hash of the batch is shared with the primary of the       *)
+(* validator for inclusion in a block." [N&T]                              *)
+(*                                                                         *)
+(* - Block production and broadcast 'BlockBC' (message "block"):           *)
+(*                                                                         *)
+(*   A primary builds a block from enough certificates of availability     *)
+(*   and batch hashes provided by its workers and broadcasts the           *)
+(*   block. "One primary integrates references to [batches] in Mempool     *)
+(*   primary blocks."  [N&T]                                               *)
+(*                                                                         *)
+(* - Block acknowledgement 'BlockAck' (message "block-ack")                  *)
+(*                                                                         *)
+(*   Receive a block, check its validity, store it, acknowledge it.        *)
+(*                                                                         *)
+(* - Certificate broadcats 'CertBC' (message "cert")                       *)
+(*                                                                         *)
+(*   Take enough acknowledgements of a proposed block, aggregate into a    *)
+(*   ceritificat, and broadcast the certificate.                           *)
+(*                                                                         *)
+(* - Advancing the local round 'AdvanceRound' (no message)                 *)
+(*                                                                         *)
+(*   A validator receives enough certificates to move to the next round.   *)
+(***************************************************************************)
+
+
+(***************************************************************************)
+(* We define the subactions of the next-state actions.  We begin by        *)
+(* defining an action that will be used in those subactions.  The action   *)
+(* Send(m) asserts that message m is added to the set msgs.                *)
+(*                                                                         *)
+(* taken from `^\href{https://tinyurl.com/2dyuzs6y}{Paxos.tla}^'           *)
+(***************************************************************************)
+
+\* sending a message will only be used as "part of" a "full" action 
+\* ... and thus no UNCHANGED 
+Send(m) == msgs' = msgs \cup {m}
+
+\* ACT "BatchBC", broadcasting a new batch 'b' arriving at a worker 'w'
+BatchBC(b, w) ==
+  \* "trivial" precondition (checking the typing)
+  /\ b \in Batch
+  /\ w \in Worker
+  \* postcondition: add the batch the the batch pool of w
+  /\ batchPool' = [batchPool EXCEPT ![w] = @ \cup {b}]
+  \* broadcast the batch {changes the variable set of messages 'msgs'}
+  /\ Send([type |-> "batch", batch |-> b, from |-> w])               
+  /\ UNCHANGED <<rndOf, nextHx, storedHx, storedBlx>>  
+
+\* ACT "BatchAck", receiving and acknowledging a batch
+BatchAck(w) == 
+  /\ \E m \in msgs : \E h \in BatchHash :
+        \* precondition
+        /\ m.type = "batch" \* somebody sent a "batch" message ..
+        /\ h = hash[m.batch] \* .. whose batch hash we call h, s.t., ..
+        /\ h \notin storedHx[w.val] \* .. the batch is not stored (yet)
+        \* postcondition
+        \* store batch
+        /\ storedHx' = [storedHx EXCEPT ![w] = @ \cup {h}]  
+        \* send ack
+        /\ Send([type |-> "batch-ack", hx |-> h, sig |-> w]) 
+  /\ UNCHANGED <<rndOf, batchPool, nextHx, storedBlx>>
+
+\* ACT "BatchReady" a batch is ready for block inclusion
+BatchReady(w) == 
+  /\ w \in Worker
+  /\ \E b \in Batch : \E Q \in ByzQuorum : \E f \in [Q -> BatchAckMessage] :
+     \* precondition
+     \* the chosen quorum consists of signerns of the batch 'b'
+     /\ \A q \in Q : 
+        /\ f[q].sig = q \* thus injective
+        /\ f[q].hx = hash[b]
+     \* the batch is in the pool of worker w 
+     /\ b \in batchPool[w]
+     \* postcondition
+     \* add hash to primary's set of next hashes
+     /\ nextHx' = [nextHx EXCEPT ![w.val] = @ \cup {hash[b]}]
+     \* worker 'w' "transfers" the batch (hash) to the primary  
+     /\ batchPool' = [batchPool EXCEPT ![w] = @ \ { b } ] 
+  /\ UNCHANGED <<msgs, rndOf, storedHx, storedBlx>>
+
+\* A validator produces a block and broadcasts it
+GenesisBlockBC(v) ==
+  \* typing precondition
+  /\ v \in ByzValidator
+  \* precondition
+  /\ rndOf[v] = 0 \* at local round 0
+  \* 
+  /\ \E b \in Block : \* "construct" a block of the desired shape
+     /\ b.creator = v
+     /\ b.rnd = 0
+     /\ b.bhxs = nextHx[v]
+     /\ b.cq = noCert
+     /\ b.wl = noLinks
+     \* postcondition
+     \* send the block
+     /\ Send([type |-> "block", block |-> b, creator |-> v])
+     \* empty v's nextHx
+     /\ nextHx' = [nextHx EXCEPT ![v] = {}]
+  /\ UNCHANGED <<rndOf, batchPool, storedHx, storedBlx>>
+
+\* A certificate c : Q -> Ack is justified if all acks were sent
+IsJustifiedCert(c) ==
+  /\ c \in Certificate  \* aka AckQuorum
+  /\ \A v \in DOMAIN c : \E m \in Message :
+     /\ m.type = "block-ack" \*  block-ack 
+     /\ m.ack = c[v] \* the ack was sent
+
+\* what's a proper quorum of certificates in (local) round r?
+\* - must be at round r-1
+\* - all certificates justified
+IsProperCertQuorumAt(cq, r) == 
+  \* the round is the previous round
+  /\ \A v \in DOMAIN cq :
+      /\ getRnd(cq[v]) = r - 1
+      /\ IsJustifiedCert(cq[v])
+
+
+\* what's a proper collection of weak links
+AreProperWeakLinks(wl, r) == 
+  /\ wl \in WeakLinks
+  \* the round is smaller than the previous round
+  /\ \A l \in wl : getRnd(l) < r - 1
+
+GeneralBlockBC(v) ==
+  /\ v \in ByzValidator
+  \* precondition
+  /\ rndOf[v] > 0 \* at local round > 0
+  \* postcondition
+  /\ \E cs \in CertQuorum : \E ws \in WeakLinks : \E b \in Block : 
+     \* "construct" proper cert quorum
+     /\ IsProperCertQuorumAt(cs, rndOf[v])
+     \* "construct" proper links
+     /\ AreProperWeakLinks(ws, rndOf[v])
+     \* "construct" a block of the desired shape, with next batches
+     /\ b.creator = v
+     /\ b.rnd = rndOf[v]
+     /\ b.bhxs = nextHx[v]
+     /\ b.cq = cs
+     /\ b.wl = ws
+     \* send the block
+     /\ Send([type |-> "block", block |-> b, creator |-> v])
+     \* empty nextHx
+     /\ nextHx' = [nextHx EXCEPT ![v] = {}]
+  /\ UNCHANGED <<rndOf, batchPool, storedHx, storedBlx>>
+
+\* ACT 'BlockBC': procudtion of a block and broad cast
+BlockBC(v) ==
+  /\ v \in ByzValidator
+  /\ (GeneralBlockBC(v) \/ GenesisBlockBC(v))
+\* Lemma: always (~GeneralBlockBC(v) \/ ~GenesisBlockBC(v)) : NTH
+
+\* predicate for checking the storage
+HasBlockHashesStored(block, val) ==
+ \* we know all batches
+ \A h \in block.bhxs : h \in storedHx[val]
+
+\* ACT 'BlockAck' validator accepting and storing a block, followed by ack
+BlockAck(v) ==
+    /\ v \in ByzValidator
+    /\ \E b \in Block : \E w \in ByzValidator : 
+       \* precondition
+       \* v doesn't know the block yet
+       /\ b \notin storedBlx[v] 
+       \* block was proposed
+       /\ [type |-> "block", block |-> b, creator |-> w] \in msgs
+       \* all hashes are present (for correct validators ONLY) 
+       /\ (v \in Validator => 
+            HasBlockHashesStored(b, v))
+       \* store the block for (for correct validators ONLY) 
+       /\ (v \in Validator =>
+            storedBlx' = [storedBlx EXCEPT ![v] = @ \cup {b}])
+       \* construct ack .. 
+       /\ \E a \in Ack : 
+         /\ a.digest = digest[b]
+         /\ a.creator = b.creator
+         /\ a.rnd = b.rnd
+         /\ a.sig = v
+         \* .. to send
+         /\ Send([type |-> "block-ack", ack |-> a, by |-> v])
+    /\ UNCHANGED <<msgs, batchPool, nextHx, storedHx, storedBlx>>
+
+
+\* ACT 'CertBC' Broadcast a Certificate
+CertBC(v) ==
+  /\ v \in ByzValidator
+  /\ \E c \in Certificate : 
+     \* precondition/test
+     /\ IsJustifiedCert(c)      
+     \* postcondition/effect (based on witness for \E c : ...)
+     /\ Send([type |-> "cert", cert |-> c, creator |-> v])
+  /\ UNCHANGED <<rndOf, batchPool, nextHx, storedHx, storedBlx>>
+
+
+\* Can cert. quorum c trigger validator v to increment the local round?
+CertQuorumAdvancesValRnd(c, v) ==
+  /\ c \in CertQuorum \* in particular, c : Q -> Certificate, injective
+  /\ v \in ByzValidator \* the validator that might increment
+  /\ \A w \in DOMAIN c : \E m \in msgs : 
+     /\ m.type = "cert"
+     /\ m.creator = w
+     /\ m.cert = c[w]
+     /\ getRnd(c[w]) = rndOf[v]
+
+\* ACT 'AdvanceRound'
+AdvanceRound(v) ==
+  \* precondition: existence of enough "cert" messages 
+  /\ \E c \in CertQuorum : CertQuorumAdvancesValRnd(c, v)
+  \* postcondition 
+  /\ rndOf' = [rndOf EXCEPT ![v] = @ + 1]
+  /\ UNCHANGED <<msgs, batchPool, nextHx, storedHx, storedBlx>>
 
 =============================================================================
