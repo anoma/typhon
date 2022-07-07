@@ -676,7 +676,11 @@ GeneralBlockBC(v) ==
 BlockBC(v) ==
   /\ v \in ByzValidator
   /\ (GeneralBlockBC(v) \/ GenesisBlockBC(v))
-\* Lemma: always (~GeneralBlockBC(v) \/ ~GenesisBlockBC(v)) : NTH
+  /\ (v \in Validator => ~\E m \in msgs :             
+                            /\ m.type = "block"       
+                            /\ m.creator = v          
+                            /\ m.block.rnd = rndOf[v]
+     )\* Lemma: always (~GeneralBlockBC(v) \/ ~GenesisBlockBC(v)) : NTH
 
 \* predicate for checking the storage
 HasBlockHashesStored(block, val) ==
@@ -737,5 +741,29 @@ AdvanceRound(v) ==
   \* postcondition 
   /\ rndOf' = [rndOf EXCEPT ![v] = @ + 1]
   /\ UNCHANGED <<msgs, batchPool, nextHx, storedHx, storedBlx>>
+
+(***************************************************************************)
+(*                      CONSENSUS ABSTRACTION                              *)
+(***************************************************************************)
+
+(***************************************************************************)
+(* We assume a Tusk like consensus [N&T] in the form of a demonic          *)
+(* scheduler that chooses a leader block in each _k_-th round for a        *)
+(* globally fixed _k_ > 0.                                                 *)
+(***************************************************************************)
+
+\* the constant number of rounds between each leader block commitment
+CONSTANT WaveLength
+ASSUME WaveLengthAssumption ==
+  /\ WaveLength \in Nat
+  /\ WaveLength >= 1
+
+
+CONSTANT LeaderBlock
+
+WaveLengthTimesNat == { n \in Nat : \E i \in Nat : n = WaveLength * i }
+  
+
+ASSUME LeaderBlock \in [WaveLengthTimesNat -> ByzValidator]
 
 =============================================================================
