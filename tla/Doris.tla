@@ -20,7 +20,7 @@
 (* way, we get a short term for each of these two entities.                *)
 (***************************************************************************)
 
-EXTENDS Functions, Integers, FiniteSets
+EXTENDS Integers, FiniteSets, Functions
 
 \* For the module "Functions", we rely on the \*
 \*`^\href{https://tinyurl.com/2ybvzsrc}{Community Module.}^'
@@ -469,7 +469,7 @@ storedBlxTypeOK == storedBlx \in [ByzValidator -> SUBSET Block]
 \* "assert" INIT => \A v \in ByzValidator : storedBlx[v] = {}
 storedBlxINIT == \A v \in ByzValidator : storedBlx[v] = {}
 
-\* The combined INIT-predicate
+\* The combined INIT-predicate concerning the local state
 LocalStateINIT ==
   /\ rndOfINIT \* 1.
   /\ batchPoolINIT \* 2. 
@@ -763,7 +763,99 @@ CONSTANT LeaderBlock
 
 WaveLengthTimesNat == { n \in Nat : \E i \in Nat : n = WaveLength * i }
   
+ASSUME ChoiceOfLeaderBlocks ==
+  LeaderBlock \in [WaveLengthTimesNat -> ByzValidator]
 
-ASSUME LeaderBlock \in [WaveLengthTimesNat -> ByzValidator]
+
+(***************************************************************************)
+(*                         COMMITTED BLOCK                                 *)
+(***************************************************************************)
+ 
+(***************************************************************************)
+(* We define when a block is commited, relative to the LeaderBlock         *)
+(* selection.  Later garbage collected blocks will remain commited.        *)
+(*                                                                         *)
+(* We take the following necessary (and sufficient) condition for          *)
+(* commitment of a leader block (e.g., if chosen as candidate leader       *)
+(* block):                                                                 *)
+(*                                                                         *)
+(* 1.  There is a weak quorum of blocks, each of which                     *)
+(*   a) references the block via its certificate quorum and                *)
+(*   b) has itself obtained a certificate of availability (broadcast by    *)
+(*      its creator).                                                      *)
+(*                                                                         *)
+(* We define several auxiliary predicates .                                *)
+(*                                                                         *)
+(* - 'linksTo',                                                            *)
+(*   the relation of direct links in the mempool DAG                       *)
+(*                                                                         *)
+(* - 'isCauseOf',                                                          *)
+(*   the transitive closure of the (opposite of) 'liksTo'-relation         *)
+(*                                                                         *)
+(* - 'CausalHistory',                                                      *)
+(*   the set of blocks that are causes of a block                          *)
+(*                                                                         *)
+(* - 'IsCertified',                                                        *)
+(*   the predicate for checking if a block is certified                    *)
+(*                                                                         *)
+(* - 'CertifiedBlocks',                                                                      *)
+(*   the set of all blocks that are certified via 'IsCertified'                                                                       *)
+(*                                                                         *)
+(* - 'hasSupport',                                                                      *)
+(*   predicate that checks if a block counts as commited, reltive to the choice of leader block                                                                      *) 
+(*                                                                         *)
+(* - 'IsCommitingLeaderBlock', *)
+(*    an operator that checks wheterh a leader block is a leader block                                                                         *)
+(*                                                                         *)
+(* -  'IsCommitted(b)',                                                                      *)
+(*    the operator for checking if a block is commited *)
+(***************************************************************************)
+
+\* the relation of direct links in the mempool DAG
+linksTo(b, y) ==
+  /\ b \in Block
+  /\ y \in Block
+  /\ \E q \in DOMAIN (b.cq) : getDigest(b.cq[q]) = digest[y]
+
+\* the transitive closure of the (opposite of) 'liksTo'-relation
+RECURSIVE isCauseOf(_, _) 
+isCauseOf(x, b) == 
+  /\ b \in Block
+  /\ x \in Block
+  /\  \/ linksTo(b, x)
+      \/ \E z \in Block : linksTo(b, z) /\ isCauseOf(x, z)
+
+\* the set of blocks that are causes of a block
+CausalHistory(b) == { x \in Block : isCauseOf(x,b) }
+
+\* predicate for block certification via 'IsJustifiedCert' (based on msgs)
+IsCertified(b) ==
+  /\ b \in Block
+  /\  \E c \in Certificate : 
+     /\ IsJustifiedCert(c) 
+     /\ getDigest(c) = digest[b]
+
+CertifiedBlocks == { b \in Block : IsCertified(b) }
+
+hasSupport(b) == 
+  /\ b \in Block
+  /\ \E W \in WeakQuorum : \E f \in Injection(W, CertifiedBlocks) :
+       \A w \in W : linksTo(f[w], b) 
+
+IsCommitingLeaderBlock(b) == 
+  /\ b \in Block
+  /\ b.rnd \in WaveLengthTimesNat
+  /\ ChoiceOfLeaderBlocks[b.rnd] = b.creator
+  /\ hasSupport(b)
+  /\ IsCertified(b)
+
+IsCommitted(b) ==
+  /\ b \in Block
+  /\ \/ IsCommitingLeaderBlock(b)
+     \/ \E z \in Block : 
+        /\ IsCommitingLeaderBlock(z)
+        /\ b \in CausalHistory(z)
+
 
 =============================================================================
+
