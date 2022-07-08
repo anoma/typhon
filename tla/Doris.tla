@@ -742,6 +742,8 @@ AdvanceRound(v) ==
   /\ rndOf' = [rndOf EXCEPT ![v] = @ + 1]
   /\ UNCHANGED <<msgs, batchPool, nextHx, storedHx, storedBlx>>
 
+-----------------------------------------------------------------------------
+
 (***************************************************************************)
 (*                      CONSENSUS ABSTRACTION                              *)
 (***************************************************************************)
@@ -766,6 +768,7 @@ WaveLengthTimesNat == { n \in Nat : \E i \in Nat : n = WaveLength * i }
 ASSUME ChoiceOfLeaderBlocks ==
   LeaderBlock \in [WaveLengthTimesNat -> ByzValidator]
 
+-----------------------------------------------------------------------------
 
 (***************************************************************************)
 (*                         COMMITTED BLOCK                                 *)
@@ -798,17 +801,18 @@ ASSUME ChoiceOfLeaderBlocks ==
 (* - 'IsCertified',                                                        *)
 (*   the predicate for checking if a block is certified                    *)
 (*                                                                         *)
-(* - 'CertifiedBlocks',                                                                      *)
-(*   the set of all blocks that are certified via 'IsCertified'                                                                       *)
+(* - 'CertifiedBlocks',                                                    *)
+(*   the set of all blocks that are certified via 'IsCertified'            *)
 (*                                                                         *)
-(* - 'hasSupport',                                                                      *)
-(*   predicate that checks if a block counts as commited, reltive to the choice of leader block                                                                      *) 
+(* - 'hasSupport',                                                         *)
+(*   predicate that checks if a block counts as commited, reltive to the   *)
+(*   choice of leader block                                                *)
 (*                                                                         *)
-(* - 'IsCommitingLeaderBlock', *)
-(*    an operator that checks wheterh a leader block is a leader block                                                                         *)
+(* - 'IsCommitingLeaderBlock',                                             *)
+(*    an operator that checks whether a leader block is a leader block     *)
 (*                                                                         *)
-(* -  'IsCommitted(b)',                                                                      *)
-(*    the operator for checking if a block is commited *)
+(* - 'IsCommitted(b)',                                                     *)
+(*    the operator for checking if a block is commited                     *)
 (***************************************************************************)
 
 \* the relation of direct links in the mempool DAG
@@ -835,13 +839,16 @@ IsCertified(b) ==
      /\ IsJustifiedCert(c) 
      /\ getDigest(c) = digest[b]
 
+\* the set of all blocks that are certified via 'IsCertified'
 CertifiedBlocks == { b \in Block : IsCertified(b) }
 
+\* predicate that checks if a block counts as commited
 hasSupport(b) == 
   /\ b \in Block
   /\ \E W \in WeakQuorum : \E f \in Injection(W, CertifiedBlocks) :
        \A w \in W : linksTo(f[w], b) 
 
+\* checks whether a leader block is a leader block
 IsCommitingLeaderBlock(b) == 
   /\ b \in Block
   /\ b.rnd \in WaveLengthTimesNat
@@ -849,12 +856,15 @@ IsCommitingLeaderBlock(b) ==
   /\ hasSupport(b)
   /\ IsCertified(b)
 
+\* checking if a block is commited
 IsCommitted(b) ==
   /\ b \in Block
   /\ \/ IsCommitingLeaderBlock(b)
      \/ \E z \in Block : 
         /\ IsCommitingLeaderBlock(z)
         /\ b \in CausalHistory(z)
+
+-----------------------------------------------------------------------------
 
 (***************************************************************************)
 (*                         GARBAGE COLLECTION                              *)
