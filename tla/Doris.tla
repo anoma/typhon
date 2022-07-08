@@ -856,6 +856,16 @@ IsCommitted(b) ==
         /\ IsCommitingLeaderBlock(z)
         /\ b \in CausalHistory(z)
 
+(***************************************************************************)
+(*                         GARBAGE COLLECTION                              *)
+(***************************************************************************)
 
+(***************************************************************************)
+(* Gargabge collection marks a block as "orphaned", either if it is not    *)
+(* and never will be in the causal history of a leader block or if the     *)
+(* distance from its commiting leader block is too long where the          *)
+(* _commiting leader block_ of a block b is the leader block with the      *)
+(* least round number whose causal history contains the block b. *)
+(***************************************************************************)
 =============================================================================
 
