@@ -749,9 +749,8 @@ AdvanceRound(v) ==
 (***************************************************************************)
 
 (***************************************************************************)
-(* We assume a Tusk like consensus [N&T] in the form of a demonic          *)
-(* scheduler that chooses a leader block in each _k_-th round for a        *)
-(* globally fixed _k_ > 0.                                                 *)
+(* We model Tusk [N&T] as a demonic, but fair scheduler that chooses a     *)
+(* leader block in each _k_-th round for a globally fixed _k_ > 0.         *)
 (***************************************************************************)
 
 \* the constant number of rounds between each leader block commitment
@@ -766,7 +765,11 @@ CONSTANT LeaderBlock
 WaveLengthTimesNat == { n \in Nat : \E i \in Nat : n = WaveLength * i }
   
 ASSUME ChoiceOfLeaderBlocks ==
-  LeaderBlock \in [WaveLengthTimesNat -> ByzValidator]
+  \* a choice of leader blocks: at round n, block created by LB[n]
+  /\ LeaderBlock \in [WaveLengthTimesNat -> ByzValidator]
+  \* and this choice is (weakly) fair
+  /\ \A n \in WaveLengthTimesNat : \A v \in ByzValidator :
+        \E m \in WaveLengthTimesNat : m > n /\ LeaderBlock[m] = v 
 
 -----------------------------------------------------------------------------
 
