@@ -11,7 +11,7 @@
 (*                                                                         *)
 (* The following differences deserve mention.                              *)
 (*                                                                         *)
-(* ① In Narwhal, [c]lients send transactions to worker machines at all     *)
+(* In Narwhal, [c]lients send transactions to worker machines at all       *)
 (* validators.  [N&T].  This would lead possibly lead to duplicate         *)
 (* transactions in batches.  "A load balancer ensures transactions data    *)
 (* are received by all workers at a similar rate" [N&T].                   *)
@@ -20,7 +20,11 @@
 (* way, we get a short term for each of these two entities.                *)
 (***************************************************************************)
 
-EXTENDS Integers, FiniteSets, Functions
+EXTENDS Integers, 
+        FiniteSets,
+        Functions, 
+        NaturalsInduction, 
+        WellFoundedInduction
 
 \* For the module "Functions", we rely on the \*
 \*`^\href{https://tinyurl.com/2ybvzsrc}{Community Module.}^'
@@ -164,19 +168,18 @@ ASSUME Batch # {}
 
 \* The following fct. "hash" is convenient to model hash functions.
 
-hash == [
-         b \in Batch
-         |-> 
-         [h \in {"hash"} |-> b] \* [ "hash" |-> b] 
-        ] 
-
+hash[b \in Batch] == 
+  [h \in {"hash"} |-> b] \* [ "hash" |-> b] 
+       
 \* The set of hashes of any possible batch is the range of "hash".
 
 BatchHash == Range(hash)
 
+\*LEMMA BatchHashLemma == hash \in Bijection(Batch,BatchHash) \* NTH
+\* BY DEF hash, Bijection, Injection, Surjection 
+
 \* "SomeHx" is an arbitrary finite set of batch-hashes
 SomeHx == { X \in SUBSET BatchHash : IsFiniteSet(X) }
-
 
 
 \* Concerning  block digests, we again imitate hashing.
@@ -187,12 +190,9 @@ SomeHx == { X \in SUBSET BatchHash : IsFiniteSet(X) }
 
 CONSTANT Block
 
-digest == 
-        [
-          b \in Block
-         |-> 
-         [d \in {"digest"} |-> b] \* [ "digest" |-> b] 
-        ] 
+digest[b \in Block] == 
+  [d \in {"digest"} |-> b] \* [ "digest" |-> b] 
+        
 
 BlockDigest == Range(digest)
 
@@ -371,8 +371,11 @@ BlockAckMessage == [type : {"block-ack"}, ack : Ack, by : ByzValidator]
 \* creator aggregates quorum of acks into a certificate and broadcasts it
 CertMessage == [type : {"cert"}, cert : Certificate, creator : ByzValidator]
 
+\* a commit message commits a leader block, sent by consensus layer
+CommitMessage == [type : {"commit"}, b : Block]
 
-\* All messages that can be send between workers/primaries/validators
+\* All messages that can be send between workers/primaries/validators ..
+\* .. and the consensus engine
 Message ==
     \* broadcast a fresh "batch" from a "worker" (to mirror workes)
     BatchMessage
@@ -388,7 +391,11 @@ Message ==
     \cup
     \* creator aggregates acks into a cert and broadcasts it
     CertMessage
-
+    \* a commit message commits a leader block, sent by consensus layer
+    \cup
+    CommitMessage
+    
+    
 \* The set of all messages that are sent by workers and primaries
 VARIABLE msgs
 
@@ -743,33 +750,119 @@ AdvanceRound(v) ==
   /\ UNCHANGED <<msgs, batchPool, nextHx, storedHx, storedBlx>>
 
 -----------------------------------------------------------------------------
+(***************************************************************************)
+(*                          DAG STRUCTURE                                  *)
+(***************************************************************************)
+
+(* We define several auxiliary predicates .                                *)
+(*                                                                         *)
+(* - 'linksTo',                                                            *)
+(*   the relation of direct links in the mempool DAG                       *)
+(*                                                                         *)
+(* - 'isCauseOf',                                                          *)
+(*   the transitive closure of the (opposite of) 'liksTo'-relation         *)
+(*                                                                         *)
+(* - 'CausalHistory',                                                      *)
+(*   the set of blocks that are causes of a block                          *)
+(*                                                                         *)
+(* - 'IsCertified',                                                        *)
+(*   the predicate for checking if a block is certified                    *)
+(*                                                                         *)
+(* - 'CertifiedBlocks',                                                    *)
+(*   the set of all blocks that are certified via 'IsCertified'            *)
+(*                                                                         *)
+(***************************************************************************)
+
+
+\* the relation of direct links in the mempool DAG b ~> y
+linksTo(b, y) ==
+  \* type checks
+  /\ b \in Block
+  /\ y \in Block
+  \* the certificate list of block b contains digest of y
+  /\ \E c \in Range(b.cq) : getDigest(c) = digest[y]
+
+\* predicate for block certification via 'IsJustifiedCert' (based on msgs)
+IsCertified(b) ==
+  \* type check
+  /\ b \in Block
+  \* there is some certificate
+  /\  \E c \in Certificate : 
+     \* that was actually sent 
+     /\ IsJustifiedCert(c) 
+     \* and witnesses that b is available
+     /\ getDigest(c) = digest[b]
+
+\* the set of all blocks that are certified via 'IsCertified'
+CertifiedBlocks == { b \in Block : IsCertified(b) }
+
+\* a "recursive" causality test (only used here "locally")
+isCauseTest[n \in Nat] == 
+    [ c \in Block |->
+      [ b \in Block |-> 
+        CASE n = 0 -> FALSE
+          [] n = 1 -> linksTo(b,c)
+          [] OTHER -> \E z \in Block : 
+                         /\ linksTo(b, z) 
+                         /\ isCauseTest[n-1][c][z]
+      ]
+    ]
+
+\* the transitive closure of the (opposite of) 'liksTo'-relation
+isCauseOf(x, b) == 
+  /\ b \in Block
+  /\ x \in Block
+  /\ \E n \in Nat : isCauseTest[n][x][b]
+
+\* the set of blocks that are causes of a block
+CausalHistory(b) == { x \in Block : isCauseOf(x,b) }
+
+-----------------------------------------------------------------------------
 
 (***************************************************************************)
 (*                      CONSENSUS ABSTRACTION                              *)
 (***************************************************************************)
 
 (***************************************************************************)
-(* We model Tusk [N&T] as a demonic, but fair scheduler that chooses a     *)
-(* leader block in each _k_-th round for a globally fixed _k_ > 0.         *)
+(* Instead of the (pseudo-)random leader election of Tusk [N&T], we model  *)
+(* a non-deterministic choice of leader blocks in each _k_-th round for a  *)
+(* globally fixed _k_ > 0 with the additional guarantee that the block is  *)
+(* referenced by at least a weak quorum.                                   *)
 (***************************************************************************)
 
+\* predicate that checks if a block counts as commitable
+hasSupport(b) == 
+  \* type check 
+  /\ b \in Block
+  /\ \E W \in WeakQuorum : \E f \in Injection(W, CertifiedBlocks) :
+       \A w \in W : linksTo(f[w], b) 
+
+
 \* the constant number of rounds between each leader block commitment
-CONSTANT WaveLength
-ASSUME WaveLengthAssumption ==
+CONSTANT WaveLength ASSUME WaveLengthAssumption ==
   /\ WaveLength \in Nat
   /\ WaveLength >= 1
 
-
-CONSTANT LeaderBlock
-
 WaveLengthTimesNat == { n \in Nat : \E i \in Nat : n = WaveLength * i }
   
-ASSUME ChoiceOfLeaderBlocks ==
-  \* a choice of leader blocks: at round n, block created by LB[n]
-  /\ LeaderBlock \in [WaveLengthTimesNat -> ByzValidator]
-  \* and this choice is (weakly) fair
-  /\ \A n \in WaveLengthTimesNat : \A v \in ByzValidator :
-        \E m \in WaveLengthTimesNat : m > n /\ LeaderBlock[m] = v 
+\*ASSUME ChoiceOfLeaderBlocks ==
+\*  \* a choice of leader blocks: at round n, block created by LB[n]
+\*  /\ LeaderBlock \in [WaveLengthTimesNat -> ByzValidator]
+\*  \* and this choice is (weakly) fair
+\*  /\ \A n \in WaveLengthTimesNat : \A v \in ByzValidator :
+\*        \E m \in WaveLengthTimesNat : m > n /\ LeaderBlock[m] = v 
+
+
+CommitBlock(b) == 
+  \* type check
+  /\ b \in Block
+  \* precondition(s)
+  /\ b.rnd \in WaveLengthTimesNat
+  \* not yet committed any block at the round
+  /\ ~\E m \in msgs : m.type = "commit" /\ m.block.rnd = b.rnd
+  \* enough support
+  /\ Send([type |-> "commit", block |-> b])
+  /\ UNCHANGED <<rndOf, batchPool, nextHx, storedHx, storedBlx>>
 
 -----------------------------------------------------------------------------
 
@@ -790,74 +883,15 @@ ASSUME ChoiceOfLeaderBlocks ==
 (*   b) has itself obtained a certificate of availability (broadcast by    *)
 (*      its creator).                                                      *)
 (*                                                                         *)
-(* We define several auxiliary predicates .                                *)
-(*                                                                         *)
-(* - 'linksTo',                                                            *)
-(*   the relation of direct links in the mempool DAG                       *)
-(*                                                                         *)
-(* - 'isCauseOf',                                                          *)
-(*   the transitive closure of the (opposite of) 'liksTo'-relation         *)
-(*                                                                         *)
-(* - 'CausalHistory',                                                      *)
-(*   the set of blocks that are causes of a block                          *)
-(*                                                                         *)
-(* - 'IsCertified',                                                        *)
-(*   the predicate for checking if a block is certified                    *)
-(*                                                                         *)
-(* - 'CertifiedBlocks',                                                    *)
-(*   the set of all blocks that are certified via 'IsCertified'            *)
-(*                                                                         *)
-(* - 'hasSupport',                                                         *)
-(*   predicate that checks if a block counts as commited, reltive to the   *)
-(*   choice of leader block                                                *)
-(*                                                                         *)
-(* - 'IsCommitingLeaderBlock',                                             *)
-(*    an operator that checks whether a leader block is a leader block     *)
-(*                                                                         *)
-(* - 'IsCommitted(b)',                                                     *)
-(*    the operator for checking if a block is commited                     *)
-(***************************************************************************)
 
-\* the relation of direct links in the mempool DAG
-linksTo(b, y) ==
-  /\ b \in Block
-  /\ y \in Block
-  /\ \E q \in DOMAIN (b.cq) : getDigest(b.cq[q]) = digest[y]
-
-\* the transitive closure of the (opposite of) 'liksTo'-relation
-RECURSIVE isCauseOf(_, _) 
-isCauseOf(x, b) == 
-  /\ b \in Block
-  /\ x \in Block
-  /\  \/ linksTo(b, x)
-      \/ \E z \in Block : linksTo(b, z) /\ isCauseOf(x, z)
-
-\* the set of blocks that are causes of a block
-CausalHistory(b) == { x \in Block : isCauseOf(x,b) }
-
-\* predicate for block certification via 'IsJustifiedCert' (based on msgs)
-IsCertified(b) ==
-  /\ b \in Block
-  /\  \E c \in Certificate : 
-     /\ IsJustifiedCert(c) 
-     /\ getDigest(c) = digest[b]
-
-\* the set of all blocks that are certified via 'IsCertified'
-CertifiedBlocks == { b \in Block : IsCertified(b) }
-
-\* predicate that checks if a block counts as commited
-hasSupport(b) == 
-  /\ b \in Block
-  /\ \E W \in WeakQuorum : \E f \in Injection(W, CertifiedBlocks) :
-       \A w \in W : linksTo(f[w], b) 
 
 \* checks whether a leader block is a leader block
 IsCommitingLeaderBlock(b) == 
+  \* type check
   /\ b \in Block
-  /\ b.rnd \in WaveLengthTimesNat
-  /\ ChoiceOfLeaderBlocks[b.rnd] = b.creator
-  /\ hasSupport(b)
-  /\ IsCertified(b)
+  \* commit message was sent (by consensus layer)
+  /\ [type |-> "commit", block |-> b] \in msgs \* ChoiceOfLeaderBlocks[b.rnd] = b.creator
+  
 
 \* checking if a block is commited
 IsCommitted(b) ==
