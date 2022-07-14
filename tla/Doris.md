@@ -1,8 +1,10 @@
 # Narwhal-Rider: Δωρίς / Doris
 
-We specify an instantiation of Narwhal, replacing garbage collection with DAG-rider's weak links. 
-Most importantly, Doris provides two mechanisms to avoid bash flooding by Byzantine validators, 
-each one tailored for a common class of transactions: 
+We specify an instantiation of Narwhal,
+replacing garbage collection with DAG-rider's weak links. 
+Most importantly, Doris provides several mechanisms for batch handling, 
+each one tailored for a common class of transactions;
+thus, it is up to the user/client to decide which one is most suitable.
 
 1. Now or never (v1):  
     Some transactions might become useless
@@ -37,6 +39,17 @@ each one tailored for a common class of transactions:
     but not necessarily; 
     similarly, 
     announced batches could be given higher priority.
+
+3. Fast & furious (v3):  
+    Some transaction want to be in as fast as possible, 
+    with a higer risk of not getting in fast. 
+    Here, the batch is not only announced by a validator, 
+    but put on the fast track—a third type of batch hashes in the block. 
+    Now, a validator signing a block that includes fast track batches
+    also promises to have (erasure code) segments of the batch stored;
+    however, this means that the whole block is at risk of not being signed. 
+
+
 
 Weak links are preferable over the re-injection strategy of Narwhal & Tusk for at least two reasons.
 First, there is a risk of repeated need for re-injection, 
