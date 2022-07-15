@@ -1,10 +1,17 @@
 ------------------------ MODULE MempoolSpec ---------------------------------
 
 (***************************************************************************)
-(* The mempool spec is specifying the problem that the Doris protocol is   *)
-(* solving (as to be proven via refinement)                                *)
+(* The mempool spec is carving out the problem that the Doris protocol is  *)
+(* solving (as to be proven via refinement).  The specification is         *)
+(* intended to match Narwhal & Tusk as described by Danezis, Kogias,       *)
+(* Spiegelman in their `^\href{https://arxiv.org/abs/2105.11827}{paper.}^' *)
+(* Further inspiration is taken from Narwhal's precurser                   *)
+(* `^\href{https://arxiv.org/abs/2102.08325}{DAG-rider.}^'                 *)
+(*                                                                         *)
+(* We shall refer to these papers as [N&T] and [DAG-R], respectively.      *)
 (***************************************************************************)
 
+EXTENDS FiniteSets
 -----------------------------------------------------------------------------
 
 (***************************************************************************)
@@ -84,5 +91,40 @@ ASSUME BQLA ==
 
 
 \* end of "ON QUORUMS"
+
+-----------------------------------------------------------------------------
+
+(***************************************************************************)
+(*                    WORKER-PRIMARY DISTINCTION                           *)
+(***************************************************************************)
+
+(***************************************************************************)
+(* One idea of Narwhal and Tusk [N&T] is explicit parallelism via a number *)
+(* of workers at each validator.  Each worker of a (correct) validator     *)
+(* will have a "mirror" worker at every other validator.                   *)
+(*                                                                         *)
+(* We use a public parameter, typically a finite set, which serves to      *)
+(* index workers such that mirror workers share the same index.  There is  *)
+(* no point of using invalid indices by bad validators as these would be   *)
+(* ignored.                                                                *)
+(***************************************************************************)
+
+\* 'WorkerIndex' is a publicy known finite set of indices. 
+CONSTANT WorkerIndex
+
+ASSUME FiniteIndices == IsFiniteSet(WorkerIndex)
+
+\* A specific worker has a worker 'index' is part of a 'val'idator 
+Worker == [index : WorkerIndex, val : ByzValidator] 
+
+(***************************************************************************)
+(* There is a bijection between ByzValidators and Primaries.  For the sake *)
+(* of simplicity, we identify them in the specification.                   *)
+(***************************************************************************)
+
+\* Each 'Primary' is identified with its whole validator node
+Primary == ByzValidator 
+
+\* end of "WORKER-PRIMARY DISTINCTION"
 
 =============================================================================
