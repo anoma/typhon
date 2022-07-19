@@ -12,6 +12,7 @@
 (***************************************************************************)
 
 EXTENDS FiniteSets
+
 -----------------------------------------------------------------------------
 
 (***************************************************************************)
@@ -112,7 +113,12 @@ ASSUME BQLA ==
 \* 'WorkerIndex' is a publicy known finite set of indices. 
 CONSTANT WorkerIndex
 
-ASSUME FiniteIndices == IsFiniteSet(WorkerIndex)
+\* A finite non-empty set of indices (shared amongst "mirror workers") 
+ASSUME FiniteIndices ==
+  \* Each (correct) validator has a finite set of workers.
+  /\ IsFiniteSet(WorkerIndex)
+  \* Each validator has at least one worker. 
+  /\ WorkerIndex # {}
 
 \* A specific worker has a worker 'index' is part of a 'val'idator 
 Worker == [index : WorkerIndex, val : ByzValidator] 
@@ -126,5 +132,91 @@ Worker == [index : WorkerIndex, val : ByzValidator]
 Primary == ByzValidator 
 
 \* end of "WORKER-PRIMARY DISTINCTION"
+
+-----------------------------------------------------------------------------
+
+(***************************************************************************)
+(*                           ON BATCHES                                    *)
+(***************************************************************************)
+
+(*
+We phrase the specification in terms of batches.
+Single transactions will be covered in a refined spec.
+*)
+
+
+\* The set of batches
+CONSTANT Batch
+
+noBatch == CHOOSE x : x \notin Batch
+
+\*
+CONSTANT Request
+
+\* the alsways usefule empty set
+EmptySet == {}
+
+\* clients/wallets are assumed to choose one worker per transaction
+ASSUME ExclusivityAssumption ==
+  \* each worker has a non-empty set of batches
+  /\ Request \in [Worker -> ((SUBSET Batch) \ {EmptySet})]
+  \* every pair of different workers has pairs of disjoint batches
+  /\ \A w1,w2 \in Worker : w1 # w2 => Request[w1] # Request[w2]
+
+RequestUnion == UNION { w \in Worker : Request[w] }
+
+\* LEMMA Batch # {}
+
+-----------------------------------------------------------------------------
+
+(***************************************************************************)
+(*                             THE SPEC                                    *)
+(***************************************************************************)
+
+(***************************************************************************)
+(* We use the very same idea of Lamport's consensus specification.  In     *)
+(* particular, we do not yet require any DAG structure, but just a set of  *)
+(* chosen batches.                                                         *)
+(***************************************************************************)
+
+\* The set of all batches that are chosen (at a point in time).
+VARIABLE chosenSet
+
+\* A first approximation of chosenSet's type
+TypeOK ==
+  /\ chosenSet \subseteq RequestUnion
+  /\ IsFiniteSet(chosenSet)
+
+(***************************************************************************)
+(* The 'Init' predicate describes the unique initial state of 'chosenSet'. *)
+(***************************************************************************)
+
+Init == 
+  chosenSet = {}
+
+(***************************************************************************)
+(* The next-state relation 'Next' describes how the variable 'chosenSet'   *)
+(* can change from one step to the next.  Note that 'Next' is enabled      *)
+(* (equals true for some next value chosenSet' of chosenSet) if and only   *)
+(* if chosenSet equals the empty set.                                      *)
+(***************************************************************************)
+
+Next ==
+  \* precondition
+  /\ chosenSet = {}
+  \* postcondition
+  /\ chosenSet' \subseteq RequestUnion
+  \* every (correct) validator has included a batch of each worker
+  /\ \A v \in Validator : \E i \in WorkerIndex : 
+        LET 
+          w == [index |-> i, val |-> v]
+        IN
+          chosenSet' \cap Request[w] # {}
+
+(***************************************************************************)
+(* The TLA+ temporal formula that specifies the system evolution.          *)
+(***************************************************************************)
+
+Spec == Init /\ [][Next]_chosenSet
 
 =============================================================================
