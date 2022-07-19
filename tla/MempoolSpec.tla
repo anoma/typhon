@@ -11,7 +11,7 @@
 (* We shall refer to these papers as [N&T] and [DAG-R], respectively.      *)
 (***************************************************************************)
 
-EXTENDS FiniteSets
+EXTENDS FiniteSets, Integers
 
 -----------------------------------------------------------------------------
 
@@ -179,20 +179,32 @@ RequestUnion == UNION { w \in Worker : Request[w] }
 (* chosen batches.                                                         *)
 (***************************************************************************)
 
-\* The set of all batches that are chosen (at a point in time).
-VARIABLE chosenSet
+\* arbitrary but fixed "perfect" run
+CONSTANT PerfectRun
+
+PerfectRunUnion ==  
+  UNION { X \in SUBSET RequestUnion : \E n \in Nat : X = PerfectRun[n] }
+
+ASSUME PerfectRunAssumption ==
+  /\ PerfectRun \in [Nat -> SUBSET RequestUnion]
+  /\ \A n \in Nat : IsFiniteSet(PerfectRun[n])
+  /\ \A m,n \in Nat : m # n => PerfectRun[n] # PerfectRun[m]
+  /\ RequestUnion = PerfectRunUnion
+
+\* The _sequence_ of all batches that are chosen (at points in time).
+VARIABLE chosenSets
 
 \* A first approximation of chosenSet's type
 TypeOK ==
-  /\ chosenSet \subseteq RequestUnion
-  /\ IsFiniteSet(chosenSet)
+  /\ chosenSets \in [Nat -> SUBSET RequestUnion]
+  /\ \A n \in Nat : IsFiniteSet(chosenSets[n])
 
 (***************************************************************************)
 (* The 'Init' predicate describes the unique initial state of 'chosenSet'. *)
 (***************************************************************************)
 
 Init == 
-  chosenSet = {}
+  chosenSets = [n \in Nat |-> {}]
 
 (***************************************************************************)
 (* The next-state relation 'Next' describes how the variable 'chosenSet'   *)
@@ -202,21 +214,21 @@ Init ==
 (***************************************************************************)
 
 Next ==
+  \E n \in Nat:
   \* precondition
-  /\ chosenSet = {}
-  \* postcondition
-  /\ chosenSet' \subseteq RequestUnion
-  \* every (correct) validator has included a batch of each worker
-  /\ \A v \in Validator : \E i \in WorkerIndex : 
-        LET 
-          w == [index |-> i, val |-> v]
-        IN
-          chosenSet' \cap Request[w] # {}
+  /\ chosenSets[n] = {}
+  /\ \A m \in Nat : m < n => chosenSets[m] # {}
+  \* postcondition 
+  /\ chosenSets' = [chosenSets' EXCEPT ![n] = PerfectRun[n]]
 
 (***************************************************************************)
 (* The TLA+ temporal formula that specifies the system evolution.          *)
 (***************************************************************************)
 
-Spec == Init /\ [][Next]_chosenSet
+Spec == Init /\ [][Next]_chosenSets
+
+(***************************************************************************)
+(* Now, every batch is eventually included.                                *)
+(***************************************************************************)
 
 =============================================================================
