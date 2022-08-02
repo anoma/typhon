@@ -11,7 +11,7 @@
 (* We shall refer to these papers as [N&T] and [DAG-R], respectively.      *)
 (***************************************************************************)
 
-EXTENDS FiniteSets, Integers
+EXTENDS FiniteSets, Integers, Functions
 
 -----------------------------------------------------------------------------
 
@@ -144,13 +144,16 @@ We phrase the specification in terms of batches.
 Single transactions will be covered in a refined spec.
 *)
 
+\* this is inherited from the top level spec
+CONSTANT Payload
 
-\* The set of batches
-CONSTANT Batch
+\* There are a countable number of requests to be served.
+ASSUME AssumeCountablePayload == \E f \in Bijection(Payload, Nat) : TRUE
 
-noBatch == CHOOSE x : x \notin Batch
+\* We want to think of each payload as a batch
+Batch == Payload
 
-\*
+\* compared to the top level spec, this is a refeinement of the state space
 CONSTANT Request
 
 \* the alsways usefule empty set
@@ -162,10 +165,11 @@ ASSUME ExclusivityAssumption ==
   /\ Request \in [Worker -> ((SUBSET Batch) \ {EmptySet})]
   \* every pair of different workers has pairs of disjoint batches
   /\ \A w1,w2 \in Worker : w1 # w2 => Request[w1] # Request[w2]
+  \* and countably infinite
+  /\ UNION { Request[w] : w \in Worker } = Batch
 
-RequestUnion == UNION { w \in Worker : Request[w] }
+RequestUnion == UNION { Request[w] : w \in Worker}
 
-\* LEMMA Batch # {}
 
 -----------------------------------------------------------------------------
 
@@ -176,20 +180,9 @@ RequestUnion == UNION { w \in Worker : Request[w] }
 (***************************************************************************)
 (* We use the very same idea of Lamport's consensus specification.  In     *)
 (* particular, we do not yet require any DAG structure, but just a set of  *)
-(* chosen batches.                                                         *)
+(* chosen batches, growing and eventually including all batches.           *)
 (***************************************************************************)
 
-\* arbitrary but fixed "perfect" run
-CONSTANT PerfectRun
-
-PerfectRunUnion ==  
-  UNION { X \in SUBSET RequestUnion : \E n \in Nat : X = PerfectRun[n] }
-
-ASSUME PerfectRunAssumption ==
-  /\ PerfectRun \in [Nat -> SUBSET RequestUnion]
-  /\ \A n \in Nat : IsFiniteSet(PerfectRun[n])
-  /\ \A m,n \in Nat : m # n => PerfectRun[n] # PerfectRun[m]
-  /\ RequestUnion = PerfectRunUnion
 
 \* The _sequence_ of all batches that are chosen (at points in time).
 VARIABLE chosenSets
@@ -213,22 +206,30 @@ Init ==
 (* if chosenSet equals the empty set.                                      *)
 (***************************************************************************)
 
-Next ==
-  \E n \in Nat:
-  \* precondition
-  /\ chosenSets[n] = {}
-  /\ \A m \in Nat : m < n => chosenSets[m] # {}
-  \* postcondition 
-  /\ chosenSets' = [chosenSets' EXCEPT ![n] = PerfectRun[n]]
+
+\* the next action of worker w injecting X
+Next == \E ws \in SUBSET Worker : \E Xs \in [Worker -> SUBSET RequestUnion] :
+  \* type check
+  /\ \A w \in ws : /\ IsFiniteSet(Xs[w])
+                   /\ Xs[w] # {}
+  /\ \A w \in Worker \ ws : Xs[w] = EmptySet
+  /\ \E n \in Nat:
+    LET 
+      newRequests == UNION Range(Xs)
+    IN 
+    \* precondition
+    /\ chosenSets[n] = {}
+    /\ \A m \in Nat : m < n => /\ chosenSets[m] # {} 
+    /\ newRequests \cap UNION { chosenSets[k] : k \in 1..n } = EmptySet
+    \* postcondition 
+    /\ chosenSets' = [chosenSets' EXCEPT ![n] = newRequests]
 
 (***************************************************************************)
 (* The TLA+ temporal formula that specifies the system evolution.          *)
 (***************************************************************************)
 
-Spec == Init /\ [][Next]_chosenSets
+FAIRNESS == \A ws : \A Xs : WF_chosenSets(Next)
 
-(***************************************************************************)
-(* Now, every batch is eventually included.                                *)
-(***************************************************************************)
+Spec == Init /\ [][Next]_chosenSets /\ FAIRNESS
 
 =============================================================================
