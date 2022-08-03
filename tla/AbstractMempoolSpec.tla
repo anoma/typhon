@@ -23,6 +23,7 @@ Init == mempool = {}
 \* Always enabled for one suitable choice of X.
 Next(X) ==
   \* type check
+  /\ X \subseteq Payload
   /\ IsFiniteSet(X)
   \* precondition
   /\ X # {} \* disregarding empty additions 
@@ -37,7 +38,7 @@ do not “accidentally” add a transaction twice to the mempool.
 
 \* The “postcondition” "mempool' = mempool \cup X" ensures that
 \* there is exactly one instance of Next(X) leading to a state change. 
-SomeNext ==  \E X \in SUBSET Payload : Next(X)
+SomeNext == \E X \in SUBSET Payload : Next(X)
 
 -----------------------------------------------------------------------------
 
@@ -46,12 +47,14 @@ SomeNext ==  \E X \in SUBSET Payload : Next(X)
 (* of requests that all have not been served yet will be served.           *)
 (***************************************************************************)
 
-Fairness == \A X : WF_mempool(Next(X))
 
-\* The spec is the conjuction of Init, Fairness, and SomeNext.
+\* Eventual execution of Next(X) amounts to its eventual disabling 
+EventualInclusion == \A X \in SUBSET Payload : <>~ENABLED(Next(X))
+
+\* The spec is the conjuction of Init, EventualInclusion, and SomeNext.
 Spec == 
   /\ Init
-  /\ Fairness
+  /\ EventualInclusion
   /\ [][SomeNext]_mempool
   
 =============================================================================
