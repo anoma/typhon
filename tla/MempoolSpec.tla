@@ -185,19 +185,19 @@ RequestUnion == UNION { Request[w] : w \in Worker}
 
 
 \* The _sequence_ of all batches that are chosen (at points in time).
-VARIABLE chosenSets
+VARIABLE chosenSet
 
 \* A first approximation of chosenSet's type
 TypeOK ==
-  /\ chosenSets \in [Nat -> SUBSET RequestUnion]
-  /\ \A n \in Nat : IsFiniteSet(chosenSets[n])
+  /\ chosenSet \in [Nat -> SUBSET RequestUnion]
+  /\ \A n \in Nat : IsFiniteSet(chosenSet[n])
 
 (***************************************************************************)
 (* The 'Init' predicate describes the unique initial state of 'chosenSet'. *)
 (***************************************************************************)
 
 Init == 
-  chosenSets = [n \in Nat |-> {}]
+  chosenSet = [n \in Nat |-> {}]
 
 (***************************************************************************)
 (* The next-state relation 'Next' describes how the variable 'chosenSet'   *)
@@ -208,28 +208,31 @@ Init ==
 
 
 \* the next action of worker w injecting X
-Next == \E ws \in SUBSET Worker : \E Xs \in [Worker -> SUBSET RequestUnion] :
+Next(ws,Xs) == 
   \* type check
-  /\ \A w \in ws : /\ IsFiniteSet(Xs[w])
-                   /\ Xs[w] # {}
-  /\ \A w \in Worker \ ws : Xs[w] = EmptySet
-  /\ \E n \in Nat:
-    LET 
-      newRequests == UNION Range(Xs)
-    IN 
-    \* precondition
-    /\ chosenSets[n] = {}
-    /\ \A m \in Nat : m < n => /\ chosenSets[m] # {} 
-    /\ newRequests \cap UNION { chosenSets[k] : k \in 1..n } = EmptySet
-    \* postcondition 
-    /\ chosenSets' = [chosenSets' EXCEPT ![n] = newRequests]
+  /\ ws \in SUBSET Worker
+  /\ Xs \in [ws -> (SUBSET RequestUnion) / {EmptySet}]
+  /\ IsFiniteSet(UNION Range(Xs))
+  /\ LET 
+       newRequests == UNION Range(Xs)
+     IN \E n \in Nat:
+        \* precondition
+        /\ chosenSet[n] = {}
+        /\ \A m \in Nat : m < n => /\ chosenSet[m] # {} 
+        /\ newRequests \cap UNION { chosenSet[k] : k \in 1..n } = EmptySet
+        \* postcondition 
+        /\ chosenSet' = [chosenSet' EXCEPT ![n] = newRequests]
+
+
+SomeNext == \E ws : \E Xs : Next(ws,Xs)
 
 (***************************************************************************)
 (* The TLA+ temporal formula that specifies the system evolution.          *)
 (***************************************************************************)
 
-FAIRNESS == \A ws : \A Xs : WF_chosenSets(Next)
+\* 
+Fairness == \A ws : \A Xs : WF_chosenSet(Next(ws,Xs))
 
-Spec == Init /\ [][Next]_chosenSets /\ FAIRNESS
+Spec == Init /\ [][SomeNext]_chosenSet /\ Fairness
 
 =============================================================================
