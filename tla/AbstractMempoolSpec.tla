@@ -1,46 +1,57 @@
 ------------------------ MODULE AbstractMempoolSpec -------------------------
 
 (***************************************************************************)
-(* The module 'AbstractMempoolSpec' spec is the most abstract spec for the *)
+(* The module "AbstractMempoolSpec" spec is the most abstract spec for the *)
 (* mempool.  The main property is censorship resistance.                   *)
 (***************************************************************************)
 
 EXTENDS Integers, Functions, FiniteSets
 
-\* We have a set, whose elements are making up the complete payload.
+\* All possible atomic payload items form the "Payload" set. 
 CONSTANT Payload
 
-\* There are a countable number of requests to be served.
-ASSUME AssumeCountablePayload == \E f \in Bijection(Payload, Nat) : TRUE
+\* There are a countable number of payload items to be served.
+ASSUME CountablePayloadAssumption == Bijection(Payload, Nat) # {}
 
-\* The single variable of the spec is the mempool set.
+\* The single variable of the spec is the "mempool" set.
 VARIABLE mempool 
 
-\* Initially, the mempool is empty.
-INIT == mempool = {}
+\* Initially, the "mempool" is empty.
+Init == mempool = {}
 
-\* In one step, we can add any finite set of requests.
-NEXT ==
-  \E X \in SUBSET Payload :
-    \* essentially always enabled for some choice of X
-    /\ IsFiniteSet(X)
-    /\ X # {} \* disregarding empty additions 
-    /\ X \cap mempool = {} \* this condition is debatable ! 
-    \* postcondition
-    /\ mempool' = mempool \cup X 
-  
+\* In one step, we can add exactly one finite set of requests.
+\* Always enabled for one suitable choice of X.
+Next(X) ==
+  \* type check
+  /\ IsFiniteSet(X)
+  \* precondition
+  /\ X # {} \* disregarding empty additions 
+  /\ X \cap mempool = {} \* this condition is important !
+  \* postcondition
+  /\ mempool' = mempool \cup X 
+
+(*
+The condition "X \cap mempool = {}" makes sure that we
+do not “accidentally” add a transaction twice to the mempool.
+*)
+
+\* The “postcondition” "mempool' = mempool \cup X" ensures that
+\* there is exactly one instance of Next(X) leading to a state change. 
+SomeNext ==  \E X \in SUBSET Payload : Next(X)
+
+-----------------------------------------------------------------------------
+
 (***************************************************************************)
 (* We make the following fairness assumption/requirement: every finite set *)
-(* of requests that all have not been served will be eventually served, at *)
-(* least partially.                                                        *)
+(* of requests that all have not been served yet will be served.           *)
 (***************************************************************************)
 
-FAIRNESS == \A X : IsFiniteSet(X) => WF_mempool(NEXT)
+Fairness == \A X : WF_mempool(Next(X))
 
-\* The spec is the conjuction of INIT, FAIRNESS, and NEXT.
-SPEC == 
-  /\ INIT
-  /\ FAIRNESS
-  /\ [][NEXT]_mempool
+\* The spec is the conjuction of Init, Fairness, and SomeNext.
+Spec == 
+  /\ Init
+  /\ Fairness
+  /\ [][SomeNext]_mempool
   
 =============================================================================
