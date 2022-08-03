@@ -150,26 +150,25 @@ CONSTANT Payload
 \* There are a countable number of requests to be served.
 ASSUME AssumeCountablePayload == \E f \in Bijection(Payload, Nat) : TRUE
 
+\* the alsways usefule empty set
+EmptySet == {}
+
 \* We want to think of each payload as a batch
 Batch == Payload
 
 \* compared to the top level spec, this is a refeinement of the state space
 CONSTANT Request
 
-\* the alsways usefule empty set
-EmptySet == {}
-
 \* clients/wallets are assumed to choose one worker per transaction
 ASSUME ExclusivityAssumption ==
   \* each worker has a non-empty set of batches
   /\ Request \in [Worker -> ((SUBSET Batch) \ {EmptySet})]
   \* every pair of different workers has pairs of disjoint batches
-  /\ \A w1,w2 \in Worker : w1 # w2 => Request[w1] # Request[w2]
+  /\ \A w1,w2 \in Worker : w1 # w2 => Request[w1] \cap Request[w2] = {}
   \* and countably infinite
   /\ UNION { Request[w] : w \in Worker } = Batch
 
-RequestUnion == UNION { Request[w] : w \in Worker}
-
+RequestUnion == UNION { Request[w] : w \in Worker }
 
 -----------------------------------------------------------------------------
 
@@ -181,7 +180,7 @@ RequestUnion == UNION { Request[w] : w \in Worker}
 (* We use the very same idea of Lamport's consensus specification.  In     *)
 (* particular, we do not yet require any DAG structure, but just a set of  *)
 (* chosen batches, growing and eventually including all batches.           *)
-(***************************************************************************)
+p(***************************************************************************)
 
 
 \* The _sequence_ of all batches that are chosen (at points in time).
@@ -207,12 +206,13 @@ Init ==
 (***************************************************************************)
 
 
-\* the next action of worker w injecting X
-Next(ws,Xs) == 
+\* the "Next" action of workers w \in ws injecting (range of) Xs
+Next(ws, Xs) == 
   \* type check
   /\ ws \in SUBSET Worker
-  /\ Xs \in [ws -> (SUBSET RequestUnion) / {EmptySet}]
-  /\ IsFiniteSet(UNION Range(Xs))
+  /\ Xs \in [ws -> (SUBSET RequestUnion) \ {EmptySet}]
+  /\ \A w \in ws : /\ Xs[w] \subseteq Request[w]
+                   /\ IsFiniteSet(Xs[w])
   /\ LET 
        newRequests == UNION Range(Xs)
      IN \E n \in Nat:
@@ -224,14 +224,15 @@ Next(ws,Xs) ==
         /\ chosenSet' = [chosenSet' EXCEPT ![n] = newRequests]
 
 
-SomeNext == \E ws : \E Xs : Next(ws,Xs)
+\* the infinite disjunction of all possible instances of the "Next" action
+SomeNext == \E ws : \E Xs : Next(ws, Xs)
 
 (***************************************************************************)
 (* The TLA+ temporal formula that specifies the system evolution.          *)
 (***************************************************************************)
 
 \* 
-Fairness == \A ws : \A Xs : WF_chosenSet(Next(ws,Xs))
+Fairness == \A ws : \A Xs : <>~ENABLED <<Next(ws,Xs)>>_chosenSet
 
 Spec == Init /\ [][SomeNext]_chosenSet /\ Fairness
 
