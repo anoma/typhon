@@ -180,7 +180,7 @@ RequestUnion == UNION { Request[w] : w \in Worker }
 (* We use the very same idea of Lamport's consensus specification.  In     *)
 (* particular, we do not yet require any DAG structure, but just a set of  *)
 (* chosen batches, growing and eventually including all batches.           *)
-p(***************************************************************************)
+(***************************************************************************)
 
 
 \* The _sequence_ of all batches that are chosen (at points in time).
@@ -235,5 +235,18 @@ SomeNext == \E ws : \E Xs : Next(ws, Xs)
 Fairness == \A ws : \A Xs : <>~ENABLED <<Next(ws,Xs)>>_chosenSet
 
 Spec == Init /\ [][SomeNext]_chosenSet /\ Fairness
+
+-----------------------------------------------------------------------------
+
+(***************************************************************************)
+(*                            Refinement                                   *)
+(***************************************************************************)
+
+MempoolProjection ==
+  INSTANCE AbstractMempoolSpec WITH 
+    mempool <- UNION { chosenSet[n] : n \in Nat }
+
+\* 
+THEOREM Spec => MempoolProjection!Spec
 
 =============================================================================
