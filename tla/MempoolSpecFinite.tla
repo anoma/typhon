@@ -6,11 +6,11 @@ This is a finite version of the "MempoolSpec".
 
 EXTENDS FiniteSets, Integers, Functions, TLC
 
-CONSTANT N
+\* CONSTANT N
 
-ASSUMPTION PositiveIntegerN == N \in Nat /\ N > 0
+\* ASSUMPTION PositiveIntegerN == N \in Nat /\ N > 0
 
-NN == 1..N 
+\* NN == 1..N 
 
 -----------------------------------------------------------------------------
 
@@ -157,7 +157,7 @@ Single transactions will be covered in a refined spec.
 CONSTANT Payload
 
 \* There are a countable number of requests to be served.
-ASSUME AssumeCountablePayload == \E f \in Bijection(Payload, NN) : TRUE
+\* ASSUME AssumeCountablePayload == \E f \in Bijection(Payload, NN) : TRUE
 
 \* the alsways usefule empty set
 EmptySet == {}
@@ -190,6 +190,9 @@ RequestUnion == UNION { Request[w] : w \in Worker }
 (* chosen batches, growing and eventually including all batches.           *)
 (***************************************************************************)
 
+N == Cardinality(Batch)
+
+NN == 1..N
 
 \* The _sequence_ of all batches that are chosen (at points in time).
 VARIABLE chosenSet
@@ -204,7 +207,7 @@ TypeOK ==
 (***************************************************************************)
 
 Init == 
-  chosenSet = [n \in NN |-> {}]
+  chosenSet = [n \in NN \cup {N + 1} |-> {}]
 
 (***************************************************************************)
 (* The next-state relation 'Next' describes how the variable 'chosenSet'   *)
@@ -229,14 +232,16 @@ Next(ws, Xs) ==
         /\ \A m \in NN : m < n => /\ chosenSet[m] # {} 
         /\ newRequests \cap UNION { chosenSet[k] : k \in 1..n } = EmptySet
         \* postcondition 
-        /\ chosenSet' = [chosenSet' EXCEPT ![n] = newRequests]
+        /\ chosenSet' = [chosenSet EXCEPT ![n] = newRequests]
 
 
 \* the infinite disjunction of all possible instances of the "Next" action
 SomeNext == 
-  \E ws \in SUBSET Worker : 
-  \E Xs \in [ws -> (SUBSET RequestUnion)]: 
-    Next(ws, Xs)
+  \/ \E ws \in SUBSET Worker : 
+     \E Xs \in [ws -> (SUBSET RequestUnion)]: 
+       Next(ws, Xs)
+  \/  /\ UNION { chosenSet[n] : n \in NN } = Batch
+      /\ UNCHANGED chosenSet
 
 (***************************************************************************)
 (* The TLA+ temporal formula that specifies the system evolution.          *)
@@ -249,6 +254,8 @@ InclusionFairness ==
      WF_chosenSet(Next(ws,Xs))
 
 Spec == Init /\ [][SomeNext]_chosenSet /\ InclusionFairness
+
+DONE == UNION { chosenSet[n] : n \in NN } = Batch
 
 -----------------------------------------------------------------------------
 
