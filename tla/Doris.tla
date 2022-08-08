@@ -20,14 +20,16 @@
 (* way, we get a short term for each of these two entities.                *)
 (***************************************************************************)
 
-EXTENDS Integers, 
-        FiniteSets,
-        Functions, 
-        NaturalsInduction, 
-        WellFoundedInduction
+EXTENDS Integers
+        ,FiniteSets
+        ,Functions 
+        \*,NaturalsInduction
+        \*,WellFoundedInduction
 
 \* For the module "Functions", we rely on the \*
 \*`^\href{https://tinyurl.com/2ybvzsrc}{Community Module.}^'
+
+
 
 -----------------------------------------------------------------------------
 
@@ -58,21 +60,28 @@ EXTENDS Integers,
 \* we consider a more general formalization that
 \* even could take care of infinite sets.
 
-CONSTANTS Validator,     \* The set of non-faulty (aka good) validators.
-          FakeValidator, \* The set of possibly faulty (aka bad) validators.
-          ByzQuorum,
-            (***************************************************************)
-            (* A Byzantine quorum is set of validators that includes a     *)
-            (* quorum of good ones.  In the case that there are 2f+1 good  *)
-            (* validators and f bad ones, any set that contains at least   *)
-            (* 2f+1 validators is a Byzantine quorum.                      *)
-            (***************************************************************)
-          WeakQuorum
-            (***************************************************************)
-            (* A weak quorum is a set of validators that includes at least *)
-            (* one good one.  If there are f bad validators, then any set  *)
-            (* that contaions f+1 validators is a weak quorum.             *)
-            (***************************************************************)
+CONSTANTS
+  \* The set of non-faulty (aka good) validators.
+  \* @type: Set(BYZ_VAL);
+  Validator,
+  \* The set of possibly faulty (aka bad, malicious) validators.
+  \* @type: Set(BYZ_VAL);
+  FakeValidator, 
+  \* @type: Set(Set(BYZ_VAL));
+  ByzQuorum,
+    (***************************************************************)
+    (* A Byzantine quorum is set of validators that includes a     *)
+    (* quorum of good ones.  In the case that there are 2f+1 good  *)
+    (* validators and f bad ones, any set that contains at least   *)
+    (* 2f+1 validators is a Byzantine quorum.                      *)
+    (***************************************************************)
+  \* @type: Set(Set(BYZ_VAL));
+  WeakQuorum
+    (***************************************************************)
+    (* A weak quorum is a set of validators that includes at least *)
+    (* one good one.  If there are f bad validators, then any set  *)
+    (* that contaions f+1 validators is a weak quorum.             *)
+    (***************************************************************)
 
 (***************************************************************************)
 (*  ByzValidator is the (disjoint) union of real or fake validators.       *)
@@ -109,25 +118,23 @@ ASSUME BQLA ==
 (* would be ignored.                                                       *)
 (***************************************************************************)
 
-CONSTANT WorkerIndex \* a publicy known set of indices
+
+CONSTANT 
+  \* @type: Set(WORKER_INDEX);
+  WorkerIndex \* a publicy known set of indices
 
 \* A specific worker has a worker index and serves a (Byzantine) validator 
-
+\* @type: Set({ index : WORKER_INDEX, val : BYZ_VAL });
 Worker == [index : WorkerIndex, val : ByzValidator] 
 
-\* Keep workers and their indices disjoint from validators/primaries
-
-ASSUME WorkerIds ==
-           /\ WorkerIndex \cap ByzValidator = {}
-           /\ Worker \cap ByzValidator = {}
 
 (***************************************************************************)
 (* There is a bijection between ByzValidators and Primaries.  For the sake *)
 (* of simplicity, we identify them in the specification.                   *)
 (***************************************************************************)
 
+\* @type: Set(BYZ_VAL);
 Primary == ByzValidator \* no need to distinguish in the TLA-spec
-
 
 \* end of "GENERAL SETUP"
 
@@ -153,12 +160,22 @@ Primary == ByzValidator \* no need to distinguish in the TLA-spec
 (***************************************************************************)
 
 \* The set of batches
-CONSTANT Batch
 
-noBatch == CHOOSE x : x \notin Batch
+CONSTANT
+  \* @type: Set(BATCH);
+  Batch
 
 \* Assume there are some batches (for the purpose of liveness)
 ASSUME Batch # {}
+
+\* The following seems odd if you identify types and sets 
+\* of valid batches. So, BATCH is more general than just batches
+CONSTANT
+  \* @type: BATCH;
+  noBatch
+
+ASSUME noBatchAssumption == noBatch \notin Batch
+
 
 (***************************************************************************)
 (* For the purposes of formal verification, hash functions need to be      *)
@@ -166,35 +183,51 @@ ASSUME Batch # {}
 (* collisions are not strictly impossible.                                 *)
 (***************************************************************************)
 
-\* The following fct. "hash" is convenient to model hash functions.
-
-hash[b \in Batch] == 
-  [h \in {"hash"} |-> b] \* [ "hash" |-> b] 
        
 \* The set of hashes of any possible batch is the range of "hash".
 
-BatchHash == Range(hash)
+\* @typeAlias: batchHash = { batch : BATCH };
+\* @type: Set($batchHash);
+BatchHash == [ batch : Batch \ {noBatch}]
 
-\*LEMMA BatchHashLemma == hash \in Bijection(Batch,BatchHash) \* NTH
-\* BY DEF hash, Bijection, Injection, Surjection 
+\* The following fct. "hash" is convenient to model hash functions.
 
-\* "SomeHx" is an arbitrary finite set of batch-hashes
-SomeHx == { X \in SUBSET BatchHash : IsFiniteSet(X) }
+\* @type: BATCH -> $batchHash;
+hash[b \in Batch \ {noBatch} ] == [batch |-> b] 
+
+\* LEMMA hash \in Bijection(Batch, BatchHash) \* NTH
 
 
-\* Concerning  block digests, we again imitate hashing.
-\* The structure of blocks then later is restricted,
-\* using the assumption BSA (block structure assumption).
-\* "Block", the set of blocks whose structure is later ``defined''
-\* as BlockStructure
 
-CONSTANT Block
+\*---
+\* \* Concerning  block digests, we again imitate hashing.
+\* \* The structure of blocks then later is restricted,
+\* \* using the assumption BSA (block structure assumption).
+\* \* "Block", the set of blocks whose structure is later ``defined''
+\* \* as BlockStructure
+\*
+\*
+\* CONSTANT
+\*   \* @type: Set(BLOCK);
+\*   Block
+\*
+\*
+\* BlockDigest == Range(digest)
+\*
+\*
+\*
+\* digest[b \in Block] == [block |-> b] 
+\*---
 
-digest[b \in Block] == 
-  [d \in {"digest"} |-> b] \* [ "digest" |-> b] 
-        
 
-BlockDigest == Range(digest)
+--------------------------------------------------------------------------------
+(***************************************************************************)
+(*                       NEW DATA STRUCTURES                               *)
+(***************************************************************************)
+
+====    ← “Progress Bar”
+
+-----------------------------------------------------------------------------
 
 (***************************************************************************)
 (* "If a block is valid, the other validators store it and acknowledge it  *)
@@ -209,13 +242,18 @@ BlockDigest == Range(digest)
 (* retrieval (until garbage collection or execution).                      *)
 (***************************************************************************)
 
-\*  "Ack", the set of acknowledgements
-Ack == [digest : BlockDigest, \* the digest of the acknowledged block
-        creator : ByzValidator, \* the id of the block creator
-        rnd :     Nat, \* the round number of the block
-        sig :     ByzValidator \* the signature of the acknowledgement
-       ]
+\*  "AckType", the set of acknowledgements, without restrictions
+AckType == [digest : BlockDigest, \* the digest of the acknowledged block
+            creator : ByzValidator, \* the id of the block creator
+            rnd :     Nat, \* the round number of the block
+            sig :     ByzValidator \* the signature of the acknowledgement
+           ]
 
+Ack == { a \in AckType : \E b \in Block : 
+                            /\ digest[b] = a.digest
+                            /\ b.creator = a.creator
+                            /\ b.rnd = a.rnd
+       }
 (***************************************************************************)
 (* "Once the creator gets 2f + 1 distinct acknowledgments for a block, it  *)
 (* combines them into a certificate of block availability, that includes   *)
@@ -230,11 +268,10 @@ AckQuorumType == UNION {[Q -> Ack] : Q \in ByzQuorum}
 
 AckQuorum ==
     { ax \in AckQuorumType :     
-             /\ \A v,w \in DOMAIN ax :                                          
-                /\ ax[v].digest = ax[w].digest                       
-                /\ ax[v].rnd = ax[w].rnd                             
-                /\ ax[v].creator = ax[w].creator                 
+             \* the domain consists of singers (implies ax's injectivity)
              /\ \A v \in DOMAIN ax : ax[v].sig = v
+             \* all acks talk about the same block
+             /\ \A a,b \in Range(ax) : a.digest = b.digest
     }
 
 \* The second conjunct, 
@@ -297,14 +334,17 @@ WeakLinks == SUBSET Certificate
 noCert == CHOOSE i \in [{} -> Certificate] : TRUE
 noLinks == {}
 
+
+
+BlockStructureType == [ creator : ByzValidator, \* the block proposer
+                       rnd :     Nat, \* the round of the block proposal
+                       bhxs :    SomeHx, \* the batch hashes of the block
+                       cq :      CertQuorum \cup {noCert}, \* a CoA-quorum 
+                       wl :      WeakLinks, \* possibly weak links
+                       sig :     ByzValidator \* creator signature
+                    ]
 BlockStructure ==
-    { b \in [ creator : ByzValidator, \* the block proposer
-              rnd :     Nat, \* the round of the block proposal
-              bhxs :    SomeHx, \* the batch hashes of the block
-              cq :      CertQuorum \cup {noCert}, \* a CoA-quorum 
-              wl :      WeakLinks, \* possibly weak links             
-              sig :     ByzValidator \* creator signature
-            ] :
+   { b \in BlockStructureType :
       /\ b.creator = b.sig \* on redundancy: cf. note on signatures
       /\ \A l \in b.wl : getRnd(l) < b.rnd-1 \* weak (!) links 
       /\ \/ /\ b.rnd = 0 \* either round zero and
@@ -606,11 +646,12 @@ BatchReady(w) ==
         /\ f[q].sig = q \* thus injective
         /\ f[q].hx = hash[b]
      \* the batch is in the pool of worker w 
-     /\ b \in batchPool[w]
+     /\ b \in batchPool[w] \* check that I am actually responsible
      \* postcondition
      \* add hash to primary's set of next hashes
      /\ nextHx' = [nextHx EXCEPT ![w.val] = @ \cup {hash[b]}]
-     \* worker 'w' "transfers" the batch (hash) to the primary  
+     \* worker 'w' *transfers* the batch (hash) to the primary
+     \* .. preventing the "same" batch to be included in multiple blocks
      /\ batchPool' = [batchPool EXCEPT ![w] = @ \ { b } ] 
   /\ UNCHANGED <<msgs, rndOf, storedHx, storedBlx>>
 
@@ -624,22 +665,27 @@ GenesisBlockBC(v) ==
   /\ \E b \in Block : \* "construct" a block of the desired shape
      /\ b.creator = v
      /\ b.rnd = 0
-     /\ b.bhxs = nextHx[v]
+     /\ b.bhxs \subseteq nextHx[v]
+     /\ (v \in Validator => b.bhxs = nextHx[v]) 
      /\ b.cq = noCert
      /\ b.wl = noLinks
      \* postcondition
      \* send the block
      /\ Send([type |-> "block", block |-> b, creator |-> v])
-     \* empty v's nextHx
-     /\ nextHx' = [nextHx EXCEPT ![v] = {}]
+     \* empty v's nextHx (for validators)
+     /\ (v \in Validator => nextHx' = [nextHx EXCEPT ![v] = {} ])
+     \* Byzantine validators might drop some hashes, typically none 
+     /\ \E X \in SUBSET nextHx[v] : 
+          nextHx' = [nextHx EXCEPT ![v] = @ \ X ]
   /\ UNCHANGED <<rndOf, batchPool, storedHx, storedBlx>>
 
-\* A certificate c : Q -> Ack is justified if all acks were sent
+\* A certificate c : Q -> Ack is _justified_ if all "block-ack"s were sent
 IsJustifiedCert(c) ==
   /\ c \in Certificate  \* aka AckQuorum
-  /\ \A v \in DOMAIN c : \E m \in Message :
+  /\ \A a \in Range(c) : \E m \in Message :
      /\ m.type = "block-ack" \*  block-ack 
-     /\ m.ack = c[v] \* the ack was sent
+     /\ m.ack = a \* the ack was sent
+\* LEMMA "if block-ack sent, everything else necessary was sent" NTH!
 
 \* what's a proper quorum of certificates in (local) round r?
 \* - must be at round r-1
@@ -678,6 +724,7 @@ GeneralBlockBC(v) ==
      \* empty nextHx
      /\ nextHx' = [nextHx EXCEPT ![v] = {}]
   /\ UNCHANGED <<rndOf, batchPool, storedHx, storedBlx>>
+  \* TODO: adapt to byzantine validatrs
 
 \* ACT 'BlockBC': procudtion of a block and broad cast
 BlockBC(v) ==
@@ -796,8 +843,11 @@ IsCertified(b) ==
 \* the set of all blocks that are certified via 'IsCertified'
 CertifiedBlocks == { b \in Block : IsCertified(b) }
 
-\* a "recursive" causality test (only used here "locally")
-isCauseTest[n \in Nat] == 
+
+\* the transitive closure of the (opposite of) 'liksTo'-relation
+isCauseOf(x, y) == 
+  \* a "recursive" causality test, only local for the moment
+  LET isCauseTest[n \in Nat] == 
     [ c \in Block |->
       [ b \in Block |-> 
         CASE n = 0 -> FALSE
@@ -807,12 +857,12 @@ isCauseTest[n \in Nat] ==
                          /\ isCauseTest[n-1][c][z]
       ]
     ]
-
-\* the transitive closure of the (opposite of) 'liksTo'-relation
-isCauseOf(x, b) == 
-  /\ b \in Block
-  /\ x \in Block
-  /\ \E n \in Nat : isCauseTest[n][x][b]
+  IN 
+    \* type checks
+    /\ x \in Block
+    /\ y \in Block
+    \* existence of a link chain
+    /\ \E n \in Nat : isCauseTest[n][x][y]
 
 \* the set of blocks that are causes of a block
 CausalHistory(b) == { x \in Block : isCauseOf(x,b) }
@@ -882,7 +932,7 @@ CommitBlock(b) ==
 (*   a) references the block via its certificate quorum and                *)
 (*   b) has itself obtained a certificate of availability (broadcast by    *)
 (*      its creator).                                                      *)
-(*                                                                         *)
+(***************************************************************************)
 
 
 \* checks whether a leader block is a leader block
