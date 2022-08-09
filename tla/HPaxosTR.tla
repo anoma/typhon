@@ -80,15 +80,14 @@ ASSUME EntanglementAssumption ==
 (* Messages *)
 
 MessageRec0 ==
-    [ type : {"1a"}, lr : Learner, bal : Ballot, val : Value, ref : {} ] \cup
-    [ type : {"1b"}, lr : Learner, ref : {} ] \cup
-    [ type : {"2a"}, lr : Learner, ref : {} ]
+    [ type : {"1a"}, lrn : Learner, bal : Ballot, val : Value, ref : {} ] \cup
+    [ type : {"1b"}, lrn : Learner, ref : {} ] \cup
+    [ type : {"2a"}, lrn : Learner, ref : {} ]
 
 MessageRec1(M, n) ==
     M \cup
-    [ type : {"1a"}, lr : Learner, bal : Ballot, val : Value, ref : SUBSET M ] \cup
-    [ type : {"1b"}, lr : Learner, ref : SUBSET M ] \cup
-    [ type : {"2a"}, lr : Learner, ref : SUBSET M ]
+    [ type : {"1b"}, lrn : Learner, ref : SUBSET M ] \cup
+    [ type : {"2a"}, lrn : Learner, ref : SUBSET M ]
 
 MessageRec ==
     CHOOSE MessageRec :
@@ -486,15 +485,23 @@ PROOF
 <1>3. QED BY <1>1, <1>2, TranBound_eq1, Isa
 
 \*-----------------------------------------------------------------------------
+\* We assume that each 1a-message has a unique value number for every ballot
+\* number, which could be accomplished by incorporating a hash of the value
+\* in the ballot number.
+ASSUME 1aAssumption ==
+    \A m1, m2 \in Message :
+        m1.type = "1a" /\ m2.type = "1a" /\ m1.bal = m2.bal =>
+        m1.val = m2.val
+
+\*-----------------------------------------------------------------------------
 (* Algorithm specification *)
 
 VARIABLES msgs,
+          decision,
           \*maxBal,
-          received,
+          \*received,
           known_msgs,
-          recent_msgs,
-          known_msgs_by_learner,
-          decision
+          recent_msgs
           \*connected
 
 \*InitializedBallot(lr, bal) ==
