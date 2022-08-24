@@ -14,6 +14,8 @@
 (***************************************************************************)
 
 
+EXTENDS Quorums
+
 CONSTANT 
   \* @type: Set(WORKER_INDEX);
   WorkerIndex \* a publicy known set of indices
