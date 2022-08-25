@@ -58,18 +58,6 @@ ASSUME LearnerGraphAssumption ==
             [lr |-> E.to, q |-> Q2] \in TrustLive =>
             \E N \in E.q : N \in Q1 /\ N \in Q2
 
-\*CONSTANT Ent
-\*ASSUME EntanglementAssumption1 ==
-\*        Ent \in SUBSET(Learner \X Learner)
-\*ASSUME EntanglementAssumption2 ==
-\*        \A L1, L2 \in Learner :
-\*              <<L1, L2>> \in Ent =>
-\*              [from |-> L1, to |-> L2, q |-> SafeAcceptor] \in TrustSafe
-\*ASSUME EntanglementAssumption3 ==
-\*        \A L1, L2 \in Learner :
-\*              [from |-> L1, to |-> L2, q |-> SafeAcceptor] \in TrustSafe =>
-\*              <<L1, L2>> \in Ent
-
 Ent == { <<L1, L2>> \in Learner \X Learner :
          [from |-> L1, to |-> L2, q |-> SafeAcceptor] \in TrustSafe }
 
@@ -255,7 +243,6 @@ WellFormed(m) ==
         /\ [lr |-> m.lrn, q |-> q(m)] \in TrustLive
 
 vars == << msgs, known_msgs, recent_msgs, 2a_lrn_loop, processed_lrns, decision >>
-\*vars == << msgs, known_msgs, recent_msgs, 2a_lrn_loop, processed_lrns, decision >>
 
 Init ==
     /\ msgs = {}
@@ -269,16 +256,6 @@ Init ==
 \*    /\ \A acc \in SafeAcceptor : recent_msgs[acc] = {}
 \*    /\ \A acc \in SafeAcceptor : 2a_lrn_loop[acc] = TRUE
 \*    /\ \A acc \in SafeAcceptor : processed_lrns[acc] = TRUE
-
-\*TypeOK ==
-\*    /\ msgs \in SUBSET Message
-\*    /\ maxBal \in [Learner \X Acceptor -> Ballot]
-\*    /\ votesSent \in [Acceptor -> SUBSET [lr : Learner, bal : Ballot, val : Value]]
-\*    /\ 2avSent   \in [Acceptor -> SUBSET [lr : Learner, bal : Ballot, val : Value]]
-\*    /\ connected \in [Acceptor -> SUBSET (Learner \X Learner)]
-\*    /\ received  \in [Acceptor -> SUBSET Message]
-\*    /\ receivedByLearner \in [Learner -> SUBSET Message]
-\*    /\ decision \in [Learner \X Ballot -> SUBSET Value]
 
 Send(m) == msgs' = msgs \cup {m}
 
@@ -414,5 +391,5 @@ THEOREM SafetyResult == Spec => []Safety
 
 =============================================================================
 \* Modification History
-\* Last modified Thu Aug 25 14:46:24 CEST 2022 by aleph
+\* Last modified Thu Aug 25 14:49:21 CEST 2022 by aleph
 \* Created Mon Jul 25 14:24:03 CEST 2022 by aleph
