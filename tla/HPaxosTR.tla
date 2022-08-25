@@ -58,13 +58,14 @@ ASSUME LearnerGraphAssumption ==
             [lr |-> E.to, q |-> Q2] \in TrustLive =>
             \E N \in E.q : N \in Q1 /\ N \in Q2
 
-Ent == { <<L1, L2>> \in Learner \X Learner :
-         [from |-> L1, to |-> L2, q |-> SafeAcceptor] \in TrustSafe }
+Ent == { LL \in Learner \X Learner :
+         [from |-> LL[1], to |-> LL[2], q |-> SafeAcceptor] \in TrustSafe }
 
 -----------------------------------------------------------------------------
 (* Messages *)
 
 CONSTANT MaxRefCardinality
+ASSUME MaxRefCardinality \in Nat
 
 \*RefCardinalityRange == Nat
 RefCardinalityRange == 0..MaxRefCardinality
@@ -97,6 +98,7 @@ MessageRec[n \in Nat] ==
     ELSE MessageRec1(MessageRec[n-1], n)
 
 CONSTANT MaxMessageDepth
+ASSUME MaxMessageDepth \in Nat
 
 \*MessageDepthRange == Nat
 MessageDepthRange == 0..MaxMessageDepth
@@ -238,7 +240,7 @@ WellFormed(m) ==
 \*        /\ \A r1, r2 \in m.ref :
 \*            r1.bal = m.bal /\ r2.bal = m.bal => r1 = r2
         /\ \A y \in Tran(m) :
-            m # y /\ ~Get1a(m, y) => ~SameBallot(m, y) 
+            m # y /\ ~Get1a(m, y) => ~SameBallot(m, y)
     /\ m.type = "2a" =>
         /\ [lr |-> m.lrn, q |-> q(m)] \in TrustLive
 
@@ -332,6 +334,8 @@ AcceptorProcessAction(a) ==
 
 FakeSend(a) ==
     /\ \E m \in { mm \in Message :
+                    /\ WellFormed(mm)  \* assume that adversaries can send only
+                                       \* wellformed messages
                     /\ mm.acc = a
                     /\ \/ mm.type = "1b"
                        \/ mm.type = "2a" } :
@@ -368,7 +372,7 @@ LearnerAction ==
 
 FakeAcceptorAction == \E a \in FakeAcceptor : FakeSend(a)
 
-MessageNumLimit == 10
+\*MessageNumLimit == 10
 
 Next ==
 \*    /\ Cardinality(msgs) < MessageNumLimit
@@ -391,5 +395,5 @@ THEOREM SafetyResult == Spec => []Safety
 
 =============================================================================
 \* Modification History
-\* Last modified Thu Aug 25 14:49:21 CEST 2022 by aleph
+\* Last modified Thu Aug 25 15:34:46 CEST 2022 by aleph
 \* Created Mon Jul 25 14:24:03 CEST 2022 by aleph
