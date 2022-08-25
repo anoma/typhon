@@ -1,17 +1,15 @@
 ------------------------------ MODULE HPaxosTR ------------------------------
-EXTENDS Naturals, Integers, NaturalsInduction, WellFoundedInduction, TLAPS
+EXTENDS Naturals, FiniteSets
 
 -----------------------------------------------------------------------------
 CONSTANT LastBallot
-ASSUME LastBallot \in Int
+ASSUME LastBallot \in Nat
 
 Ballot == 0..LastBallot
-\*Ballot == Int
+\*Ballot == Nat
 
 CONSTANT Value
 ASSUME ValueNotEmpty == Value # {}
-
-None == CHOOSE v : v \notin Value
 
 -----------------------------------------------------------------------------
 CONSTANTS Acceptor,
@@ -19,6 +17,8 @@ CONSTANTS Acceptor,
           FakeAcceptor,
           ByzQuorum,
           Learner
+
+ASSUME AcceptorLearner == Acceptor \cap Learner = {}
 
 ASSUME SafeAcceptorAssumption ==
         /\ SafeAcceptor \cap FakeAcceptor = {}
@@ -58,7 +58,7 @@ ASSUME LearnerGraphAssumption ==
             [lr |-> E.to, q |-> Q2] \in TrustLive =>
             \E N \in E.q : N \in Q1 /\ N \in Q2
 
-CONSTANT Ent
+\*CONSTANT Ent
 \*ASSUME EntanglementAssumption1 ==
 \*        Ent \in SUBSET(Learner \X Learner)
 \*ASSUME EntanglementAssumption2 ==
@@ -70,149 +70,50 @@ CONSTANT Ent
 \*              [from |-> L1, to |-> L2, q |-> SafeAcceptor] \in TrustSafe =>
 \*              <<L1, L2>> \in Ent
 
-ASSUME EntanglementAssumption ==
-        /\ Ent \in SUBSET(Learner \X Learner)
-        /\ \A L1, L2 \in Learner :
-              <<L1, L2>> \in Ent <=>
-              [from |-> L1, to |-> L2, q |-> SafeAcceptor] \in TrustSafe
+Ent == { <<L1, L2>> \in Learner \X Learner :
+         [from |-> L1, to |-> L2, q |-> SafeAcceptor] \in TrustSafe }
 
 -----------------------------------------------------------------------------
 (* Messages *)
 
+CONSTANT MaxRefCardinality
+
+\*RefCardinalityRange == Nat
+RefCardinalityRange == 0..MaxRefCardinality
+
 MessageRec0 ==
-    [ type : {"1a"}, lrn : Learner, bal : Ballot, val : Value, ref : {} ] \cup
-    [ type : {"1b"}, lrn : Learner, ref : {} ] \cup
-    [ type : {"2a"}, lrn : Learner, ref : {} ]
+    [ type : {"1a"}, bal : Ballot, val : Value, ref : {} ] \cup
+    [ type : {"1b"}, acc : Acceptor, ref : {} ] \cup
+    [ type : {"2a"}, lrn : Learner, acc : Acceptor, ref : {} ]
 
 MessageRec1(M, n) ==
     M \cup
-    [ type : {"1b"}, lrn : Learner, ref : SUBSET M ] \cup
-    [ type : {"2a"}, lrn : Learner, ref : SUBSET M ]
+    [ type : {"1b"},
+      acc : Acceptor,
+      ref : { MM \in SUBSET M : Cardinality(MM) \in RefCardinalityRange } ] \cup
+    [ type : {"2a"},
+      lrn : Learner,
+      acc : Acceptor,
+      ref : { MM \in SUBSET M : Cardinality(MM) \in RefCardinalityRange } ]
 
-MessageRec ==
-    CHOOSE MessageRec :
-    MessageRec = [n \in Nat |->
-                    IF n = 0
-                    THEN MessageRec0
-                    ELSE MessageRec1(MessageRec[n-1], n)]
+\*MessageRec ==
+\*    CHOOSE MessageRec :
+\*    MessageRec = [n \in Nat |->
+\*                    IF n = 0
+\*                    THEN MessageRec0
+\*                    ELSE MessageRec1(MessageRec[n-1], n)]
 
-Message == UNION { MessageRec[n] : n \in Nat }
+MessageRec[n \in Nat] ==
+    IF n = 0
+    THEN MessageRec0
+    ELSE MessageRec1(MessageRec[n-1], n)
 
-LEMMA MessageRec_def ==
-    MessageRec = [n \in Nat |->
-                    IF n = 0
-                    THEN MessageRec0
-                    ELSE MessageRec1(MessageRec[n-1], n)]
-PROOF BY NatInductiveDef
-      DEF NatInductiveDefHypothesis, NatInductiveDefConclusion, MessageRec
+CONSTANT MaxMessageDepth
 
-LEMMA Message_spec ==
-    /\ \A n \in Nat : MessageRec[n] \subseteq Message
-    /\ \A m \in Message : \E n \in Nat : m \in MessageRec[n]
-PROOF BY DEF Message
+\*MessageDepthRange == Nat
+MessageDepthRange == 0..MaxMessageDepth
 
-LEMMA MessageRec_eq0 == MessageRec[0] = MessageRec0
-PROOF BY MessageRec_def
-
-LEMMA MessageRec_eq1 ==
-    ASSUME NEW n \in Nat, n # 0
-    PROVE MessageRec[n] = MessageRec1(MessageRec[n-1], n)
-PROOF BY MessageRec_def DEF MessageRec1
-
-LEMMA MessageRec_monotone_1 ==
-    ASSUME NEW n \in Nat
-    PROVE MessageRec[n] \subseteq MessageRec[n+1]
-PROOF BY MessageRec_eq1 DEF MessageRec1
-
-LEMMA MessageRec_monotone ==
-    \A n, m \in Nat : n <= m => MessageRec[n] \subseteq MessageRec[m]
-PROOF
-<1> DEFINE P(m) == \A n \in Nat : n < m => MessageRec[n] \subseteq MessageRec[m]
-<1> SUFFICES ASSUME NEW j \in Nat PROVE P(j) OBVIOUS
-<1>0. P(0) OBVIOUS
-<1>1. ASSUME NEW m \in Nat, P(m) PROVE P(m+1) BY <1>1, MessageRec_monotone_1
-<1>2. HIDE DEF P
-<1>3. QED BY <1>0, <1>1, NatInduction, Isa
-
-LEMMA MessageRec_ref0 ==
-    ASSUME NEW m \in MessageRec[0]
-    PROVE m.ref = {}
-PROOF BY MessageRec_def DEF MessageRec0
-
-LEMMA MessageRec_ref1 ==
-    ASSUME NEW n \in Nat, n # 0
-    PROVE \A m \in MessageRec[n] : m.ref \subseteq MessageRec[n-1]
-PROOF
-<1> DEFINE P(j) == j # 0 =>
-                \A mm \in MessageRec[j] : mm.ref \subseteq MessageRec[j-1]
-<1> SUFFICES ASSUME NEW j \in Nat PROVE P(j) OBVIOUS
-<1>0. P(0) OBVIOUS
-<1>1. ASSUME NEW m \in Nat, P(m) PROVE P(m+1)
-  <2> SUFFICES ASSUME NEW mm \in MessageRec[m+1]
-               PROVE mm.ref \subseteq MessageRec[m]
-      OBVIOUS
-  <2>1. CASE m = 0
-        BY <2>1, MessageRec_eq1, MessageRec_ref0 DEF MessageRec1
-  <2>2. CASE m # 0
-        BY <1>1, <2>2, MessageRec_eq1, MessageRec_monotone DEF MessageRec1
-  <2>3. QED BY <2>1, <2>2
-<1>2. HIDE DEF P
-<1>3. QED BY <1>0, <1>1, NatInduction, Isa
-
-LEMMA Message_ref ==
-    ASSUME NEW m \in Message
-    PROVE m.ref \subseteq Message
-PROOF BY MessageRec_ref0, MessageRec_ref1, Message_spec
-
-LEMMA MessageRec_min ==
-    ASSUME NEW m \in Message
-    PROVE \E n \in Nat :
-            /\ m \in MessageRec[n]
-            /\ \A k \in 0 .. n - 1 : m \notin MessageRec[k]
-PROOF
-<1>1. DEFINE P(k) == m \in MessageRec[k]
-<1>2. SUFFICES \E n \in Nat :
-                /\ P(n)
-                /\ \A k \in 0 .. n - 1 : ~P(k)
-      OBVIOUS
-<1>3. PICK n1 \in Nat : P(n1) BY Message_spec
-<1>4. HIDE DEF P
-<1>5. QED BY <1>3, SmallestNatural
-
-LEMMA Message_ref_acyclic ==
-    ASSUME NEW m \in Message
-    PROVE m \notin m.ref
-PROOF
-<1>0. PICK n \in Nat :
-        /\ m \in MessageRec[n]
-        /\ \A k \in 0 .. n-1 : m \notin MessageRec[k]
-      BY MessageRec_min
-<1>1. CASE n = 0 BY <1>0, <1>1, MessageRec_eq0 DEF MessageRec0
-<1>2. CASE n # 0 /\ m \in m.ref
-  <2>1. m.ref \in SUBSET MessageRec[n-1]
-        BY <1>0, <1>2, MessageRec_eq1 DEF MessageRec1
-  <2>10. QED BY <2>1, <1>0, <1>2
-<1>10. QED BY <1>1, <1>2
-
-\*LEMMA Message_ref_acyclic_2 ==
-\*    ASSUME NEW m1 \in Message, NEW m2 \in m1.ref
-\*    PROVE m1 \notin m2.ref
-\*PROOF
-\*<1> SUFFICES ASSUME NEW x \in Message,
-\*                    NEW y \in x.ref,
-\*                    x \in y.ref
-\*             PROVE FALSE
-\*    OBVIOUS
-\*<1>0. PICK n \in Nat :
-\*        /\ x \in MessageRec[n]
-\*        /\ \A k \in 0 .. n-1 : x \notin MessageRec[k]
-\*      BY MessageRec_min
-\*<1>1. n # 0 BY <1>0, MessageRec_eq0 DEF MessageRec0
-\*<1>2. y \in MessageRec[n - 1] BY MessageRec_ref1, <1>0, <1>1
-\*<1>3. n - 1 # 0 BY <1>2, MessageRec_eq0 DEF MessageRec0
-\*<1>4. n - 1 \in Nat BY <1>1, <1>3
-\*<1>5. x \in MessageRec[n - 1 - 1] BY <1>2, <1>3, <1>4, MessageRec_ref1
-\*<1>6. QED BY <1>5, <1>0, <1>3, <1>4
+Message == UNION { MessageRec[n] : n \in MessageDepthRange }
 
 -----------------------------------------------------------------------------
 (* Transitive references *)
@@ -222,370 +123,153 @@ TranBound0 == [m \in Message |-> {m}]
 TranBound1(tr, n) ==
     [m \in Message |-> {m} \cup UNION {tr[r] : r \in m.ref}]
 
-TranBound ==
-    CHOOSE TranBound :
-    TranBound = [n \in Nat |->
-                    IF n = 0
-                    THEN TranBound0
-                    ELSE TranBound1(TranBound[n-1], n)]
+\*TranBound ==
+\*    CHOOSE TranBound :
+\*    TranBound = [n \in Nat |->
+\*                    IF n = 0
+\*                    THEN TranBound0
+\*                    ELSE TranBound1(TranBound[n-1], n)]
+
+TranBound[n \in Nat] ==
+    IF n = 0
+    THEN TranBound0
+    ELSE TranBound1(TranBound[n-1], n)
 
 \* Countable transitive references
-Tran(m) == UNION {TranBound[n][m] : n \in Nat}
+\*TranDepthRange == Nat
+TranDepthRange == MessageDepthRange
 
-LEMMA TranBound_def ==
-    TranBound = [n \in Nat |->
-                    IF n = 0
-                    THEN TranBound0
-                    ELSE TranBound1(TranBound[n-1], n)]
-PROOF BY NatInductiveDef
-DEF NatInductiveDefHypothesis, NatInductiveDefConclusion, TranBound
+Tran(m) == UNION {TranBound[n][m] : n \in TranDepthRange}
 
-LEMMA Tran_spec ==
-    ASSUME NEW m \in Message
-    PROVE
-    /\ \A n \in Nat : TranBound[n][m] \subseteq Tran(m)
-    /\ \A r \in Tran(m) : \E n \in Nat : r \in TranBound[n][m]
-PROOF BY DEF Tran
+-----------------------------------------------------------------------------
 
-LEMMA TranBound_eq0 ==
-    TranBound[0] = [m \in Message |-> {m}]
-PROOF BY TranBound_def DEF TranBound0
-
-LEMMA TranBound_eq1 ==
-    ASSUME NEW n \in Nat, n # 0
-    PROVE TranBound[n] =
-            [m \in Message |-> {m} \cup UNION {TranBound[n-1][r] : r \in m.ref}]
-PROOF BY TranBound_def DEF TranBound1
-
-LEMMA TranBound_Message ==
-    ASSUME NEW m1 \in Message,
-           NEW n \in Nat, NEW m2 \in TranBound[n][m1]
-    PROVE m2 \in Message
-PROOF
-<1> DEFINE P(j) == \A x \in Message : \A y \in TranBound[j][x] : y \in Message
-<1> SUFFICES ASSUME NEW j \in Nat PROVE P(j) BY DEF Tran
-<1>0. P(0) BY TranBound_eq0
-<1>1. ASSUME NEW k \in Nat, P(k) PROVE P(k+1)
-  <2> SUFFICES ASSUME NEW x \in Message, NEW y \in TranBound[k + 1][x]
-               PROVE y \in Message
-      OBVIOUS
-  <2> SUFFICES ASSUME NEW r \in x.ref, y \in TranBound[k][r]
-               PROVE y \in Message
-      BY TranBound_eq1, Isa
-  <2>2. r \in Message BY Message_ref
-  <2>3. QED BY <1>1, <2>2
-<1>2. HIDE DEF P
-<1>3. QED BY <1>0, <1>1, NatInduction, Isa
-
-LEMMA Tran_Message ==
-    ASSUME NEW m1 \in Message, NEW m2 \in Tran(m1)
-    PROVE m2 \in Message
-PROOF BY TranBound_Message DEF Tran
-
-LEMMA TranBound_monotone_1 ==
-    ASSUME NEW n \in Nat, NEW m \in Message
-    PROVE TranBound[n][m] \subseteq TranBound[n+1][m]
-PROOF
-<1> DEFINE P(j) == \A mm \in Message :
-                    TranBound[j][mm] \subseteq TranBound[j+1][mm]
-<1> SUFFICES ASSUME NEW j \in Nat PROVE P(j) OBVIOUS
-<1>0. P(0) BY TranBound_eq0, TranBound_eq1
-<1>1. ASSUME NEW k \in Nat, P(k) PROVE P(k+1)
-  <2> SUFFICES ASSUME NEW mm \in Message
-               PROVE TranBound[k+1][mm] \subseteq TranBound[(k+1)+1][mm]
-      OBVIOUS
-  <2>1. SUFFICES
-        UNION {TranBound[k][r] : r \in mm.ref} \subseteq
-        UNION {TranBound[k+1][r] : r \in mm.ref}
-        BY TranBound_eq1, Isa
-  <2>6. QED BY <1>1, Message_ref
-<1>2. HIDE DEF P
-<1>3. QED BY <1>0, <1>1, NatInduction, Isa
-
-LEMMA TranBound_monotone ==
-    \A n, m \in Nat : n <= m =>
-        \A mm \in Message :
-            TranBound[n][mm] \subseteq TranBound[m][mm]
-PROOF
-<1> DEFINE P(m) == \A n \in Nat : n < m =>
-                    \A mm \in Message : TranBound[n][mm] \subseteq TranBound[m][mm]
-<1> SUFFICES ASSUME NEW j \in Nat PROVE P(j) OBVIOUS
-<1>0. P(0) OBVIOUS
-<1>1. ASSUME NEW m \in Nat, P(m) PROVE P(m+1) BY <1>1, TranBound_monotone_1
-<1>2. HIDE DEF P
-<1>3. QED BY <1>0, <1>1, NatInduction, Isa
-
-LEMMA Message_ref_TranBound1 ==
-    ASSUME NEW m1 \in Message, NEW m2 \in m1.ref
-    PROVE m2 \in TranBound[1][m1]
-PROOF
-<1> m2 \in Message BY Message_ref
-<1>1. QED BY TranBound_eq0, TranBound_eq1, Isa
-
-LEMMA TranBound_trans ==
-    ASSUME NEW n1 \in Nat, NEW n2 \in Nat,
-           NEW m1 \in Message,
-           NEW m2 \in TranBound[n1][m1],
-           NEW m3 \in TranBound[n2][m2]
-    PROVE  m3 \in TranBound[n1 + n2][m1]
-PROOF
-<1>0. DEFINE P(n) ==
-        \A k \in Nat :
-        \A x \in Message :
-        \A y \in TranBound[n][x] :
-        \A z \in TranBound[k][y] :
-            z \in TranBound[n + k][x]
-<1>1. SUFFICES \A n \in Nat : P(n) OBVIOUS
-<1>2. P(0) BY TranBound_eq0
-<1>3. ASSUME NEW n \in Nat, P(n) PROVE P(n+1)
-  <2>1. SUFFICES ASSUME NEW k \in Nat, NEW x \in Message,
-                            NEW y \in TranBound[n + 1][x], NEW z \in TranBound[k][y]
-                 PROVE z \in TranBound[n + 1 + k][x]
-        OBVIOUS
-  <2>2. CASE y = x BY <2>2, TranBound_monotone
-  <2>3. CASE y \in UNION {TranBound[n][r] : r \in x.ref}
-    <3>0. PICK r \in x.ref : y \in TranBound[n][r] BY <2>3
-    <3>1. r \in Message BY Message_ref
-    <3>2. z \in TranBound[n + k][r] BY <3>0, <3>1, <1>3
-    <3>5. QED BY <3>0, <3>2, TranBound_eq1, Isa
-  <2>10. QED BY <2>2, <2>3, TranBound_eq1, Isa
-<1>4. HIDE DEF P
-<1>5. QED BY <1>2, <1>3, NatInduction, Isa
-
-LEMMA Tran_trans ==
-    ASSUME NEW m1 \in Message, NEW m2 \in Tran(m1), NEW m3 \in Tran(m2)
-    PROVE  m3 \in Tran(m1)
-PROOF
-<1>0. PICK n1 \in Nat : m2 \in TranBound[n1][m1] BY DEF Tran
-<1>1. PICK n2 \in Nat : m3 \in TranBound[n2][m2] BY DEF Tran
-<1>2. m3 \in TranBound[n2 + n1][m1] BY TranBound_trans, <1>0, <1>1
-<1>3. QED BY <1>2 DEF Tran
-
-LEMMA Message_ref_Tran ==
-    ASSUME NEW m1 \in Message, NEW m2 \in m1.ref
-    PROVE m2 \in Tran(m1)
-PROOF BY Message_ref_TranBound1 DEF Tran
-
-LEMMA MessageRec0_Tran ==
-    ASSUME NEW m1 \in MessageRec[0], NEW m2 \in Tran(m1)
-    PROVE m1 = m2
-PROOF
-<1> PICK k \in Nat : m2 \in TranBound[k][m1] BY DEF Tran
-<1> m1 \in Message BY DEF Message
-<1> m2 \in Message BY Tran_Message
-<1>1. CASE k = 0 BY TranBound_eq0, <1>1
-<1>2. CASE k # 0
-  <2>1. CASE m2 \in UNION { TranBound[k - 1][r] : r \in m1.ref }
-        BY MessageRec_eq0 DEF MessageRec0
-  <2>2. QED BY Isa, TranBound_eq1, <1>2, <2>1
-<1>3. QED BY <1>1, <1>2
-
-LEMMA MessageRec_Tran_bound ==
-    ASSUME NEW n \in Nat, NEW m1 \in MessageRec[n], NEW m2 \in Tran(m1)
-    PROVE m2 \in MessageRec[n]
-PROOF
-<1> DEFINE P(l) == \A k \in Nat :
-                   \A x \in MessageRec[k] :
-                   \A y \in TranBound[l][x] :
-                        y \in MessageRec[k]
-<1> SUFFICES ASSUME NEW j \in Nat PROVE P(j) BY DEF Tran
-<1>0. P(0) BY TranBound_eq0, Message_spec DEF Tran
-<1>1. ASSUME NEW m \in Nat, P(m) PROVE P(m+1)
-  <2> SUFFICES ASSUME NEW k \in Nat,
-                      NEW x \in MessageRec[k],
-                      NEW y \in TranBound[m + 1][x]
-               PROVE y \in MessageRec[k]
-      OBVIOUS
-  <2> SUFFICES ASSUME k # 0 PROVE y \in MessageRec[k]
-      BY MessageRec0_Tran DEF Tran
-  <2> x \in Message BY DEF Message
-  <2>1. CASE y = x BY <2>1
-  <2>2. CASE y \in UNION { TranBound[m][r] : r \in x.ref }
-    <3>1. PICK r \in x.ref : y \in TranBound[m][r] BY <2>2
-    <3>3. r \in MessageRec[k - 1] BY MessageRec_ref1
-    <3>4. y \in MessageRec[k - 1] BY <3>3, <3>1, <1>1
-    <3>5. QED BY <3>4, MessageRec_monotone
-  <2>3. QED BY <2>1, <2>2, TranBound_eq1, Isa
-<1>2. HIDE DEF P
-<1>3. QED BY <1>0, <1>1, NatInduction, Isa
-
-\*LEMMA MessageRec_TranBound ==
-\*    ASSUME NEW n \in Nat, NEW m1 \in MessageRec[n], NEW m2 \in Tran(m1)
-\*    PROVE \E k \in Nat : k <= n /\ m2 \in TranBound[k][m1]
-\*PROOF
-\*<1> DEFINE P(l) == \A k \in Nat :
-\*                   \A x \in MessageRec[k] :
-\*                   \A y \in TranBound[l][x] :
-\*                    \E k1 \in Nat : k1 <= k /\ y \in TranBound[k1][x]
-\*<1> SUFFICES ASSUME NEW j \in Nat PROVE P(j) BY DEF Tran
-\*<1>0. P(0) BY TranBound_eq1, TranBound_eq1, MessageRec_eq0 DEF MessageRec0
-\*<1>1. ASSUME NEW m \in Nat, P(m) PROVE P(m+1)
-\*  <2> DEFINE E(k, x, y) == \E k1 \in Nat : k1 <= k /\ y \in TranBound[k1][x]
-\*  <2> SUFFICES ASSUME NEW k \in Nat,
-\*                      NEW x \in MessageRec[k],
-\*                      NEW y \in TranBound[m + 1][x]
-\*               PROVE E(k, x, y)
-\*      BY MessageRec0_Tran DEF Tran
-\*  <2> x \in Message BY Tran_Message DEF Message, Tran
-\*  <2> y \in Tran(x) BY DEF Tran
-\*  <2> SUFFICES ASSUME k # 0 PROVE E(k, x, y)
-\*    <3>1. CASE k = 0
-\*      <4>1. x = y BY <3>1, MessageRec0_Tran
-\*      <4>2. WITNESS 0 \in Nat
-\*      <4>3. QED BY TranBound_eq0, <4>1
-\*    <3>2. QED BY <3>1
-\*  <2>1. CASE y = x BY <2>1, TranBound_eq0
-\*  <2>2. CASE y \in UNION { TranBound[m][r] : r \in x.ref }
-\*    <3>1. PICK r \in x.ref : y \in TranBound[m][r] BY <2>2
-\*    <3>3. r \in MessageRec[k - 1] BY MessageRec_ref1
-\*    <3>4. PICK k2 \in Nat : k2 <= k - 1 /\ y \in TranBound[k2][r]
-\*          BY <1>1, <3>1, <3>3
-\*    <3>5. WITNESS k2 + 1 \in Nat
-\*    <3>6. r \in TranBound[1][x] BY Message_ref_TranBound1, <3>1
-\*    <3>10. QED BY <3>4, <3>6, TranBound_trans
-\*  <2>4. HIDE DEF E
-\*  <2>5. QED BY <2>1, <2>2, TranBound_eq1, Isa
-\*<1>2. HIDE DEF P
-\*<1>3. QED BY <1>0, <1>1, NatInduction, Isa
-
-LEMMA Tran_ref_acyclic ==
-    ASSUME NEW m \in Message, NEW r \in m.ref
-    PROVE m \notin Tran(r)
-PROOF
-<1> r \in Message BY Message_ref
-<1> SUFFICES ASSUME NEW n \in Nat,
-                    NEW x \in Message,
-                    NEW y \in x.ref, x \in Tran(y)
-             PROVE x \in MessageRec[n] => FALSE
-    BY DEF Message
-<1>0. PICK k \in Nat : /\ x \in MessageRec[k]
-                       /\ \A k1 \in 0 .. k - 1 : x \notin MessageRec[k1]
-      BY MessageRec_min
-<1> SUFFICES ASSUME k # 0 PROVE FALSE
-  <2>1. CASE k = 0 BY <1>0, <2>1, MessageRec_eq0 DEF MessageRec0
-  <2>2. QED BY <2>1
-<1>2. y \in MessageRec[k - 1] BY <1>0, MessageRec_ref1
-<1>3. x \in MessageRec[k - 1] BY <1>2, MessageRec_Tran_bound
-<1>4. QED BY <1>0, <1>3
-
-LEMMA Tran_acyclic ==
-    ASSUME NEW m1 \in Message, NEW m2 \in Tran(m1),
-           m1 \in Tran(m2)
-    PROVE m1 = m2
-PROOF
-<1> PICK n \in Nat : m2 \in TranBound[n][m1] BY DEF Tran
-<1> SUFFICES ASSUME n # 0 PROVE m1 = m2 BY TranBound_eq0
-<1>1. CASE m1 = m2 BY <1>1
-<1>2. CASE m2 \in UNION { TranBound[n - 1][r] : r \in m1.ref }
-  <2> PICK r \in m1.ref : m2 \in TranBound[n - 1][r] BY <1>2
-  <2> r \in Message BY Message_ref
-  <2> m2 \in Tran(r) BY DEF Tran
-  <2>1. m1 \in Tran(r) BY Tran_trans
-  <2>2. QED BY <2>1, Tran_ref_acyclic
-<1>3. QED BY <1>1, <1>2, TranBound_eq1, Isa
-
-\*-----------------------------------------------------------------------------
-\* We assume that each 1a-message has a unique value number for every ballot
-\* number, which could be accomplished by incorporating a hash of the value
-\* in the ballot number.
+\* We assume that each 1a-message has a unique value and ballot number,
+\* which could be accomplished by incorporating a hash of the value and the
+\* sender signature information in the ballot number.
 ASSUME 1aAssumption ==
     \A m1, m2 \in Message :
         m1.type = "1a" /\ m2.type = "1a" /\ m1.bal = m2.bal =>
-        m1.val = m2.val
+        m1 = m2
 
-\*-----------------------------------------------------------------------------
+-----------------------------------------------------------------------------
+\*None == CHOOSE v : v \notin Value /\ v \notin Message
+
+-----------------------------------------------------------------------------
 (* Algorithm specification *)
 
 VARIABLES msgs,
-          decision,
-          \*maxBal,
-          \*received,
           known_msgs,
-          recent_msgs
-          \*connected
+          recent_msgs,
+          2a_lrn_loop,
+          processed_lrns,
+          decision
 
-\*InitializedBallot(lr, bal) ==
-\*    \E m \in msgs : m.type = "1a" /\ m.lr = lr /\ m.bal = bal
-\*
-\*AnnouncedValue(lr, bal, val) ==
-\*    \E m \in msgs : m.type = "1c" /\ m.lr = lr /\ m.bal = bal /\ m.val = val
-\*
-\*ChosenIn(lr, bal, v) ==
-\*    \E Q \in ByzQuorum:
-\*        /\ [lr |-> lr, q |-> Q] \in TrustLive
-\*        /\ \A aa \in Q :
-\*            \E m \in { mm \in receivedByLearner[lr] : mm.bal = bal } :
-\*                /\ m.val = v
-\*                /\ m.acc = aa
-\*
-\*KnowsSafeAt1(l, ac, b) ==
-\*    LET S == { mm \in received[ac] : mm.type = "1b" /\ mm.lr = l /\ mm.bal = b }
-\*    IN \E BQ \in ByzQuorum :
-\*        /\ [lr |-> l, q |-> BQ] \in TrustLive
-\*        /\ \A a \in BQ :
-\*            \E m \in S :
-\*                /\ m.acc = a
-\*                /\ \A p \in { pp \in m.votes : <<pp.lr, l>> \in connected[ac] } :
-\*                        b =< p.bal
-\*
-\*KnowsSafeAt2(l, ac, b, v) ==
-\*    LET S == { mm \in received[ac] : mm.type = "1b" /\ mm.lr = l /\ mm.bal = b }
-\*    IN \E c \in Ballot :
-\*        /\ c < b
-\*        /\ \E BQ \in ByzQuorum :
-\*            /\ [lr |-> l, q |-> BQ] \in TrustLive
-\*            /\ \A a \in BQ :
-\*                \E m \in S :
-\*                    /\ m.acc = a
-\*                    /\ \A p \in { pp \in m.votes : <<pp.lr, l>> \in connected[ac] } :
-\*                        /\ p.bal =< c
-\*                        /\ (p.bal = c) => (p.val = v)
-\*        /\ \E WQ \in ByzQuorum :
-\*            /\ [lr |-> l, q |-> WQ] \in TrustLive
-\*            /\ \A a \in WQ :
-\*                \E m \in S :
-\*                    /\ m.acc = a
-\*                    /\ \E p \in m.proposals :
-\*                        /\ p.lr = l
-\*                        /\ p.bal = c
-\*                        /\ p.val = v
-\*
-\*KnowsSafeAt(l, ac, b, v) ==
-\*    \/ KnowsSafeAt1(l, ac, b)
-\*    \/ KnowsSafeAt2(l, ac, b, v)
+Get1a(m, x) ==
+    /\ x.type = "1a"
+    /\ x \in Tran(m)
+    /\ \A y \in Tran(m) :
+        y.type = "1a" => y.bal <= x.bal
+\* Invariant: Get1a(m, x) /\ Get1a(m, y) => x = y
+\* TODO: totality for 1b, 2a messages. Required invariant:
+\*   each well-formed 1b references a 1a.
 
-Proper(a, m) ==
-    /\ \A r \in m.refs : r \in known_msgs[a]
+B(m, bal) == \E x \in Message : Get1a(m, x) /\ x.bal = bal
 
-ProperForLearner(l, m) ==
-    /\ \A r \in m.refs : r \in known_msgs_by_learner[l]
+V(m, v) == \E x \in Message : Get1a(m, x) /\ x.val = v
+
+\* Maximal ballot number of any messages known to acceptor a
+MaxBal(a, mbal) ==
+    /\ \E m \in known_msgs[a] : B(m, mbal)
+    /\ \A x \in known_msgs[a] :
+        \A b \in Ballot : B(x, b) => b =< mbal
+
+SameBallot(x, y) ==
+    \A b \in Ballot : B(x, b) <=> B(y, b)
+
+\* The acceptor is _caught_ in a message x if the transitive references of x
+\* include evidence such as two messages both signed by the acceptor, in which
+\* neither is featured in the other's transitive references.
+Caught(x) ==
+    LET P == { m \in Tran(x) :
+                /\ m.type # "1a"
+                /\ \E m1 \in Tran(x) :
+                    /\ m1.type # "1a"
+                    /\ m.acc = m1.acc
+                    /\ m \notin Tran(m1)
+                    /\ m1 \notin Tran(m) }
+    IN UNION { m.acc : m \in P }
+
+\* Connected
+Con(a, x) ==
+    { b \in Learner :
+        \E S \in ByzQuorum :
+            /\ [from |-> a, to |-> b, q |-> S] \in TrustSafe
+            /\ S \cap Caught(x) = {} }
+
+\* 2a-message is _buried_ if there exists a quorum of acceptors that have seen
+\* 2a-messages with different values, the same learner, and higher ballot
+\* numbers.
+Buried(x, y) ==
+    LET Q == { m \in Tran(y) :
+                \E z \in Tran(m) :
+                    /\ z.type = "2a"
+                    /\ z.lrn = x.lrn
+                    /\ \A bx, bz \in Ballot :
+                        B(x, bx) /\ B(z, bz) => bx < bz
+                    /\ \A vx, vz \in Value :
+                        V(x, vx) /\ V(z, vz) => vx # vz }
+    IN [lr |-> x.lrn, q |-> {a \in Acceptor : \E m \in Q : m.acc = a}] \in TrustLive
+
+\* Connected 2a messages
+Con2as(l, x) ==
+    { m \in Tran(x) :
+        /\ m.type = "2a"
+        /\ m.acc = x.acc
+        /\ ~Buried(m, x)
+        /\ m.lrn \in Con(l, x) }
+
+\* Fresh 1b messages
+Fresh(l, x) ==
+    \A m \in Con2as(l, x) : \A v \in Value : V(x, v) <=> V(m, v)
+
+\* Quorum of messages referenced by 2a
+q(x) ==
+    { m \in Tran(x) :
+        /\ m.type = "1b"
+        /\ Fresh(x.lrn, m)
+        /\ \A mb, xb \in Ballot :
+            B(m, mb) /\ B(x, xb) => mb = xb }
 
 WellFormed(m) ==
     /\ m \in Message
-    \* No 1b message should reference any message with the same ballot number
-    \* besides a 1a message
-    \* TODO : check if we need the uniqueness assumption
     /\ m.type = "1b" =>
-        /\ \A r \in m.ref : r.bal = m.bal => r.type = "1a"
-        /\ \A r1, r2 \in m.ref :
-            m.bal = r1.bal /\ r1.type = "1a" /\
-            m.bal = r2.bal /\ r2.type = "1a" => r1 = r2
-    /\ m.type = "2a" => m.acc \in m.q
+        /\ \E r1a \in m.ref :
+            /\ r1a.type = "1a"
+\*            /\ r1a.bal = m.bal
+\*        /\ \A r \in m.ref : r.bal =< m.bal
+\*        /\ \A r1, r2 \in m.ref :
+\*            r1.bal = m.bal /\ r2.bal = m.bal => r1 = r2
+        /\ \A y \in Tran(m) :
+            m # y /\ ~Get1a(m, y) => ~SameBallot(m, y) 
+    /\ m.type = "2a" =>
+        /\ [lr |-> m.lrn, q |-> q(m)] \in TrustLive
 
-vars == << msgs, known_msgs, recent_msgs, known_msgs_by_learner, decision >>
-\*votesSent, 2avSent, received, connected, receivedByLearner, decision, msgs >>
+vars == << msgs, known_msgs, recent_msgs, 2a_lrn_loop, processed_lrns, decision >>
+\*vars == << msgs, known_msgs, recent_msgs, 2a_lrn_loop, processed_lrns, decision >>
 
-\*
-\*Init ==
-\*    /\ msgs = {}
-\*    /\ maxBal = [la \in Learner \X Acceptor |-> 0]
-\*    /\ 2avSent = [a \in Acceptor |-> {}]
-\*    /\ votesSent = [a \in Acceptor |-> {}]
-\*    /\ connected = [a \in Acceptor |-> Learner \X Learner]
-\*    /\ received = [a \in Acceptor |-> {}]
-\*    /\ receivedByLearner = [l \in Learner |-> {}]
-\*    /\ decision = [lb \in Learner \X Ballot |-> {}]
-\*
+Init ==
+    /\ msgs = {}
+    /\ known_msgs = [x \in Acceptor \cup Learner |-> {}]
+    /\ recent_msgs = [a \in Acceptor |-> {}]
+    /\ 2a_lrn_loop = [a \in Acceptor |-> FALSE]
+    /\ processed_lrns = [a \in Acceptor |-> {}]
+    /\ decision = [lb \in Learner \X Ballot |-> {}]
+\*    /\ \A acc \in SafeAcceptor : known_msgs[acc] = {}
+\*    /\ \A lrn \in Learner : known_msgs[lrn] = {}
+\*    /\ \A acc \in SafeAcceptor : recent_msgs[acc] = {}
+\*    /\ \A acc \in SafeAcceptor : 2a_lrn_loop[acc] = TRUE
+\*    /\ \A acc \in SafeAcceptor : processed_lrns[acc] = TRUE
+
 \*TypeOK ==
 \*    /\ msgs \in SUBSET Message
 \*    /\ maxBal \in [Learner \X Acceptor -> Ballot]
@@ -595,130 +279,140 @@ vars == << msgs, known_msgs, recent_msgs, known_msgs_by_learner, decision >>
 \*    /\ received  \in [Acceptor -> SUBSET Message]
 \*    /\ receivedByLearner \in [Learner -> SUBSET Message]
 \*    /\ decision \in [Learner \X Ballot -> SUBSET Value]
-\*
-\*Send(m) == msgs' = msgs \cup {m}
-\*
-\*Phase1a(l, b) ==
-\*    /\ Send([type |-> "1a", lr |-> l, bal |-> b])
-\*    /\ UNCHANGED << maxBal, votesSent, 2avSent, received, connected, receivedByLearner, decision >>
-\*
-\*Phase1c(l, b, v) ==
-\*    /\ Send([type |-> "1c", lr |-> l, bal |-> b, val |-> v])
-\*    /\ UNCHANGED << maxBal, votesSent, 2avSent, received, connected, receivedByLearner, decision >>
-\*
-\*MaxVote(a, b, vote) ==
-\*    /\ vote.bal < b
-\*    /\ \A other \in votesSent[a] :
-\*          other.lr = vote.lr /\ other.bal < b =>
-\*          other.bal =< vote.bal
-\*
-\*Phase1b(l, b, a) ==
-\*    /\ maxBal[<<l, a>>] =< b
-\*    /\ InitializedBallot(l, b)
-\*    /\ maxBal' = [maxBal EXCEPT ![<<l, a>>] = b]
-\*    /\ Send([
-\*         type |-> "1b",
-\*         lr |-> l,
-\*         acc |-> a,
-\*         bal |-> b,
-\*         votes |-> { p \in votesSent[a] : MaxVote(a, b, p) },
-\*         proposals |-> { p \in 2avSent[a] : p.bal < b }
-\*       ])
-\*    /\ UNCHANGED << votesSent, 2avSent, received, connected, receivedByLearner, decision >>
-\*
-\*Phase2av(l, b, a, v) ==
-\*    /\ maxBal[l, a] =< b
-\*    /\ InitializedBallot(l, b)
-\*    /\ AnnouncedValue(l, b, v)
-\*    /\ \A P \in { p \in 2avSent[a] : p.bal = b /\ <<p.lr, l>> \in connected[a] } : P.val = v
-\*    /\ KnowsSafeAt(l, a, b, v)
-\*    /\ Send([type |-> "2av", lr |-> l, acc |-> a, bal |-> b, val |-> v])
-\*    /\ 2avSent' = [2avSent EXCEPT ![a] = 2avSent[a] \cup { [lr |-> l, bal |-> b, val |-> v] }]
-\*    /\ UNCHANGED << maxBal, votesSent, received, connected, receivedByLearner, decision >>
-\*
-\*Phase2b(l, b, a, v) ==
-\*    /\ \A L \in Learner : maxBal[L, a] =< b
-\*    /\ \E Q \in ByzQuorum :
-\*        /\ [lr |-> l, q |-> Q] \in TrustLive
-\*        /\ \A aa \in Q :
-\*            \E m \in { mm \in received[a] :
-\*                        /\ mm.type = "2av"
-\*                        /\ mm.lr = l
-\*                        /\ mm.bal = b } :
-\*                /\ m.val = v
-\*                /\ m.acc = aa
-\*    /\ Send([type |-> "2b", lr |-> l, acc |-> a, bal |-> b, val |-> v])
-\*    /\ votesSent' = [votesSent EXCEPT ![a] =
-\*                        votesSent[a] \cup { [lr |-> l, bal |-> b, val |-> v] }]
-\*    /\ UNCHANGED << maxBal, 2avSent, received, connected, receivedByLearner, decision >>
 
-Recv(a) ==
-    /\ \E m \in msgs :
-        received' = [received EXCEPT ![a] = received[a] \cup { m }]
-    /\ UNCHANGED << msgs, known_msgs, recent_msgs, known_msgs_by_learner, decision >>
+Send(m) == msgs' = msgs \cup {m}
 
-\*Disconnect(a) ==
-\*    /\ \E P \in SUBSET { LL \in Learner \X Learner : LL \notin Ent } :
-\*        connected' = [connected EXCEPT ![a] = connected[a] \ P]
-\*    /\ UNCHANGED << msgs, maxBal, votesSent, 2avSent, received, known_msgs_by_learner, decision >>
-\*
-\*FakeSend(a) ==
-\*    /\ \E m \in { mm \in Message :
-\*                   /\ mm.acc = a
-\*                   /\ \/ mm.type = "1b"
-\*                      \/ mm.type = "2av"
-\*                      \/ mm.type = "2b" } :
-\*        Send(m)
-\*    /\ UNCHANGED << maxBal, votesSent, 2avSent, received, connected, known_msgs_by_learner, decision >>
-\*
+Proper(a, m) ==
+    /\ \A r \in m.ref : r \in known_msgs[a]
+
+Recv(a, m) ==
+    /\ WellFormed(m)
+    /\ Proper(a, m)
+    /\ known_msgs' = [known_msgs EXCEPT ![a] = known_msgs[a] \cup {m}]
+
+Send1a(b, v) ==
+    /\ Send([type |-> "1a", bal |-> b, val |-> v, ref |-> {}])
+    /\ UNCHANGED << known_msgs, recent_msgs, 2a_lrn_loop, processed_lrns, decision >>
+
+Process1a(a, m) ==
+    LET new1b == [type |-> "1b", acc |-> a, ref |-> recent_msgs[a] \cup {m}] IN
+    /\ Recv(a, m)
+    /\ m.type = "1a"
+    /\ WellFormed(new1b) =>
+        /\ recent_msgs' = [recent_msgs EXCEPT ![a] = {}]
+        /\ Send(new1b)
+    /\ (~WellFormed(new1b)) =>
+        /\ recent_msgs' = [recent_msgs EXCEPT ![a] = recent_msgs[a] \cup {m}]
+        /\ UNCHANGED msgs
+    /\ UNCHANGED << 2a_lrn_loop, processed_lrns, decision >>
+
+Process1b(a, m) ==
+    /\ Recv(a, m)
+    /\ m.type = "1b"
+    /\ recent_msgs' = [recent_msgs EXCEPT ![a] = recent_msgs[a] \cup {m}]
+    /\ (\A b \in Ballot : B(m, b) => MaxBal(a, b)) =>
+        /\ 2a_lrn_loop' = [2a_lrn_loop EXCEPT ![a] = TRUE]
+        /\ processed_lrns' = [processed_lrns EXCEPT ![a] = {}]
+    /\ (~(\A b \in Ballot : B(m, b) => MaxBal(a, b))) =>
+        UNCHANGED << 2a_lrn_loop, processed_lrns >>
+    /\ UNCHANGED << msgs, decision >>
+
+Process1bLearnerLoop(a) ==
+    \/ \E lrn \in Learner \ processed_lrns[a] :
+        LET new2a == [type |-> "2a", lrn |-> lrn, ref |-> recent_msgs[a]] IN
+        /\ processed_lrns' =
+            [processed_lrns EXCEPT ![a] = processed_lrns[a] \cup {lrn}]
+        /\ WellFormed(new2a) =>
+            /\ Send(new2a)
+            /\ recent_msgs' = [recent_msgs EXCEPT ![a] = {new2a}]
+        /\ (~WellFormed(new2a)) =>
+            UNCHANGED << msgs, recent_msgs >>
+        /\ UNCHANGED << known_msgs, 2a_lrn_loop, decision >>
+    \/ /\ Learner \ processed_lrns[a] = {}
+       /\ 2a_lrn_loop' = [2a_lrn_loop EXCEPT ![a] = FALSE]
+       /\ UNCHANGED << msgs, known_msgs, recent_msgs, processed_lrns, decision >>
+
+Process2a(a, m) ==
+    /\ Recv(a, m)
+    /\ m.type = "2a"
+    /\ recent_msgs' = [recent_msgs EXCEPT ![a] = recent_msgs[a] \cup {m}]
+    /\ UNCHANGED << msgs, 2a_lrn_loop, processed_lrns, decision >>
+
+ProposerSendAction(a) ==
+    \E bal \in Ballot : \E val \in Value :
+        Send1a(bal, val)
+
+\* vars == << msgs, known_msgs, recent_msgs, 2a_lrn_loop, processed_lrns, decision >>
+
+AcceptorProcessAction(a) ==
+    \/ /\ 2a_lrn_loop[a] = FALSE
+       /\ \E m \in msgs :
+            /\ m \notin known_msgs[a]
+            /\ \/ Process1a(a, m)
+               \/ Process1b(a, m)
+    \/ /\ 2a_lrn_loop[a] = TRUE
+       /\ Process1bLearnerLoop(a)
+
+FakeSend(a) ==
+    /\ \E m \in { mm \in Message :
+                    /\ mm.acc = a
+                    /\ \/ mm.type = "1b"
+                       \/ mm.type = "2a" } :
+        Send(m)
+    /\ UNCHANGED << known_msgs, recent_msgs, 2a_lrn_loop, processed_lrns, decision >>
 
 LearnerRecv(l) ==
-    /\ \E m \in { mm \in msgs : mm.type = "2a" }:
-        /\ ProperForLearner(l, m)
-        /\ known_msgs_by_learner' =
-            [known_msgs_by_learner EXCEPT ![l] = known_msgs_by_learner[l] \cup {m}]
-    /\ UNCHANGED << msgs, known_msgs, recent_msgs, decision >>
+    /\ \E m \in msgs :
+        /\ Proper(l, m)
+        /\ Recv(l, m)
+    /\ UNCHANGED << msgs, recent_msgs, 2a_lrn_loop, processed_lrns, decision >>
 
-\*LearnerDecide(l, b) ==
-\*    /\ \E v \in {vv \in Value : ChosenIn(l, b, vv)}:
-\*        decision' = [decision EXCEPT ![<<l, b>>] = decision[l, b] \cup {v}]
-\*    /\ UNCHANGED << msgs, received, known_msgs_by_learner >>
+ChosenIn(l, b, v) ==
+    \E S \in SUBSET { x \in known_msgs[l] :
+                            /\ x.type = "2a"
+                            /\ x.lrn = l
+                            /\ B(x, b) } :
+        \E Q \in ByzQuorum :
+            /\ [lr |-> l, q |-> Q] \in TrustLive
+            /\ \A a \in Q :
+                \E m \in S : m.acc = a
 
-\*ProposerAction ==
-\*    \E lrn \in Learner : \E proposer \in Ballot :
-\*        \/ Phase1a(lrn, proposer)
-\*        \/ \E v \in Value : Phase1c(lrn, proposer, v)
-\*
-\*AcceptorSendAction ==
-\*    \E lrn \in Learner : \E bal \in Ballot : \E acc \in SafeAcceptor : \E val \in Value :
-\*        \/ Phase1b(lrn, bal, acc)
-\*        \/ Phase2av(lrn, bal, acc, val)
-\*        \/ Phase2b(lrn, bal, acc, val)
-\*
-\*AcceptorReceiveAction ==
-\*    \E lrn \in Learner : \E acc \in Acceptor : Recv(lrn, acc)
-\*
-\*AcceptorDisconnectAction ==
-\*    \E acc \in SafeAcceptor : Disconnect(acc)
-\*
-\*LearnerAction ==
-\*    \E lrn \in Learner :
-\*        \/ \E bal \in Ballot : LearnerDecide(lrn, bal)
-\*        \/ LearnerRecv(lrn)
-\*
-\*FakeAcceptorAction == \E a \in FakeAcceptor : FakeSend(a)
-\*
-\*Next ==
-\*    \/ ProposerAction
-\*    \/ AcceptorSendAction
-\*    \/ AcceptorReceiveAction
-\*    \/ AcceptorDisconnectAction
-\*    \/ LearnerAction
-\*    \/ FakeAcceptorAction
-\*
-\*Spec == Init /\ [][Next]_vars
+LearnerDecide(l, b, v) ==
+    /\ ChosenIn(l, b, v)
+    /\ decision' = [decision EXCEPT ![<<l, b>>] = decision[l, b] \cup {v}]
+    /\ UNCHANGED << msgs, known_msgs, recent_msgs, 2a_lrn_loop, processed_lrns >>
+
+LearnerAction ==
+    \E lrn \in Learner :
+        \/ \E bal \in Ballot :
+           \E val \in Value :
+            LearnerDecide(lrn, bal, val)
+        \/ LearnerRecv(lrn)
+
+FakeAcceptorAction == \E a \in FakeAcceptor : FakeSend(a)
+
+MessageNumLimit == 10
+
+Next ==
+\*    /\ Cardinality(msgs) < MessageNumLimit
+    /\ \/ \E acc \in Acceptor : ProposerSendAction(acc)
+       \/ \E acc \in Acceptor : AcceptorProcessAction(acc)
+       \/ LearnerAction
+       \/ FakeAcceptorAction
+
+Spec == Init /\ [][Next]_vars
+
+-----------------------------------------------------------------------------
+
+Safety ==
+    \A L1, L2 \in Learner: \A B1, B2 \in Ballot : \A V1, V2 \in Value :
+        <<L1, L2>> \in Ent /\
+        V1 \in decision[L1, B1] /\ V2 \in decision[L2, B2] =>
+        V1 = V2
+
+THEOREM SafetyResult == Spec => []Safety
 
 =============================================================================
 \* Modification History
-\* Last modified Mon Aug 08 15:02:23 CEST 2022 by aleph
+\* Last modified Thu Aug 25 14:46:24 CEST 2022 by aleph
 \* Created Mon Jul 25 14:24:03 CEST 2022 by aleph
