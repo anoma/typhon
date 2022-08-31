@@ -14,15 +14,12 @@ ASSUME ValueNotEmpty == Value # {}
 -----------------------------------------------------------------------------
 CONSTANTS Acceptor,
           SafeAcceptor,
-          FakeAcceptor,
           ByzQuorum,
           Learner
 
 ASSUME AcceptorLearner == Acceptor \cap Learner = {}
 
-ASSUME SafeAcceptorAssumption ==
-        /\ SafeAcceptor \cap FakeAcceptor = {}
-        /\ SafeAcceptor \cup FakeAcceptor = Acceptor
+FakeAcceptor == Acceptor \ SafeAcceptor
 
 ASSUME BQAssumption == \A Q \in ByzQuorum : Q \subseteq Acceptor
 
@@ -58,6 +55,7 @@ ASSUME LearnerGraphAssumption ==
             [lr |-> E.to, q |-> Q2] \in TrustLive =>
             \E N \in E.q : N \in Q1 /\ N \in Q2
 
+(* Entanglement relation *)
 Ent == { LL \in Learner \X Learner :
          [from |-> LL[1], to |-> LL[2], q |-> SafeAcceptor] \in TrustSafe }
 
