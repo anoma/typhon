@@ -69,9 +69,9 @@ ASSUME MaxRefCardinality \in Nat
 RefCardinalityRange == 0..MaxRefCardinality
 
 MessageRec0 ==
-    [ type : {"1a"}, bal : Ballot, val : Value, ref : {} ] \cup
-    [ type : {"1b"}, acc : Acceptor, ref : {} ] \cup
-    [ type : {"2a"}, lrn : Learner, acc : Acceptor, ref : {} ]
+    [ type : {"1a"}, bal : Ballot, val : Value, ref : {{}} ] \cup
+    [ type : {"1b"}, acc : Acceptor, ref : {{}} ] \cup
+    [ type : {"2a"}, lrn : Learner, acc : Acceptor, ref : {{}} ]
 
 MessageRec1(M, n) ==
     M \cup
