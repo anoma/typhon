@@ -163,7 +163,7 @@ Get1a(m, x) ==
 
 B(m, bal) == \E x \in Message : Get1a(m, x) /\ x.bal = bal
 
-V(m, v) == \E x \in Message : Get1a(m, x) /\ x.val = v
+V(m, val) == \E x \in Message : Get1a(m, x) /\ x.val = val
 
 \* Maximal ballot number of any messages known to acceptor a
 MaxBal(a, mbal) ==
@@ -222,11 +222,12 @@ Fresh(l, x) ==
 
 \* Quorum of messages referenced by 2a
 q(x) ==
-    { m \in Tran(x) :
-        /\ m.type = "1b"
-        /\ Fresh(x.lrn, m)
-        /\ \A mb, xb \in Ballot :
-            B(m, mb) /\ B(x, xb) => mb = xb }
+    LET Q == { m \in Tran(x) :
+                /\ m.type = "1b"
+                /\ Fresh(x.lrn, m)
+                /\ \A mb, xb \in Ballot :
+                    B(m, mb) /\ B(x, xb) => mb = xb }
+    IN {a \in Acceptor : \E m \in Q : m.acc = a}
 
 WellFormed(m) ==
     /\ m \in Message
@@ -238,7 +239,7 @@ WellFormed(m) ==
 \*        /\ \A r1, r2 \in m.ref :
 \*            r1.bal = m.bal /\ r2.bal = m.bal => r1 = r2
         /\ \A y \in Tran(m) :
-            m # y /\ ~Get1a(m, y) => ~SameBallot(m, y)
+            m # y /\ SameBallot(m, y) => Get1a(m, y)
     /\ m.type = "2a" =>
         /\ [lr |-> m.lrn, q |-> q(m)] \in TrustLive
 
@@ -333,18 +334,16 @@ AcceptorProcessAction(a) ==
 
 FakeSend(a) ==
     /\ \E m \in { mm \in Message :
+                    /\ mm.type \in {"1b", "2a"}
+                    /\ mm.acc = a
                     /\ WellFormed(mm)  \* assume that adversaries can send only
                                        \* wellformed messages
-                    /\ mm.acc = a
-                    /\ \/ mm.type = "1b"
-                       \/ mm.type = "2a" } :
+                } :
         Send(m)
     /\ UNCHANGED << known_msgs, recent_msgs, 2a_lrn_loop, processed_lrns, decision >>
 
 LearnerRecv(l) ==
-    /\ \E m \in msgs :
-        /\ Proper(l, m)
-        /\ Recv(l, m)
+    /\ \E m \in msgs : Recv(l, m)
     /\ UNCHANGED << msgs, recent_msgs, 2a_lrn_loop, processed_lrns, decision >>
 
 ChosenIn(l, b, v) ==
@@ -364,10 +363,10 @@ LearnerDecide(l, b, v) ==
 
 LearnerAction ==
     \E lrn \in Learner :
+        \/ LearnerRecv(lrn)
         \/ \E bal \in Ballot :
            \E val \in Value :
             LearnerDecide(lrn, bal, val)
-        \/ LearnerRecv(lrn)
 
 FakeAcceptorAction == \E a \in FakeAcceptor : FakeSend(a)
 
