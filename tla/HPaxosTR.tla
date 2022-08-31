@@ -342,6 +342,9 @@ FakeSend(a) ==
         Send(m)
     /\ UNCHANGED << known_msgs, recent_msgs, 2a_lrn_loop, processed_lrns, decision >>
 
+\*FakeRecv(a) ==
+\*    /\ UNCHANGED << msgs >>
+
 LearnerRecv(l) ==
     /\ \E m \in msgs : Recv(l, m)
     /\ UNCHANGED << msgs, recent_msgs, 2a_lrn_loop, processed_lrns, decision >>
@@ -383,15 +386,32 @@ Spec == Init /\ [][Next]_vars
 
 -----------------------------------------------------------------------------
 
+UniqueDecision ==
+    \A L1, L2 \in Learner: \A B1, B2 \in Ballot : \A V1, V2 \in Value :
+        V1 \in decision[L1, B1] /\ V2 \in decision[L2, B2] =>
+        V1 = V2
+
 Safety ==
     \A L1, L2 \in Learner: \A B1, B2 \in Ballot : \A V1, V2 \in Value :
         <<L1, L2>> \in Ent /\
         V1 \in decision[L1, B1] /\ V2 \in decision[L2, B2] =>
         V1 = V2
 
+\*Inv_msgs ==
+\*    /\ \A m \in msgs : m \in Message
+\*    /\ \A m \in msgs : WellFormed(m)
+
+SanityCheck0 ==
+    \A L \in Learner : Cardinality(known_msgs[L]) = 0
+
+SanityCheck1 ==
+    \A L \in Learner : \A m1, m2 \in known_msgs[L] :
+    \A b1, b2 \in Ballot :
+        B(m1, b1) /\ B(m2, b2) => b1 = b2
+
 THEOREM SafetyResult == Spec => []Safety
 
 =============================================================================
 \* Modification History
-\* Last modified Thu Aug 25 15:34:46 CEST 2022 by aleph
+\* Last modified Tue Aug 30 14:58:48 CEST 2022 by aleph
 \* Created Mon Jul 25 14:24:03 CEST 2022 by aleph
