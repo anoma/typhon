@@ -161,9 +161,9 @@ Get1a(m, x) ==
 \* TODO: totality for 1b, 2a messages. Required invariant:
 \*   each well-formed 1b references a 1a.
 
-B(m, bal) == \E x \in Message : Get1a(m, x) /\ x.bal = bal
+B(m, bal) == \E x \in Tran(m) : Get1a(m, x) /\ x.bal = bal
 
-V(m, val) == \E x \in Message : Get1a(m, x) /\ x.val = val
+V(m, val) == \E x \in Tran(m) : Get1a(m, x) /\ x.val = val
 
 \* Maximal ballot number of any messages known to acceptor a
 MaxBal(a, mbal) ==
@@ -413,5 +413,5 @@ THEOREM SafetyResult == Spec => []Safety
 
 =============================================================================
 \* Modification History
-\* Last modified Tue Aug 30 14:58:48 CEST 2022 by aleph
+\* Last modified Wed Aug 31 14:02:09 CEST 2022 by aleph
 \* Created Mon Jul 25 14:24:03 CEST 2022 by aleph
