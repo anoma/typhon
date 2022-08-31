@@ -377,8 +377,8 @@ FakeAcceptorAction == \E a \in FakeAcceptor : FakeSend(a)
 
 Next ==
 \*    /\ Cardinality(msgs) < MessageNumLimit
-    /\ \/ \E acc \in Acceptor : ProposerSendAction(acc)
-       \/ \E acc \in Acceptor : AcceptorProcessAction(acc)
+    /\ \/ \E acc \in SafeAcceptor : ProposerSendAction(acc)
+       \/ \E acc \in SafeAcceptor : AcceptorProcessAction(acc)
        \/ LearnerAction
        \/ FakeAcceptorAction
 
@@ -413,5 +413,5 @@ THEOREM SafetyResult == Spec => []Safety
 
 =============================================================================
 \* Modification History
-\* Last modified Wed Aug 31 14:02:09 CEST 2022 by aleph
+\* Last modified Wed Aug 31 14:17:42 CEST 2022 by aleph
 \* Created Mon Jul 25 14:24:03 CEST 2022 by aleph
