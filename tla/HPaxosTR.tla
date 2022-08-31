@@ -134,10 +134,10 @@ Tran(m) == UNION {TranBound[n][m] : n \in TranDepthRange}
 \* We assume that each 1a-message has a unique value and ballot number,
 \* which could be accomplished by incorporating a hash of the value and the
 \* sender signature information in the ballot number.
-ASSUME 1aAssumption ==
-    \A m1, m2 \in Message :
-        m1.type = "1a" /\ m2.type = "1a" /\ m1.bal = m2.bal =>
-        m1 = m2
+\*ASSUME 1aAssumption ==
+\*    \A m1, m2 \in Message :
+\*        m1.type = "1a" /\ m2.type = "1a" /\ m1.bal = m2.bal =>
+\*        m1 = m2
 
 -----------------------------------------------------------------------------
 \*None == CHOOSE v : v \notin Value /\ v \notin Message
@@ -268,6 +268,7 @@ Recv(a, m) ==
     /\ known_msgs' = [known_msgs EXCEPT ![a] = known_msgs[a] \cup {m}]
 
 Send1a(b, v) ==
+    /\ \A m \in msgs : m.type = "1a" => m.bal # b \* TODO comment
     /\ Send([type |-> "1a", bal |-> b, val |-> v, ref |-> {}])
     /\ UNCHANGED << known_msgs, recent_msgs, 2a_lrn_loop, processed_lrns, decision >>
 
