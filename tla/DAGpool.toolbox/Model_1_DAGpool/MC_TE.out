@@ -1,0 +1,52 @@
+@!@!@STARTMSG 2262:0 @!@!@
+TLC2 Version 2.16 of 31 December 2020 (rev: cdddf55)
+@!@!@ENDMSG 2262 @!@!@
+@!@!@STARTMSG 2187:0 @!@!@
+Running breadth-first search Model-Checking with fp 127 and seed 6102472158690110441 with 12 workers on 16 cores with 7561MB heap and 17002MB offheap memory [pid: 30542] (Linux 5.15.0-47-generic amd64, AdoptOpenJDK 14.0.1 x86_64, OffHeapDiskFPSet, DiskStateQueue).
+@!@!@ENDMSG 2187 @!@!@
+@!@!@STARTMSG 2220:0 @!@!@
+Starting SANY...
+@!@!@ENDMSG 2220 @!@!@
+Parsing file /home/tobias/git/typhon/tla/DAGpool.toolbox/Model_1_DAGpool/MC.tla
+Parsing file /home/tobias/git/typhon/tla/DAGpool.toolbox/Model_1_DAGpool/DAGpool.tla
+Parsing file /opt/TLA+Toolbox/plugins/org.lamport.tlatools_1.0.0.202012311918/tla2sany/StandardModules/TLC.tla
+Parsing file /opt/TLA+Toolbox/plugins/org.lamport.tlatools_1.0.0.202012311918/tla2sany/StandardModules/Sequences.tla
+Parsing file /usr/local/lib/tlaps/FiniteSets.tla
+Parsing file /opt/TLA+Toolbox/plugins/org.lamport.tlatools_1.0.0.202012311918/tla2sany/StandardModules/Integers.tla
+Parsing file /home/tobias/git/typhon/tla/libs/Functions.tla
+Parsing file /home/tobias/git/typhon/tla/DAGpool.toolbox/Model_1_DAGpool/WorkersOfPrimaries.tla
+Parsing file /opt/TLA+Toolbox/plugins/org.lamport.tlatools_1.0.0.202012311918/tla2sany/StandardModules/Naturals.tla
+Parsing file /home/tobias/git/typhon/tla/DAGpool.toolbox/Model_1_DAGpool/Quorums.tla
+Parsing file /home/tobias/git/typhon/tla/libs/Folds.tla
+Semantic processing of module Naturals
+Semantic processing of module Sequences
+Semantic processing of module FiniteSets
+Semantic processing of module Integers
+Semantic processing of module Folds
+Semantic processing of module Functions
+Semantic processing of module Quorums
+Semantic processing of module WorkersOfPrimaries
+Semantic processing of module TLC
+Semantic processing of module DAGpool
+Semantic processing of module MC
+@!@!@STARTMSG 2219:0 @!@!@
+SANY finished.
+@!@!@ENDMSG 2219 @!@!@
+@!@!@STARTMSG 2185:0 @!@!@
+Starting... (2022-09-01 16:11:38)
+@!@!@ENDMSG 2185 @!@!@
+@!@!@STARTMSG 2189:0 @!@!@
+Computing initial states...
+@!@!@ENDMSG 2189 @!@!@
+@!@!@STARTMSG 2190:0 @!@!@
+Finished computing initial states: 1 distinct state generated at 2022-09-01 16:11:39.
+@!@!@ENDMSG 2190 @!@!@
+@!@!@STARTMSG 2200:0 @!@!@
+Progress(3) at 2022-09-01 16:11:42: 679,050 states generated (679,050 s/min), 340,322 distinct states found (340,322 ds/min), 340,363 states left on queue.
+@!@!@ENDMSG 2200 @!@!@
+@!@!@STARTMSG 2200:0 @!@!@
+Progress(4) at 2022-09-01 16:12:42: 13,381,881 states generated (12,702,831 s/min), 6,690,588 distinct states found (6,350,266 ds/min), 6,688,112 states left on queue.
+@!@!@ENDMSG 2200 @!@!@
+@!@!@STARTMSG 2200:0 @!@!@
+Progress(4) at 2022-09-01 16:13:42: 24,703,082 states generated (11,321,201 s/min), 12,353,434 distinct states found (5,662,846 ds/min), 12,347,681 states left on queue.
+@!@!@ENDMSG 2200 @!@!@
