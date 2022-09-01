@@ -73,15 +73,22 @@ MessageRec0 ==
     [ type : {"1b"}, acc : Acceptor, ref : {{}} ] \cup
     [ type : {"2a"}, lrn : Learner, acc : Acceptor, ref : {{}} ]
 
+\*MessageRec1(M, n) ==
+\*    M \cup
+\*    [ type : {"1b"},
+\*      acc : Acceptor,
+\*      ref : { MM \in SUBSET M :
+\*                MM # {} /\ Cardinality(MM) \in RefCardinalityRange } ] \cup
+\*    [ type : {"2a"},
+\*      lrn : Learner,
+\*      acc : Acceptor,
+\*      ref : { MM \in SUBSET M :
+\*                MM # {} /\ Cardinality(MM) \in RefCardinalityRange } ]
+
 MessageRec1(M, n) ==
     M \cup
-    [ type : {"1b"},
-      acc : Acceptor,
-      ref : { MM \in SUBSET M : Cardinality(MM) \in RefCardinalityRange } ] \cup
-    [ type : {"2a"},
-      lrn : Learner,
-      acc : Acceptor,
-      ref : { MM \in SUBSET M : Cardinality(MM) \in RefCardinalityRange } ]
+    [ type : {"1b"}, acc : Acceptor, ref : {{m} : m \in M} ] \cup
+    [ type : {"2a"}, lrn : Learner, acc : Acceptor, ref : {{m} : m \in M} ]
 
 \*MessageRec ==
 \*    CHOOSE MessageRec :
