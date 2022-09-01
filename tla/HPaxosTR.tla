@@ -1,5 +1,5 @@
 ------------------------------ MODULE HPaxosTR ------------------------------
-EXTENDS Naturals, FiniteSets
+EXTENDS Naturals, FiniteSets, Functions
 
 -----------------------------------------------------------------------------
 CONSTANT LastBallot
@@ -66,29 +66,39 @@ CONSTANT MaxRefCardinality
 ASSUME MaxRefCardinality \in Nat
 
 \*RefCardinalityRange == Nat
-RefCardinalityRange == 0..MaxRefCardinality
+RefCardinalityRange == 1..MaxRefCardinality
+
+FINSUBSET(M, R) == {Range(r) : r \in [R -> M]}
 
 MessageRec0 ==
     [ type : {"1a"}, bal : Ballot, val : Value, ref : {{}} ] \cup
     [ type : {"1b"}, acc : Acceptor, ref : {{}} ] \cup
     [ type : {"2a"}, lrn : Learner, acc : Acceptor, ref : {{}} ]
 
+MessageRec1(M, n) ==
+    M \cup
+    [ type : {"1b"},
+      acc : Acceptor,
+      ref : FINSUBSET(M, RefCardinalityRange) ] \cup
+    [ type : {"2a"},
+      lrn : Learner,
+      acc : Acceptor,
+      ref : FINSUBSET(M, RefCardinalityRange) ]
+
 \*MessageRec1(M, n) ==
 \*    M \cup
 \*    [ type : {"1b"},
 \*      acc : Acceptor,
-\*      ref : { MM \in SUBSET M :
-\*                MM # {} /\ Cardinality(MM) \in RefCardinalityRange } ] \cup
+\*      ref : { MM \in SUBSET M : Cardinality(MM) \in RefCardinalityRange } ] \cup
 \*    [ type : {"2a"},
 \*      lrn : Learner,
 \*      acc : Acceptor,
-\*      ref : { MM \in SUBSET M :
-\*                MM # {} /\ Cardinality(MM) \in RefCardinalityRange } ]
+\*      ref : { MM \in SUBSET M : Cardinality(MM) \in RefCardinalityRange } ]
 
-MessageRec1(M, n) ==
-    M \cup
-    [ type : {"1b"}, acc : Acceptor, ref : {{m} : m \in M} ] \cup
-    [ type : {"2a"}, lrn : Learner, acc : Acceptor, ref : {{m} : m \in M} ]
+\*MessageRec1(M, n) ==
+\*    M \cup
+\*    [ type : {"1b"}, acc : Acceptor, ref : {{m} : m \in M} ] \cup
+\*    [ type : {"2a"}, lrn : Learner, acc : Acceptor, ref : {{m} : m \in M} ]
 
 \*MessageRec ==
 \*    CHOOSE MessageRec :
@@ -420,5 +430,5 @@ THEOREM SafetyResult == Spec => []Safety
 
 =============================================================================
 \* Modification History
-\* Last modified Thu Sep 01 15:39:57 CEST 2022 by aleph
+\* Last modified Thu Sep 01 16:25:03 CEST 2022 by aleph
 \* Created Mon Jul 25 14:24:03 CEST 2022 by aleph
