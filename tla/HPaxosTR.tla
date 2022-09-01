@@ -324,7 +324,7 @@ Process2a(a, m) ==
     /\ recent_msgs' = [recent_msgs EXCEPT ![a] = recent_msgs[a] \cup {m}]
     /\ UNCHANGED << msgs, 2a_lrn_loop, processed_lrns, decision >>
 
-ProposerSendAction(a) ==
+ProposerSendAction ==
     \E bal \in Ballot : \E val \in Value :
         Send1a(bal, val)
 
@@ -384,7 +384,7 @@ FakeAcceptorAction == \E a \in FakeAcceptor : FakeSend(a)
 
 Next ==
 \*    /\ Cardinality(msgs) < MessageNumLimit
-    /\ \/ \E acc \in SafeAcceptor : ProposerSendAction(acc)
+    /\ \/ ProposerSendAction
        \/ \E acc \in SafeAcceptor : AcceptorProcessAction(acc)
        \/ LearnerAction
        \/ FakeAcceptorAction
@@ -420,5 +420,5 @@ THEOREM SafetyResult == Spec => []Safety
 
 =============================================================================
 \* Modification History
-\* Last modified Wed Aug 31 14:17:42 CEST 2022 by aleph
+\* Last modified Thu Sep 01 15:39:57 CEST 2022 by aleph
 \* Created Mon Jul 25 14:24:03 CEST 2022 by aleph
