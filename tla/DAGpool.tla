@@ -1,21 +1,32 @@
 ------------------------------- MODULE DAGpool ------------------------------
 
-(*
-In short, DAGpool is the specification of
-the properties
-Narwhal and Tusk aims for, plus censorship resistance. 
-However, questions of availability are not explicitly mentioned. 
-
-A DAGpool “is” (more precisely, refines to) a mempool, consisting of a growing
-(1) DAG---nodes of which are blocks / block headers---
-(2) a sequence of _apex_ nodes
-(3) a partial proposed-by map from nodes to validators
-subject to the following conditions,
-relative to a fixed set of Byzantinve validators and quorum data:
-(a) every node has a time-independent _depth_, defined as the maximal length of all outgoing paths
-(b) for any natural number $n$, the proposed-by map is injective when restricted to nodes of depth $n$
-(c) every node of non-maximal depth (at any point in time) has a quorum of incoming edges, i.e., there is a quorum such that its proposed blocks at maximal depth 
-*)
+(***************************************************************************)
+(* In short, DAGpool is the specification of the properties Narwhal and    *)
+(* Tusk aims for, plus censorship resistance.  However, questions of       *)
+(* availability are not explicitly mentioned.                              *)
+(*                                                                         *)
+(* A DAGpool “is” (more precisely, refines to) a mempool, consisting of a  *)
+(* growing                                                                 *)
+(*                                                                         *)
+(* (1) DAG---nodes of which are blocks / block headers---                  *)
+(*                                                                         *)
+(* (2) a sequence of _apex_ nodes, aka leader blocks                       *)
+(*                                                                         *)
+(* (3) a partial proposed-by map from nodes to validators                  *)
+(*                                                                         *)
+(* subject to the following conditions, relative to a fixed set of         *)
+(* Byzantinve validators and quorum data:                                  *)
+(*                                                                         *)
+(* (a) every node has a time-independent _depth_, defined as the maximal   *)
+(* length of all outgoing paths                                            *)
+(*                                                                         *)
+(* (b) for any natural number $n$, the proposed-by map is injective when   *)
+(* restricted to nodes of depth $n$                                        *)
+(*                                                                         *)
+(* (c) every node of non-maximal depth (at any point in time) has a quorum *)
+(* of incoming edges, i.e., there is a quorum such that its proposed       *)
+(* blocks at maximal depth references the node.                            *)
+(***************************************************************************)
 
 EXTENDS 
   Sequences
@@ -37,12 +48,7 @@ CONSTANT
   Payload
 
 
-(*
-A _block_ consists of
-1. a payload
-2. a quorum (indirectly referencing existing previous blocks)
-3. a set of validtor-depth pairs (weak-links to orphaned blocks), possibly empty
-*)
+
 
 \* @typeAlias: weakLink = <<Int, BYZ_VAL>> ;
 
@@ -60,7 +66,18 @@ noQuorum == {noValidator}
 \* @type: Set(Set(BYZ_VAL));
 QuorumOption == ByzQuorum \cup {noQuorum}
 
-SomethingLikeNat == Nat
+
+
+(***************************************************************************)
+(* A _block_ consists of                                                   *)
+(*                                                                         *)
+(* 1.  a payload                                                           *)
+(*                                                                         *)
+(* 2.  a quorum (indirectly referencing existing previous blocks)          *)
+(*                                                                         *)
+(* 3.  a set of validtor-depth pairs (weak-links to orphaned blocks),      *)
+(* possibly empty                                                          *)
+(***************************************************************************)
 
 \* @typeAlias: weakLink = <<Int, BYZ_VAL>> ; 
 \* 
@@ -75,10 +92,11 @@ SomethingLikeNat == Nat
 Block == [
   txs : Payload,
   links : QuorumOption,
-  winks : SUBSET (SomethingLikeNat \X ByzValidator),
-  height : SomethingLikeNat
+  winks : SUBSET (Nat \X ByzValidator),
+  height : Nat
 ]
 
+(*
 \* @type: Set(BYZ_VAL -> $block); 
 DAGlayersZero == UNION  { 
   {
@@ -89,9 +107,11 @@ DAGlayersZero == UNION  {
   }
   : X \in SUBSET ByzValidator
 } 
+*)
 
+(*
 \* @type: Int -> Set(BYZ_VAL -> $block); 
-generateDAGlayers[n \in SomethingLikeNat] == 
+generateDAGlayers[n \in Nat] == 
   IF n = 0 
   THEN DAGlayersZero
   ELSE UNION {
@@ -99,20 +119,20 @@ generateDAGlayers[n \in SomethingLikeNat] ==
     f \in [X -> Block] : \A x \in X :
                                /\ f[x].links \in ByzQuorum
                                /\ \A w \in f[x].winks : 
-                                        /\ w[1] \in SomethingLikeNat
+                                        /\ w[1] \in Nat
                                         /\ n > 0 => w[1] < n-1 
                                /\ f[x].height = n
   }
   : X \in SUBSET ByzValidator
 }
-
+*)
 
 \* @type: (<<Int, BYZ_VAL>>, <<Int, BYZ_VAL>> ) => Bool
 
 
 (*    
 \* @type: Int -> Set(Seq(BYZ_VAL -> $block));
-generateDAGs[n \in SomethingLikeNat] == 
+generateDAGs[n \in Nat] == 
   IF n = 0 
   THEN {<< layer >> : layer \in generateDAGlayers[0]}
   ELSE LET 
@@ -129,6 +149,7 @@ generateDAGs[n \in SomethingLikeNat] ==
 *)
 
 
+
 VARIABLES
   \* @type: Seq(BYZ_VAL -> $block);
   dag 
@@ -137,6 +158,8 @@ VARIABLES
   leaderBlocks
 
 vars == <<dag, leaderBlocks>>
+
+
     
 (*
 CONSTANT
@@ -144,15 +167,16 @@ CONSTANT
   emptyLayer
 
 ASSUME emptyLayerEmpty == 
-  emptyLayer \in [{} -> Block]
+  
 *)
 
-emptyLayer == [ x \in {} |-> x ] 
+emptyLayer == CHOOSE f \in [{} -> Block] : TRUE
 
 \* @type: Bool;
-Init == /\ dag = << emptyLayer >>
-        /\ leaderBlocks = <<  >>
+Init == dag = << emptyLayer >>  /\ leaderBlocks = <<  >>
     
+
+
 (* 
 Adding a block in a new layer,
 either in the last layer or in a new layer
@@ -252,16 +276,13 @@ Next ==
   \/ NewBlock
   \/ ChooseSupportedLeaderBlock
 
-\* ChooseArbitraryLeaderBlock == 
-
-Test == TRUE
-
+\* ChooseArbitraryLeaderBlock == 'soon ™'
 
 CensorshipResistance == 
- \A v \in ByzValidator : \A b \in Block : \A n \in SomethingLikeNat :
+ \A v \in ByzValidator : \A b \in Block : \A n \in Nat :
    WF_vars( AddBlock(v, b, n) )
 
-Spec == Init /\ [][Next]_vars /\ CensorshipResistance
+Spec == Init /\ /\ [][Next]_vars /\ CensorshipResistance
          
          
 ========
