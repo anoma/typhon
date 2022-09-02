@@ -370,7 +370,8 @@ ChosenIn(l, b, v) ==
     \E S \in SUBSET { x \in known_msgs[l] :
                             /\ x.type = "2a"
                             /\ x.lrn = l
-                            /\ B(x, b) } :
+                            /\ B(x, b)
+                            /\ V(x, v) } :
         \E Q \in ByzQuorum :
             /\ [lr |-> l, q |-> Q] \in TrustLive
             /\ \A a \in Q :
@@ -430,5 +431,5 @@ THEOREM SafetyResult == Spec => []Safety
 
 =============================================================================
 \* Modification History
-\* Last modified Thu Sep 01 16:25:03 CEST 2022 by aleph
+\* Last modified Fri Sep 02 13:53:59 CEST 2022 by aleph
 \* Created Mon Jul 25 14:24:03 CEST 2022 by aleph
