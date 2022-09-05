@@ -2,7 +2,7 @@
 TLC2 Version 2.16 of 31 December 2020 (rev: cdddf55)
 @!@!@ENDMSG 2262 @!@!@
 @!@!@STARTMSG 2187:0 @!@!@
-Running breadth-first search Model-Checking with fp 127 and seed 6102472158690110441 with 12 workers on 16 cores with 7561MB heap and 17002MB offheap memory [pid: 30542] (Linux 5.15.0-47-generic amd64, AdoptOpenJDK 14.0.1 x86_64, OffHeapDiskFPSet, DiskStateQueue).
+Running breadth-first search Model-Checking with fp 56 and seed 3347413028985374632 with 12 workers on 16 cores with 7561MB heap and 17002MB offheap memory [pid: 18699] (Linux 5.15.0-47-generic amd64, AdoptOpenJDK 14.0.1 x86_64, OffHeapDiskFPSet, DiskStateQueue).
 @!@!@ENDMSG 2187 @!@!@
 @!@!@STARTMSG 2220:0 @!@!@
 Starting SANY...
@@ -33,20 +33,62 @@ Semantic processing of module MC
 SANY finished.
 @!@!@ENDMSG 2219 @!@!@
 @!@!@STARTMSG 2185:0 @!@!@
-Starting... (2022-09-01 16:11:38)
+Starting... (2022-09-05 09:49:41)
 @!@!@ENDMSG 2185 @!@!@
 @!@!@STARTMSG 2189:0 @!@!@
 Computing initial states...
 @!@!@ENDMSG 2189 @!@!@
 @!@!@STARTMSG 2190:0 @!@!@
-Finished computing initial states: 1 distinct state generated at 2022-09-01 16:11:39.
+Finished computing initial states: 1 distinct state generated at 2022-09-05 09:49:42.
 @!@!@ENDMSG 2190 @!@!@
+@!@!@STARTMSG 2114:1 @!@!@
+Deadlock reached.
+@!@!@ENDMSG 2114 @!@!@
+@!@!@STARTMSG 2121:1 @!@!@
+The behavior up to this point is:
+@!@!@ENDMSG 2121 @!@!@
+@!@!@STARTMSG 2217:4 @!@!@
+1: <Initial predicate>
+/\ leaderBlocks = <<>>
+/\ dag = <<<< >>>>
+
+@!@!@ENDMSG 2217 @!@!@
+@!@!@STARTMSG 2201:0 @!@!@
+The coverage statistics at 2022-09-05 09:49:42
+@!@!@ENDMSG 2201 @!@!@
+@!@!@STARTMSG 2773:0 @!@!@
+<Init line 168, col 1 to line 168, col 4 of module DAGpool>: 1:1
+@!@!@ENDMSG 2773 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  line 169, col 3 to line 170, col 26 of module DAGpool: 1
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2772:0 @!@!@
+<ChooseSupportedLeaderBlock line 250, col 1 to line 250, col 26 of module DAGpool (259 3 267 18)>: 0:0
+@!@!@ENDMSG 2772 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  line 266, col 6 to line 266, col 53 of module DAGpool: 0
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  line 267, col 6 to line 267, col 18 of module DAGpool: 0
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  line 259, col 12 to line 259, col 43 of module DAGpool: 1
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2202:0 @!@!@
+End of statistics.
+@!@!@ENDMSG 2202 @!@!@
 @!@!@STARTMSG 2200:0 @!@!@
-Progress(3) at 2022-09-01 16:11:42: 679,050 states generated (679,050 s/min), 340,322 distinct states found (340,322 ds/min), 340,363 states left on queue.
+Progress(1) at 2022-09-05 09:49:42: 1 states generated (46 s/min), 1 distinct states found (46 ds/min), 0 states left on queue.
 @!@!@ENDMSG 2200 @!@!@
-@!@!@STARTMSG 2200:0 @!@!@
-Progress(4) at 2022-09-01 16:12:42: 13,381,881 states generated (12,702,831 s/min), 6,690,588 distinct states found (6,350,266 ds/min), 6,688,112 states left on queue.
-@!@!@ENDMSG 2200 @!@!@
-@!@!@STARTMSG 2200:0 @!@!@
-Progress(4) at 2022-09-01 16:13:42: 24,703,082 states generated (11,321,201 s/min), 12,353,434 distinct states found (5,662,846 ds/min), 12,347,681 states left on queue.
-@!@!@ENDMSG 2200 @!@!@
+@!@!@STARTMSG 2199:0 @!@!@
+1 states generated, 1 distinct states found, 0 states left on queue.
+@!@!@ENDMSG 2199 @!@!@
+@!@!@STARTMSG 2194:0 @!@!@
+The depth of the complete state graph search is 1.
+@!@!@ENDMSG 2194 @!@!@
+@!@!@STARTMSG 2268:0 @!@!@
+The average outdegree of the complete state graph is 0 (minimum is 0, the maximum 0 and the 95th percentile is 0).
+@!@!@ENDMSG 2268 @!@!@
+@!@!@STARTMSG 2186:0 @!@!@
+Finished in 1298ms at (2022-09-05 09:49:42)
+@!@!@ENDMSG 2186 @!@!@
