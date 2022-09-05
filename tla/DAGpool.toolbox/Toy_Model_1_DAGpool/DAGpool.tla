@@ -47,12 +47,7 @@ CONSTANT
   \* @type: Set(PAYLOAD);
   Payload
 
-
-
-
-\* @typeAlias: weakLink = <<Int, BYZ_VAL>> ;
-
-
+\* a single non-validator node (for encoding of partial functions)
 CONSTANT
   \* @type: BYZ_VAL;
   noValidator
@@ -66,8 +61,6 @@ noQuorum == {noValidator}
 \* @type: Set(Set(BYZ_VAL));
 QuorumOption == ByzQuorum \cup {noQuorum}
 
-
-
 (***************************************************************************)
 (* A _block_ consists of                                                   *)
 (*                                                                         *)
@@ -76,7 +69,7 @@ QuorumOption == ByzQuorum \cup {noQuorum}
 (* 2.  a quorum (indirectly referencing existing previous blocks)          *)
 (*                                                                         *)
 (* 3.  a set of validtor-depth pairs (weak-links to orphaned blocks),      *)
-(* possibly empty                                                          *)
+(*     possibly empty                                                      *)
 (***************************************************************************)
 
 \* @typeAlias: weakLink = <<Int, BYZ_VAL>> ; 
@@ -96,64 +89,25 @@ Block == [
   height : Nat
 ]
 
-(*
-\* @type: Set(BYZ_VAL -> $block); 
-DAGlayersZero == UNION  { 
-  {
-    f \in [X -> Block] : \A x \in X : 
-                            /\ f[x].links = noQuorum 
-                            /\ f[x].winks = {}     
-                            /\ f[x].height = 0
-  }
-  : X \in SUBSET ByzValidator
-} 
-*)
 
-(*
-\* @type: Int -> Set(BYZ_VAL -> $block); 
-generateDAGlayers[n \in Nat] == 
-  IF n = 0 
-  THEN DAGlayersZero
-  ELSE UNION {
-  {
-    f \in [X -> Block] : \A x \in X :
-                               /\ f[x].links \in ByzQuorum
-                               /\ \A w \in f[x].winks : 
-                                        /\ w[1] \in Nat
-                                        /\ n > 0 => w[1] < n-1 
-                               /\ f[x].height = n
-  }
-  : X \in SUBSET ByzValidator
-}
-*)
+(***************************************************************************)
+(* The DAG to be built is encoded as                                       *)
+(*                                                                         *)
+(* - a list of `layers` where                                              *)
+(*                                                                         *)
+(* - a layer is (partial) function from validators to blocks               *)
+(***************************************************************************)
 
-\* @type: (<<Int, BYZ_VAL>>, <<Int, BYZ_VAL>> ) => Bool
-
-
-(*    
-\* @type: Int -> Set(Seq(BYZ_VAL -> $block));
-generateDAGs[n \in Nat] == 
-  IF n = 0 
-  THEN {<< layer >> : layer \in generateDAGlayers[0]}
-  ELSE LET 
-    candidates == { short \o << layer >> : 
-                     short \in generateDAGs[n-1], 
-                     layer \in generateDAGlayers[n]
-                 }
-  IN { g \in candidates:
-         \* all links present 
-         /\ \A b \in Range(g[n]) : b.links \subseteq DOMAIN g[n-1]
-         \* all winks present
-         /\ FALSE \* TODO
-  }
-*)
-
-
-
-VARIABLES
+VARIABLE
   \* @type: Seq(BYZ_VAL -> $block);
   dag 
-  ,     
+  
+(***************************************************************************)
+(* Within the dag, we have choices of leader block, reminiscent of Tusk.   *)
+(* The leader block is encoded as a pair of the block height and the       *)
+(* proposing validator.                                                    *)
+(***************************************************************************)
+VARIABLE    
   \* @type: Seq(<<Int, BYZ_VAL>>);
   leaderBlocks
 
@@ -161,27 +115,43 @@ vars == <<dag, leaderBlocks>>
 
 
     
-(*
+
 CONSTANT
   \* @type: BYZ_VAL -> $block;
   emptyLayer
 
-ASSUME emptyLayerEmpty == 
-  
-*)
+ASSUME emptyLayerEmpty == DOMAIN emptyLayer = {}
 
-emptyLayer == CHOOSE f \in [{} -> Block] : TRUE
 
+\* emptyLayer == CHOOSE f \in [{} -> Block] : TRUE
+
+
+(***************************************************************************)
+(* Initially,                                                              *)
+(*                                                                         *)
+(* - the DAG consists of an empty layer and                                *)
+(*                                                                         *)
+(* - no leader blocks are chosen                                           *)
+(***************************************************************************)
 \* @type: Bool;
 Init == dag = << emptyLayer >>  /\ leaderBlocks = <<  >>
     
 
-(* 
-Adding a block in a new layer,
-either in the last layer or in a new layer
-- preconditions; no block proposed yet, references to previous blocks 
-*)
+(***************************************************************************)
+(* For block addition, we distinguish the following three scenarios:       *)
+(*                                                                         *)
+(* - adding a block at genesis layer                                       *)
+(*                                                                         *)
+(* - adding the first block of a new layer (not the genesis layer)         *)
+(*                                                                         *)
+(* - adding an additional block to an already existing layer (not the      *)
+(* genesis layer                                                           *)
+(***************************************************************************)
 
+(***************************************************************************)
+(* We use the following operator to add a layer; it could also be used to  *)
+(* "overwrite" an existing binding.                                        *)
+(***************************************************************************)
 \* @type: (BYZ_VAL -> $block,BYZ_VAL, $block) => BYZ_VAL -> $block;
 UpdatedEntryInLayer(l, v, b) == 
   [ x \in {v} \cup DOMAIN l |-> 
@@ -189,6 +159,12 @@ UpdatedEntryInLayer(l, v, b) ==
        THEN b
        ELSE l[x]
   ] 
+
+
+
+(***************************************************************************)
+(* Adding blocks to the genesis layer.                                     *)
+(***************************************************************************)
 
 \* @type: (BYZ_VAL, $block) => Bool;
 AddBlockInGenesisLayer(v, b) == 
@@ -205,6 +181,27 @@ AddBlockInGenesisLayer(v, b) ==
   \* - add the layer at genesis (depth 1)
   /\ dag' = [dag EXCEPT ![1] = extendedLayer]
 
+(***************************************************************************)
+(* Adding a block in a new layer                                           *)
+(***************************************************************************)
+
+\* @type: (BYZ_VAL, $block) => Bool;
+AddBlockInNewLayer(v, b) == 
+  LET
+    dagLen == Len(dag)
+    newLayer == [ x \in {v} |-> b ]
+  IN 
+    \* pre-condition 
+    /\ b.links # noQuorum
+    /\ b.links \subseteq DOMAIN dag[dagLen]
+    \* weak links are purely optional 
+    \* post-condition
+    /\ dag' = dag \o << newLayer >> 
+
+(***************************************************************************)
+(* Adding blocks in a higher layer                                         *)
+(***************************************************************************)
+
 \* @type: (BYZ_VAL, $block, Int) => Bool;
 AddBlockInHigherLayer(v, b, n) == 
   LET
@@ -219,20 +216,9 @@ AddBlockInHigherLayer(v, b, n) ==
   \* post-condition
   /\ dag' = [dag EXCEPT ![n] = extendedLayer]
                          
-\* @type: (BYZ_VAL, $block) => Bool;
-AddBlockInNewLayer(v, b) == 
-  LET
-    dagLen == Len(dag)
-    newLayer == [ x \in {v} |-> b ]
-  IN 
-    \* pre-condition 
-    /\ b.links # noQuorum
-    /\ b.links \subseteq DOMAIN dag[dagLen]
-    \* weak links are purely optional 
-    \* post-condition
-    /\ dag' = dag \o << newLayer >> 
-\* LeaderBlockSelection
-
+(***************************************************************************)
+(* Combining the block addition into a single operator.                    *)
+(***************************************************************************)
   
 \* @type: (BYZ_VAL, $block, Int) => Bool;
 AddBlock(v, b, n) == 
@@ -249,6 +235,12 @@ AddBlock(v, b, n) ==
 /\ UNCHANGED leaderBlocks
      
 
+
+(*
+The following operator makes a narrow description of 
+the possible blocks that a validator _v_ could propose 
+at layer _n_
+*)
 CurrentBlockCandidates(n, v) == 
 IF n = 1
 THEN 
@@ -265,7 +257,11 @@ ELSE
   winks : {{}}, \* SUBSET (Nat \X ByzValidator),
   height : {n}
 ]
-  
+ 
+(*
+Adding a block. 
+*)
+
 \* @type: Bool;
 NewBlock == 
   \E n \in 1..(Len(dag)+1) :
@@ -273,6 +269,14 @@ NewBlock ==
            THEN ByzValidator
            ELSE ByzValidator \ DOMAIN dag[n]:           
   \E b \in CurrentBlockCandidates(n,v) :  AddBlock(v, b, n)
+  
+(***************************************************************************)
+(* Leader block selection: we allow for a sequence of leader blocks        *)
+(*                                                                         *)
+(* - at most one per layer                                                 *)
+(*                                                                         *)
+(* - and the depth of leader blocks has to increase.                       *)
+(***************************************************************************)
   
 ChooseSupportedLeaderBlock == 
   LET
@@ -288,20 +292,23 @@ ChooseSupportedLeaderBlock ==
   \E v \in DOMAIN dag[n] : \* v has proposed 
   \* we are looking for supporting validators in the next layer
   \E W \in WeakQuorum :
-  /\ \A w \in W : v \in dag[n+1][w].links 
+    /\ W \subseteq DOMAIN dag[n+1]
+    /\ \A w \in W : v \in dag[n+1][w].links 
   \* post-condition
-  /\ leaderBlocks' = leaderBlocks \o << << n, v >> >>  
-  /\ UNCHANGED dag
+    /\ leaderBlocks' = leaderBlocks \o << << n, v >> >>  
+    /\ UNCHANGED dag
 
-Next == NewBlock
-
-(*
+(***************************************************************************)
+(* The Lamport-esque Next .                                                *)
+(***************************************************************************)
+Next == 
   \/ NewBlock
   \/ ChooseSupportedLeaderBlock
-*)
 
-\* ChooseArbitraryLeaderBlock == 'soon ™'
 
+\* ChooseArbitraryLeaderBlock == 'soon ™' \* not really needed/wanted
+
+\* 
 CensorshipResistance == 
  \A v \in ByzValidator : \A b \in Block : \A n \in Nat :
    WF_vars( AddBlock(v, b, n) )
