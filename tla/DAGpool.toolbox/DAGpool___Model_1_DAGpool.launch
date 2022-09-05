@@ -7,12 +7,12 @@
     <intAttribute key="dfidDepth" value="100"/>
     <booleanAttribute key="dfidMode" value="false"/>
     <intAttribute key="distributedFPSetCount" value="0"/>
-    <stringAttribute key="distributedNetworkInterface" value="10.17.0.58"/>
+    <stringAttribute key="distributedNetworkInterface" value="172.17.0.1"/>
     <intAttribute key="distributedNodesCount" value="1"/>
     <stringAttribute key="distributedTLC" value="off"/>
     <stringAttribute key="distributedTLCVMArgs" value=""/>
     <intAttribute key="fpBits" value="1"/>
-    <intAttribute key="fpIndex" value="48"/>
+    <intAttribute key="fpIndex" value="22"/>
     <booleanAttribute key="fpIndexRandom" value="true"/>
     <intAttribute key="maxHeapSize" value="80"/>
     <intAttribute key="maxSetSize" value="1000000"/>
@@ -31,17 +31,16 @@
     <stringAttribute key="modelParameterActionConstraint" value=""/>
     <listAttribute key="modelParameterConstants">
         <listEntry value="WorkerIndex;;{1};0;0"/>
-        <listEntry value="Payload;;{A_1};1;0"/>
+        <listEntry value="Payload;;{A_1, A_2, A_3, A_4};1;1"/>
         <listEntry value="noValidator;;5;0;0"/>
         <listEntry value="FakeValidator;;{B_4};1;0"/>
         <listEntry value="WeakQuorum;;{{B_1, B_2}, {B_1, B_3}, {B_1, B_4}, {B_2, B_3}, {B_2, B_4}, {B_3, B_4}};0;0"/>
         <listEntry value="Validator;;{B_1, B_2, B_3};1;0"/>
         <listEntry value="ByzQuorum;;{{B_1, B_2, B_3}, {B_1, B_2, B_4}, {B_1, B_3, B_4}, {B_2, B_3, B_4}};0;0"/>
-        <listEntry value="emptyLayer;;[x\in{}|-&gt;x];0;0"/>
     </listAttribute>
     <stringAttribute key="modelParameterContraint" value=""/>
     <listAttribute key="modelParameterDefinitions">
-        <listEntry value="Nat;;{1,2,3};0;0"/>
+        <listEntry value="Nat;;{1,2};0;0"/>
     </listAttribute>
     <stringAttribute key="modelParameterModelValues" value="{}"/>
     <stringAttribute key="modelParameterNewDefinitions" value=""/>
