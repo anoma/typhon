@@ -5,8 +5,7 @@ EXTENDS Naturals, FiniteSets, Functions
 CONSTANT LastBallot
 ASSUME LastBallot \in Nat
 
-Ballot == 0..LastBallot
-\*Ballot == Nat
+Ballot == Nat
 
 CONSTANT Value
 ASSUME ValueNotEmpty == Value # {}
@@ -17,7 +16,9 @@ CONSTANTS Acceptor,
           ByzQuorum,
           Learner
 
-ASSUME AcceptorLearner == Acceptor \cap Learner = {}
+ASSUME AcceptorAssumption ==
+    /\ Acceptor \cap Learner = {}
+    /\ SafeAcceptor \subseteq Acceptor
 
 FakeAcceptor == Acceptor \ SafeAcceptor
 
@@ -65,10 +66,10 @@ Ent == { LL \in Learner \X Learner :
 CONSTANT MaxRefCardinality
 ASSUME MaxRefCardinality \in Nat
 
-\*RefCardinalityRange == Nat
-RefCardinalityRange == 1..MaxRefCardinality
+RefCardinality == Nat
 
-FINSUBSET(M, R) == {Range(r) : r \in [R -> M]}
+FINSUBSET(S, R) == { Range(seq) : seq \in [R -> S]}
+\*FINSUBSET(S, K) == {Range(seq) : seq \in [1..K -> S]}
 
 MessageRec0 ==
     [ type : {"1a"}, bal : Ballot, val : Value, ref : {{}} ] \cup
@@ -79,26 +80,11 @@ MessageRec1(M, n) ==
     M \cup
     [ type : {"1b"},
       acc : Acceptor,
-      ref : FINSUBSET(M, RefCardinalityRange) ] \cup
+      ref : FINSUBSET(M, RefCardinality) ] \cup
     [ type : {"2a"},
       lrn : Learner,
       acc : Acceptor,
-      ref : FINSUBSET(M, RefCardinalityRange) ]
-
-\*MessageRec1(M, n) ==
-\*    M \cup
-\*    [ type : {"1b"},
-\*      acc : Acceptor,
-\*      ref : { MM \in SUBSET M : Cardinality(MM) \in RefCardinalityRange } ] \cup
-\*    [ type : {"2a"},
-\*      lrn : Learner,
-\*      acc : Acceptor,
-\*      ref : { MM \in SUBSET M : Cardinality(MM) \in RefCardinalityRange } ]
-
-\*MessageRec1(M, n) ==
-\*    M \cup
-\*    [ type : {"1b"}, acc : Acceptor, ref : {{m} : m \in M} ] \cup
-\*    [ type : {"2a"}, lrn : Learner, acc : Acceptor, ref : {{m} : m \in M} ]
+      ref : FINSUBSET(M, RefCardinality) ]
 
 \*MessageRec ==
 \*    CHOOSE MessageRec :
@@ -115,8 +101,7 @@ MessageRec[n \in Nat] ==
 CONSTANT MaxMessageDepth
 ASSUME MaxMessageDepth \in Nat
 
-\*MessageDepthRange == Nat
-MessageDepthRange == 0..MaxMessageDepth
+MessageDepthRange == Nat
 
 Message == UNION { MessageRec[n] : n \in MessageDepthRange }
 
@@ -313,20 +298,26 @@ Process1b(a, m) ==
         UNCHANGED << 2a_lrn_loop, processed_lrns >>
     /\ UNCHANGED << msgs, decision >>
 
+Process1bLearnerLoopStep(a, lrn) ==
+    LET new2a == [type |-> "2a", lrn |-> lrn, ref |-> recent_msgs[a]] IN
+    /\ processed_lrns' =
+        [processed_lrns EXCEPT ![a] = processed_lrns[a] \cup {lrn}]
+    /\ WellFormed(new2a) =>
+        /\ Send(new2a)
+        /\ recent_msgs' = [recent_msgs EXCEPT ![a] = {new2a}]
+    /\ (~WellFormed(new2a)) =>
+        UNCHANGED << msgs, recent_msgs >>
+    /\ UNCHANGED << known_msgs, 2a_lrn_loop, decision >>
+
+Process1bLearnerLoopDone(a) ==
+    /\ Learner \ processed_lrns[a] = {}
+    /\ 2a_lrn_loop' = [2a_lrn_loop EXCEPT ![a] = FALSE]
+    /\ UNCHANGED << msgs, known_msgs, recent_msgs, processed_lrns, decision >>
+
 Process1bLearnerLoop(a) ==
     \/ \E lrn \in Learner \ processed_lrns[a] :
-        LET new2a == [type |-> "2a", lrn |-> lrn, ref |-> recent_msgs[a]] IN
-        /\ processed_lrns' =
-            [processed_lrns EXCEPT ![a] = processed_lrns[a] \cup {lrn}]
-        /\ WellFormed(new2a) =>
-            /\ Send(new2a)
-            /\ recent_msgs' = [recent_msgs EXCEPT ![a] = {new2a}]
-        /\ (~WellFormed(new2a)) =>
-            UNCHANGED << msgs, recent_msgs >>
-        /\ UNCHANGED << known_msgs, 2a_lrn_loop, decision >>
-    \/ /\ Learner \ processed_lrns[a] = {}
-       /\ 2a_lrn_loop' = [2a_lrn_loop EXCEPT ![a] = FALSE]
-       /\ UNCHANGED << msgs, known_msgs, recent_msgs, processed_lrns, decision >>
+        Process1bLearnerLoopStep(a, lrn)
+    \/ Process1bLearnerLoopDone(a)
 
 Process2a(a, m) ==
     /\ Recv(a, m)
@@ -340,14 +331,15 @@ ProposerSendAction ==
 
 \* vars == << msgs, known_msgs, recent_msgs, 2a_lrn_loop, processed_lrns, decision >>
 
-AcceptorProcessAction(a) ==
-    \/ /\ 2a_lrn_loop[a] = FALSE
-       /\ \E m \in msgs :
-            /\ m \notin known_msgs[a]
-            /\ \/ Process1a(a, m)
-               \/ Process1b(a, m)
-    \/ /\ 2a_lrn_loop[a] = TRUE
-       /\ Process1bLearnerLoop(a)
+AcceptorProcessAction ==
+    \E a \in SafeAcceptor:
+        \/ /\ 2a_lrn_loop[a] = FALSE
+           /\ \E m \in msgs :
+                /\ m \notin known_msgs[a]
+                /\ \/ Process1a(a, m)
+                   \/ Process1b(a, m)
+        \/ /\ 2a_lrn_loop[a] = TRUE
+           /\ Process1bLearnerLoop(a)
 
 FakeSend(a) ==
     /\ \E m \in { mm \in Message :
@@ -396,28 +388,13 @@ FakeAcceptorAction == \E a \in FakeAcceptor : FakeSend(a)
 Next ==
 \*    /\ Cardinality(msgs) < MessageNumLimit
     /\ \/ ProposerSendAction
-       \/ \E acc \in SafeAcceptor : AcceptorProcessAction(acc)
+       \/ AcceptorProcessAction
        \/ LearnerAction
        \/ FakeAcceptorAction
 
 Spec == Init /\ [][Next]_vars
 
 -----------------------------------------------------------------------------
-
-UniqueDecision ==
-    \A L1, L2 \in Learner: \A B1, B2 \in Ballot : \A V1, V2 \in Value :
-        V1 \in decision[L1, B1] /\ V2 \in decision[L2, B2] =>
-        V1 = V2
-
-Safety ==
-    \A L1, L2 \in Learner: \A B1, B2 \in Ballot : \A V1, V2 \in Value :
-        <<L1, L2>> \in Ent /\
-        V1 \in decision[L1, B1] /\ V2 \in decision[L2, B2] =>
-        V1 = V2
-
-\*Inv_msgs ==
-\*    /\ \A m \in msgs : m \in Message
-\*    /\ \A m \in msgs : WellFormed(m)
 
 SanityCheck0 ==
     \A L \in Learner : Cardinality(known_msgs[L]) = 0
@@ -427,9 +404,28 @@ SanityCheck1 ==
     \A b1, b2 \in Ballot :
         B(m1, b1) /\ B(m2, b2) => b1 = b2
 
+\*Inv_msgs ==
+\*    /\ \A m \in msgs : m \in Message
+\*    /\ \A m \in msgs : WellFormed(m)
+
+UniqueDecision ==
+    \A L1, L2 \in Learner: \A B1, B2 \in Ballot : \A V1, V2 \in Value :
+        V1 \in decision[L1, B1] /\ V2 \in decision[L2, B2] =>
+        V1 = V2
+
+-----------------------------------------------------------------------------
+
+Safety ==
+    \A L1, L2 \in Learner: \A B1, B2 \in Ballot : \A V1, V2 \in Value :
+        <<L1, L2>> \in Ent /\
+        V1 \in decision[L1, B1] /\ V2 \in decision[L2, B2] =>
+        V1 = V2
+
+
+
 THEOREM SafetyResult == Spec => []Safety
 
 =============================================================================
 \* Modification History
-\* Last modified Fri Sep 02 13:53:59 CEST 2022 by aleph
+\* Last modified Tue Sep 06 20:03:17 CEST 2022 by aleph
 \* Created Mon Jul 25 14:24:03 CEST 2022 by aleph
