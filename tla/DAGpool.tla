@@ -48,7 +48,10 @@ CONSTANT
   Payload
 
 
+
+
 \* @typeAlias: weakLink = <<Int, BYZ_VAL>> ;
+
 
 CONSTANT
   \* @type: BYZ_VAL;
@@ -62,6 +65,7 @@ noQuorum == {noValidator}
 
 \* @type: Set(Set(BYZ_VAL));
 QuorumOption == ByzQuorum \cup {noQuorum}
+
 
 
 (***************************************************************************)
@@ -88,8 +92,7 @@ QuorumOption == ByzQuorum \cup {noQuorum}
 Block == [
   txs : Payload,
   links : QuorumOption,
-  winks : {}, \* {{}} \cup {{x} : x \in (Nat \X ByzValidator)}, 
-  \* was `SUBSET (Nat \X ByzValidator),`
+  winks : SUBSET (Nat \X ByzValidator),
   height : Nat
 ]
 
@@ -124,6 +127,9 @@ generateDAGlayers[n \in Nat] ==
 }
 *)
 
+\* @type: (<<Int, BYZ_VAL>>, <<Int, BYZ_VAL>> ) => Bool
+
+
 (*    
 \* @type: Int -> Set(Seq(BYZ_VAL -> $block));
 generateDAGs[n \in Nat] == 
@@ -143,6 +149,7 @@ generateDAGs[n \in Nat] ==
 *)
 
 
+
 VARIABLES
   \* @type: Seq(BYZ_VAL -> $block);
   dag 
@@ -154,21 +161,21 @@ vars == <<dag, leaderBlocks>>
 
 
     
-
+(*
 CONSTANT
   \* @type: BYZ_VAL -> $block;
   emptyLayer
 
-ASSUME emptyLayerEmpty == DOMAIN emptyLayer = {}
+ASSUME emptyLayerEmpty == 
+  
+*)
 
-
-\* emptyLayer == CHOOSE f \in [{} -> Block] : TRUE
+emptyLayer == CHOOSE f \in [{} -> Block] : TRUE
 
 \* @type: Bool;
-Init == 
-  /\ dag = << emptyLayer >>  
-  /\ leaderBlocks = <<  >>
+Init == dag = << emptyLayer >>  /\ leaderBlocks = <<  >>
     
+
 
 (* 
 Adding a block in a new layer,
