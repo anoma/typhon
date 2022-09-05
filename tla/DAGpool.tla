@@ -114,16 +114,15 @@ VARIABLE
 vars == <<dag, leaderBlocks>>
 
 
-    
-(*
+
+\* emptyLayer == CHOOSE f \in [{} -> Block] : TRUE
+
+(* Specifying a Apalache accepted `emptyLayer` *)   
 CONSTANT
   \* @type: BYZ_VAL -> $block;
   emptyLayer
 
 ASSUME emptyLayerEmpty == DOMAIN emptyLayer = {}
-*)
-
-emptyLayer == CHOOSE f \in [{} -> Block] : TRUE
 
 
 (***************************************************************************)
