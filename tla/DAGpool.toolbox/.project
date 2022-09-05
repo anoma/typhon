@@ -23,12 +23,12 @@
 		<link>
 			<name>Quorums.tla</name>
 			<type>1</type>
-			<location>/home/tobias/git/typhon/tla/Quorums.tla</location>
+			<locationURI>PARENT-1-PROJECT_LOC/Quorums.tla</locationURI>
 		</link>
 		<link>
 			<name>WorkersOfPrimaries.tla</name>
 			<type>1</type>
-			<location>/home/tobias/git/typhon/tla/WorkersOfPrimaries.tla</location>
+			<locationURI>PARENT-1-PROJECT_LOC/WorkersOfPrimaries.tla</locationURI>
 		</link>
 	</linkedResources>
 </projectDescription>

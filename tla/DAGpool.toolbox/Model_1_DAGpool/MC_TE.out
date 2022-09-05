@@ -2,7 +2,7 @@
 TLC2 Version 2.16 of 31 December 2020 (rev: cdddf55)
 @!@!@ENDMSG 2262 @!@!@
 @!@!@STARTMSG 2187:0 @!@!@
-Running breadth-first search Model-Checking with fp 127 and seed 6102472158690110441 with 12 workers on 16 cores with 7561MB heap and 17002MB offheap memory [pid: 30542] (Linux 5.15.0-47-generic amd64, AdoptOpenJDK 14.0.1 x86_64, OffHeapDiskFPSet, DiskStateQueue).
+Running breadth-first search Model-Checking with fp 111 and seed 4035861638028922520 with 12 workers on 16 cores with 8978MB heap and 20191MB offheap memory [pid: 46343] (Linux 5.15.0-47-generic amd64, AdoptOpenJDK 14.0.1 x86_64, OffHeapDiskFPSet, DiskStateQueue).
 @!@!@ENDMSG 2187 @!@!@
 @!@!@STARTMSG 2220:0 @!@!@
 Starting SANY...
@@ -33,20 +33,244 @@ Semantic processing of module MC
 SANY finished.
 @!@!@ENDMSG 2219 @!@!@
 @!@!@STARTMSG 2185:0 @!@!@
-Starting... (2022-09-01 16:11:38)
+Starting... (2022-09-05 12:28:53)
 @!@!@ENDMSG 2185 @!@!@
+<<"$!@$!@$!@$!@$!", {[txs |-> "a", links |-> {5}, winks |-> {}, height |-> 1], [txs |-> "a", links |-> {5}, winks |-> {}, height |-> 2], [txs |-> "a", links |-> {5}, winks |-> {}, height |-> 3], [txs |-> "a", links |-> {B_4, B_1, B_2}, winks |-> {}, height |-> 1], [txs |-> "a", links |-> {B_4, B_1, B_2}, winks |-> {}, height |-> 2], [txs |-> "a", links |-> {B_4, B_1, B_2}, winks |-> {}, height |-> 3], [txs |-> "a", links |-> {B_4, B_1, B_3}, winks |-> {}, height |-> 1], [txs |-> "a", links |-> {B_4, B_1, B_3}, winks |-> {}, height |-> 2], [txs |-> "a", links |-> {B_4, B_1, B_3}, winks |-> {}, height |-> 3], [txs |-> "a", links |-> {B_4, B_2, B_3}, winks |-> {}, height |-> 1], [txs |-> "a", links |-> {B_4, B_2, B_3}, winks |-> {}, height |-> 2], [txs |-> "a", links |-> {B_4, B_2, B_3}, winks |-> {}, height |-> 3], [txs |-> "a", links |-> {B_1, B_2, B_3}, winks |-> {}, height |-> 1], [txs |-> "a", links |-> {B_1, B_2, B_3}, winks |-> {}, height |-> 2], [txs |-> "a", links |-> {B_1, B_2, B_3}, winks |-> {}, height |-> 3]}>>
 @!@!@STARTMSG 2189:0 @!@!@
 Computing initial states...
 @!@!@ENDMSG 2189 @!@!@
 @!@!@STARTMSG 2190:0 @!@!@
-Finished computing initial states: 1 distinct state generated at 2022-09-01 16:11:39.
+Finished computing initial states: 1 distinct state generated at 2022-09-05 12:28:55.
 @!@!@ENDMSG 2190 @!@!@
+@!@!@STARTMSG 2193:0 @!@!@
+Model checking completed. No error has been found.
+  Estimates of the probability that TLC did not check all reachable states
+  because two distinct states had the same fingerprint:
+  calculated (optimistic):  val = 1.6E-8
+  based on the actual fingerprints:  val = 2.4E-10
+@!@!@ENDMSG 2193 @!@!@
+@!@!@STARTMSG 2201:0 @!@!@
+The coverage statistics at 2022-09-05 12:29:01
+@!@!@ENDMSG 2201 @!@!@
+@!@!@STARTMSG 2773:0 @!@!@
+<Init line 176, col 1 to line 176, col 4 of module DAGpool>: 1:1
+@!@!@ENDMSG 2773 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  line 176, col 9 to line 176, col 56 of module DAGpool: 1
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2772:0 @!@!@
+<NewBlock line 270, col 1 to line 270, col 8 of module DAGpool>: 167019:1889164
+@!@!@ENDMSG 2772 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  line 239, col 7 to line 240, col 14 of module DAGpool: 1889164
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  line 241, col 10 to line 241, col 14 of module DAGpool: 1891992
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  |line 241, col 10 to line 241, col 10 of module DAGpool: 1889164
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  line 201, col 6 to line 201, col 23 of module DAGpool: 5656
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  |line 201, col 6 to line 201, col 12 of module DAGpool: 2828
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  |line 201, col 16 to line 201, col 23 of module DAGpool: 2828
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  line 203, col 6 to line 203, col 27 of module DAGpool: 5656
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  |line 203, col 6 to line 203, col 6 of module DAGpool: 2828
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  |line 203, col 15 to line 203, col 27 of module DAGpool: 2828
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  line 206, col 6 to line 206, col 45 of module DAGpool: 2828
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  line 242, col 33 to line 242, col 33 of module DAGpool: 2828
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  line 242, col 36 to line 242, col 36 of module DAGpool: 2828
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  line 243, col 10 to line 243, col 26 of module DAGpool: 2430316
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  |line 243, col 10 to line 243, col 10 of module DAGpool: 1889164
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  |line 243, col 16 to line 243, col 26 of module DAGpool: 1889164
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  line 215, col 6 to line 215, col 23 of module DAGpool: 1082304
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  |line 215, col 6 to line 215, col 12 of module DAGpool: 541152
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  |line 215, col 16 to line 215, col 23 of module DAGpool: 541152
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  line 216, col 6 to line 216, col 21 of module DAGpool: 1082304
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  |line 216, col 6 to line 216, col 6 of module DAGpool: 541152
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  |line 216, col 12 to line 216, col 21 of module DAGpool: 541152
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  line 217, col 6 to line 217, col 27 of module DAGpool: 1082304
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  |line 217, col 6 to line 217, col 6 of module DAGpool: 541152
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  |line 217, col 15 to line 217, col 27 of module DAGpool: 541152
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  line 218, col 6 to line 218, col 38 of module DAGpool: 1082304
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  |line 218, col 6 to line 218, col 12 of module DAGpool: 541152
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  |line 218, col 24 to line 218, col 38 of module DAGpool: 541152
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  line 220, col 6 to line 220, col 45 of module DAGpool: 541152
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  line 244, col 32 to line 244, col 32 of module DAGpool: 541152
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  line 244, col 35 to line 244, col 35 of module DAGpool: 541152
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  line 244, col 38 to line 244, col 38 of module DAGpool: 541152
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  line 245, col 10 to line 245, col 23 of module DAGpool: 3234348
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  |line 245, col 10 to line 245, col 10 of module DAGpool: 1889164
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  |line 245, col 14 to line 245, col 23 of module DAGpool: 1889164
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  line 229, col 8 to line 229, col 25 of module DAGpool: 2690368
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  |line 229, col 8 to line 229, col 14 of module DAGpool: 1345184
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  |line 229, col 18 to line 229, col 25 of module DAGpool: 1345184
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  line 230, col 8 to line 230, col 43 of module DAGpool: 2690368
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  |line 230, col 8 to line 230, col 14 of module DAGpool: 1345184
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  |line 230, col 26 to line 230, col 43 of module DAGpool: 1345184
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  line 233, col 8 to line 233, col 35 of module DAGpool: 1345184
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  line 246, col 29 to line 246, col 29 of module DAGpool: 1345184
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  line 246, col 32 to line 246, col 32 of module DAGpool: 1345184
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  line 247, col 7 to line 248, col 14 of module DAGpool: 1889164
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  line 249, col 4 to line 249, col 25 of module DAGpool: 1889164
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  line 275, col 52 to line 275, col 52 of module DAGpool: 1889164
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  line 275, col 55 to line 275, col 55 of module DAGpool: 1889164
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  line 275, col 58 to line 275, col 58 of module DAGpool: 1889164
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  line 275, col 12 to line 275, col 38 of module DAGpool: 812172
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  |line 253, col 1 to line 267, col 1 of module DAGpool: 812172
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  ||line 253, col 4 to line 253, col 8 of module DAGpool: 812172
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2775:0 @!@!@
+  ||line 255, col 1 to line 260, col 1 of module DAGpool: 2828:11312
+@!@!@ENDMSG 2775 @!@!@
+@!@!@STARTMSG 2775:0 @!@!@
+  ||line 262, col 1 to line 267, col 1 of module DAGpool: 809344:7545344
+@!@!@ENDMSG 2775 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  |||line 263, col 3 to line 263, col 15 of module DAGpool: 809344
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2775:0 @!@!@
+  |||line 264, col 11 to line 264, col 57 of module DAGpool: 809344:3377012
+@!@!@ENDMSG 2775 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  ||||line 264, col 30 to line 264, col 56 of module DAGpool: 3237376
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  ||||line 264, col 18 to line 264, col 26 of module DAGpool: 809344
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  |||line 265, col 3 to line 265, col 14 of module DAGpool: 809344
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  |||line 266, col 3 to line 266, col 14 of module DAGpool: 809344
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  |line 275, col 35 to line 275, col 35 of module DAGpool: 812172
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  line 272, col 12 to line 274, col 44 of module DAGpool: 667364
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  |line 272, col 15 to line 272, col 30 of module DAGpool: 667364
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  |line 273, col 17 to line 273, col 28 of module DAGpool: 167020
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  |line 274, col 17 to line 274, col 44 of module DAGpool: 500344
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2221:0 @!@!@
+  line 271, col 12 to line 271, col 26 of module DAGpool: 167020
+@!@!@ENDMSG 2221 @!@!@
+@!@!@STARTMSG 2202:0 @!@!@
+End of statistics.
+@!@!@ENDMSG 2202 @!@!@
 @!@!@STARTMSG 2200:0 @!@!@
-Progress(3) at 2022-09-01 16:11:42: 679,050 states generated (679,050 s/min), 340,322 distinct states found (340,322 ds/min), 340,363 states left on queue.
+Progress(13) at 2022-09-05 12:29:01: 1,889,165 states generated (14,828,610 s/min), 167,020 distinct states found (1,310,989 ds/min), 0 states left on queue.
 @!@!@ENDMSG 2200 @!@!@
-@!@!@STARTMSG 2200:0 @!@!@
-Progress(4) at 2022-09-01 16:12:42: 13,381,881 states generated (12,702,831 s/min), 6,690,588 distinct states found (6,350,266 ds/min), 6,688,112 states left on queue.
-@!@!@ENDMSG 2200 @!@!@
-@!@!@STARTMSG 2200:0 @!@!@
-Progress(4) at 2022-09-01 16:13:42: 24,703,082 states generated (11,321,201 s/min), 12,353,434 distinct states found (5,662,846 ds/min), 12,347,681 states left on queue.
-@!@!@ENDMSG 2200 @!@!@
+@!@!@STARTMSG 2199:0 @!@!@
+1889165 states generated, 167020 distinct states found, 0 states left on queue.
+@!@!@ENDMSG 2199 @!@!@
+@!@!@STARTMSG 2194:0 @!@!@
+The depth of the complete state graph search is 13.
+@!@!@ENDMSG 2194 @!@!@
+@!@!@STARTMSG 2268:0 @!@!@
+The average outdegree of the complete state graph is 1 (minimum is 0, the maximum 16 and the 95th percentile is 4).
+@!@!@ENDMSG 2268 @!@!@
+@!@!@STARTMSG 2186:0 @!@!@
+Finished in 7648ms at (2022-09-05 12:29:01)
+@!@!@ENDMSG 2186 @!@!@
