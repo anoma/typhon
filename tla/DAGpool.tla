@@ -92,7 +92,7 @@ QuorumOption == ByzQuorum \cup {noQuorum}
 Block == [
   txs : Payload,
   links : QuorumOption,
-  winks : SUBSET (Nat \X ByzValidator),
+  winks : {{}}, \* SUBSET (Nat \X ByzValidator),
   height : Nat
 ]
 
@@ -176,7 +176,6 @@ emptyLayer == CHOOSE f \in [{} -> Block] : TRUE
 Init == dag = << emptyLayer >>  /\ leaderBlocks = <<  >>
     
 
-
 (* 
 Adding a block in a new layer,
 either in the last layer or in a new layer
@@ -198,9 +197,12 @@ AddBlockInGenesisLayer(v, b) ==
     extendedLayer == UpdatedEntryInLayer(dag[1], v, b) 
   IN
   \* pre-condition
-  /\ v \notin DOMAIN dag[1]  
+  \* - no previous blocks, so no links
   /\ b.links = noQuorum
+  \* - no block proposed yet
+  /\ v \notin DOMAIN dag[1]  
   \* post-condition
+  \* - add the layer at genesis (depth 1)
   /\ dag' = [dag EXCEPT ![1] = extendedLayer]
 
 \* @type: (BYZ_VAL, $block, Int) => Bool;
@@ -210,10 +212,9 @@ AddBlockInHigherLayer(v, b, n) ==
     extendedLayer == UpdatedEntryInLayer(dag[n], v, b) 
   IN
   \* pre-condition
-  /\ n > 1
-  /\ n <= dagLen
-  /\ v \notin DOMAIN dag[n]  
   /\ b.links # noQuorum
+  /\ n \in DOMAIN dag
+  /\ v \notin DOMAIN dag[n]  
   /\ b.links \subseteq DOMAIN dag[n-1]
   \* post-condition
   /\ dag' = [dag EXCEPT ![n] = extendedLayer]
@@ -227,7 +228,7 @@ AddBlockInNewLayer(v, b) ==
     \* pre-condition 
     /\ b.links # noQuorum
     /\ b.links \subseteq DOMAIN dag[dagLen]
-    \* weak links are purely 
+    \* weak links are purely optional 
     \* post-condition
     /\ dag' = dag \o << newLayer >> 
 \* LeaderBlockSelection
@@ -235,23 +236,43 @@ AddBlockInNewLayer(v, b) ==
   
 \* @type: (BYZ_VAL, $block, Int) => Bool;
 AddBlock(v, b, n) == 
-  /\ n < 1 
-     => FALSE \* we do not do anything for n < 1
-  /\ n = 1 
-     => AddBlockInGenesisLayer(v, b)
-  /\ (n > 1 /\ n <= Len(dag))
-     => AddBlockInHigherLayer(v, b, n) 
-  /\ (n > 1 /\ n = Len(dag)) 
-     => AddBlockInNewLayer(v, b) 
-  /\ (n > 1 /\ n > Len(dag)) 
-     => FALSE \* we do not do anything for n > Len(dag)
-  /\ UNCHANGED leaderBlocks
+/\ \/ /\ n < 1 
+      /\ FALSE \* we do not do anything for n < 1
+   \/ /\ n = 1 
+      /\ AddBlockInGenesisLayer(v, b)
+   \/ /\ n \in 2..Len(dag)
+      /\ AddBlockInHigherLayer(v, b, n) 
+   \/ /\ n = Len(dag)+1 
+      /\ AddBlockInNewLayer(v, b) 
+   \/ /\ n > Len(dag)+1
+      /\ FALSE \* we do not do anything for n > Len(dag)
+/\ UNCHANGED leaderBlocks
      
+
+CurrentBlockCandidates(n, v) == 
+IF n = 1
+THEN 
+[
+  txs : Payload,
+  links : {noQuorum},
+  winks : {{}}, \* SUBSET (Nat \X ByzValidator),
+  height : {1}
+]
+ELSE
+[
+  txs : Payload,
+  links : {Q \in ByzQuorum : Q \subseteq DOMAIN dag[n-1]},
+  winks : {{}}, \* SUBSET (Nat \X ByzValidator),
+  height : {n}
+]
+  
 \* @type: Bool;
 NewBlock == 
-  \E v \in ByzValidator : 
-  \E b \in Block : 
-  \E n \in 1..(Len(dag)+1) : AddBlock(v, b, n)
+  \E n \in 1..(Len(dag)+1) :
+  \E v \in IF n = (Len(dag)+1)
+           THEN ByzValidator
+           ELSE ByzValidator \ DOMAIN dag[n]:           
+  \E b \in CurrentBlockCandidates(n,v) :  AddBlock(v, b, n)
   
 ChooseSupportedLeaderBlock == 
   LET
@@ -272,9 +293,12 @@ ChooseSupportedLeaderBlock ==
   /\ leaderBlocks' = leaderBlocks \o << << n, v >> >>  
   /\ UNCHANGED dag
 
-Next == 
+Next == NewBlock
+
+(*
   \/ NewBlock
   \/ ChooseSupportedLeaderBlock
+*)
 
 \* ChooseArbitraryLeaderBlock == 'soon ™'
 
@@ -282,7 +306,7 @@ CensorshipResistance ==
  \A v \in ByzValidator : \A b \in Block : \A n \in Nat :
    WF_vars( AddBlock(v, b, n) )
 
-Spec == Init /\ /\ [][Next]_vars /\ CensorshipResistance
+Spec == Init /\ [][Next]_vars /\ CensorshipResistance
          
          
 ========
