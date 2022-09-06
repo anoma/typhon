@@ -66,9 +66,6 @@ VARIABLE
   \* @type: Seq(<<Int, BYZ_VAL>>);
   leaderBlocks
 
-
-
-
 INSTANCE DAGpool WITH
   \* (* Quorums specific *)
   Validator <- MCValidator, 
@@ -89,6 +86,8 @@ ConstInit ==
   /\ MCFakeValidator = { "4_OF_BYZ_VAL" }
   /\ MCByzQuorum = {{"1_OF_BYZ_VAL", "2_OF_BYZ_VAL", "3_OF_BYZ_VAL"}, {"1_OF_BYZ_VAL", "2_OF_BYZ_VAL", "4_OF_BYZ_VAL"}, {"1_OF_BYZ_VAL", "3_OF_BYZ_VAL", "4_OF_BYZ_VAL"}, {"2_OF_BYZ_VAL", "3_OF_BYZ_VAL", "4_OF_BYZ_VAL"}}
   /\ MCWeakQuorum = {{"1_OF_BYZ_VAL", "2_OF_BYZ_VAL"}, {"1_OF_BYZ_VAL", "3_OF_BYZ_VAL"}, {"1_OF_BYZ_VAL", "4_OF_BYZ_VAL"}, {"2_OF_BYZ_VAL", "3_OF_BYZ_VAL"}, {"2_OF_BYZ_VAL", "4_OF_BYZ_VAL"}, {"3_OF_BYZ_VAL", "4_OF_BYZ_VAL"}}
+  \* (* WorkersOfPrimaries specific *)
+  /\ MCWorkerIndex = {"1_OF_WORKER_INDEX"}
   \* (* DAGpool specific *)
   /\ MCPayload = {"x_OF_PAYLOAD"}
   /\ MCnoValidator = "none_OF_BYZ_VAL"

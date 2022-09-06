@@ -114,9 +114,6 @@ VARIABLE
 vars == <<dag, leaderBlocks>>
 
 
-
-\* emptyLayer == CHOOSE f \in [{} -> Block] : TRUE
-
 (* Specifying a Apalache accepted `emptyLayer` *)   
 CONSTANT
   \* @type: BYZ_VAL -> $block;
@@ -162,7 +159,6 @@ UpdatedEntryInLayer(l, v, b) ==
   ] 
 
 
-
 (***************************************************************************)
 (* Adding blocks to the genesis layer.                                     *)
 (***************************************************************************)
@@ -181,6 +177,19 @@ AddBlockInGenesisLayer(v, b) ==
   \* post-condition
   \* - add the layer at genesis (depth 1)
   /\ dag' = [dag EXCEPT ![1] = extendedLayer]
+  /\ UNCHANGED leaderBlocks
+
+\* @type: Set( << BYZ_VAL, $block >> );
+AddBlockInGenesisLayerPossibilities == 
+  LET
+    allowedValidators == ByzValidator \ (DOMAIN dag[1])
+    genesisBlocks == { b \in Block : 
+                         /\ b.links = noQuorum 
+                         /\ b.height = 1
+                         /\ b.winks = {}
+                    }
+  IN
+  allowedValidators \times genesisBlocks
 
 (***************************************************************************)
 (* Adding a block in a new layer                                           *)
@@ -198,6 +207,7 @@ AddBlockInNewLayer(v, b) ==
     \* weak links are purely optional 
     \* post-condition
     /\ dag' = dag \o << newLayer >> 
+    /\ UNCHANGED leaderBlocks
 
 (***************************************************************************)
 (* Adding blocks in a higher layer                                         *)
@@ -216,6 +226,7 @@ AddBlockInHigherLayer(v, b, n) ==
   /\ b.links \subseteq DOMAIN dag[n-1]
   \* post-condition
   /\ dag' = [dag EXCEPT ![n] = extendedLayer]
+  /\ UNCHANGED leaderBlocks
                          
 (***************************************************************************)
 (* Combining the block addition into a single operator.                    *)
@@ -223,8 +234,9 @@ AddBlockInHigherLayer(v, b, n) ==
   
 \* @\\type: (BYZ_VAL, $block, Int) => Bool;
 AddBlock(v, b, n) == 
-/\ \/ /\ n < 1 
+   \/ /\ n < 1 
       /\ FALSE \* we do not do anything for n < 1
+      /\ UNCHANGED vars
    \/ /\ n = 1 
       /\ AddBlockInGenesisLayer(v, b)
    \/ /\ n \in 2..Len(dag)
@@ -233,9 +245,7 @@ AddBlock(v, b, n) ==
       /\ AddBlockInNewLayer(v, b) 
    \/ /\ n > Len(dag)+1
       /\ FALSE \* we do not do anything for n > Len(dag)
-/\ UNCHANGED leaderBlocks
-     
-
+      /\ UNCHANGED vars
 
 (*
 The following operator makes a narrow description of 
@@ -305,10 +315,11 @@ ChooseSupportedLeaderBlock ==
 (* The Lamport-esque Next .                                                *)
 (***************************************************************************)
 
-
-Next ==
+Next == NewBlock
+(*
   \/ NewBlock
   \/ ChooseSupportedLeaderBlock
+*)
 
 \* ChooseArbitraryLeaderBlock == 'soon ™' \* not really needed/wanted
 
