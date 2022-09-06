@@ -1,5 +1,32 @@
 --------------------------- MODULE HPaxosTR_proof ---------------------------
-EXTENDS HPaxosTR, NaturalsInduction, WellFoundedInduction, TLAPS
+EXTENDS HPaxosTR, Sequences, NaturalsInduction, WellFoundedInduction, TLAPS
+
+-----------------------------------------------------------------------------
+
+LEMMA FinSubset_sub ==
+    ASSUME NEW S, NEW K \in Nat, NEW F \in FINSUBSET(S, K)
+    PROVE F \subseteq S
+PROOF BY DEF Range, FINSUBSET
+
+LEMMA FinSubset_finite ==
+    ASSUME NEW S, NEW K \in Nat, NEW F \in FINSUBSET(S, K)
+    PROVE IsFiniteSet(F)
+PROOF BY DEF FINSUBSET, IsFiniteSet, Range
+
+LEMMA IsFiniteSet_add ==
+    ASSUME NEW S, IsFiniteSet(S), NEW x
+    PROVE IsFiniteSet(S \cup {x})
+PROOF
+<1> PICK seq \in Seq(S) : \A s \in S : \E n \in 1..Len(seq) : seq[n] = s
+    BY DEF IsFiniteSet
+<1> DEFINE f == [i \in 1..(Len(seq) + 1) |->
+                    IF i < Len(seq) + 1 THEN seq[i] ELSE x]
+<1> f \in Seq(S \cup {x}) BY DEF Seq
+<1> Len(f) = Len(seq) + 1 OBVIOUS
+<1>1. SUFFICES ASSUME NEW s \in S \cup {x} PROVE \E i \in 1..Len(f) : f[i] = s
+      BY Zenon DEF IsFiniteSet
+<1>9. QED BY <1>1
+
 
 -----------------------------------------------------------------------------
 (* Messages *)
@@ -13,9 +40,9 @@ PROOF BY NatInductiveDef
       DEF NatInductiveDefHypothesis, NatInductiveDefConclusion, MessageRec
 
 LEMMA Message_spec ==
-    /\ \A n \in MessageDepth : MessageRec[n] \subseteq Message
+    /\ \A n \in Nat : MessageRec[n] \subseteq Message
     /\ \A m \in Message : \E n \in Nat : m \in MessageRec[n]
-PROOF BY DEF Message, MessageDepth
+PROOF BY DEF Message, MessageDepthRange
 
 LEMMA MessageRec_eq0 == MessageRec[0] = MessageRec0
 PROOF BY MessageRec_def
@@ -58,9 +85,9 @@ PROOF
                PROVE mm.ref \subseteq MessageRec[m]
       OBVIOUS
   <2>1. CASE m = 0
-        BY <2>1, MessageRec_eq1, MessageRec_ref0 DEF MessageRec1
+        BY <2>1, MessageRec_eq1, MessageRec_ref0, FinSubset_sub DEF MessageRec1
   <2>2. CASE m # 0
-        BY <1>1, <2>2, MessageRec_eq1, MessageRec_monotone DEF MessageRec1
+        BY <1>1, <2>2, MessageRec_eq1, MessageRec_monotone, FinSubset_sub DEF MessageRec1
   <2>3. QED BY <2>1, <2>2
 <1>2. HIDE DEF P
 <1>3. QED BY <1>0, <1>1, NatInduction, Isa
@@ -68,7 +95,7 @@ PROOF
 LEMMA Message_ref ==
     ASSUME NEW m \in Message
     PROVE m.ref \subseteq Message
-PROOF BY MessageRec_ref0, MessageRec_ref1, Message_spec
+PROOF BY MessageRec_ref0, MessageRec_ref1, Message_spec DEF MessageDepthRange
 
 LEMMA MessageRec_min ==
     ASSUME NEW m \in Message
@@ -96,7 +123,7 @@ PROOF
 <1>1. CASE n = 0 BY <1>0, <1>1, MessageRec_eq0 DEF MessageRec0
 <1>2. CASE n # 0 /\ m \in m.ref
   <2>1. m.ref \in SUBSET MessageRec[n-1]
-        BY <1>0, <1>2, MessageRec_eq1 DEF MessageRec1
+        BY <1>0, <1>2, MessageRec_eq1, FinSubset_sub DEF MessageRec1
   <2>10. QED BY <2>1, <1>0, <1>2
 <1>10. QED BY <1>1, <1>2
 
@@ -120,6 +147,16 @@ PROOF
 \*<1>5. x \in MessageRec[n - 1 - 1] BY <1>2, <1>3, <1>4, MessageRec_ref1
 \*<1>6. QED BY <1>5, <1>0, <1>3, <1>4
 
+\*LEMMA XXX1 ==
+\*    ASSUME NEW M \in SUBSET Message, IsFiniteSet(M),
+\*           NEW A \in Acceptor 
+\*    PROVE [type |-> "1b", acc |-> A, ref |-> M] \in Message
+\*PROOF
+\*<1> PICK n \in Nat : \A m \in M : m \in MessageRec[n] BY Message_finite_1
+\*<1> [type |-> "1b", acc |-> A, ref |-> M] \in MessageRec[n + 1]
+\*    BY MessageRec_eq1 DEF MessageRec1
+\*<1>10. QED
+
 -----------------------------------------------------------------------------
 (* Transitive references *)
 
@@ -136,7 +173,7 @@ LEMMA Tran_spec ==
     PROVE
     /\ \A n \in Nat : TranBound[n][m] \subseteq Tran(m)
     /\ \A r \in Tran(m) : \E n \in Nat : r \in TranBound[n][m]
-PROOF BY DEF Tran
+PROOF BY DEF Tran, TranDepthRange, MessageDepthRange
 
 LEMMA TranBound_eq0 ==
     TranBound[0] = [m \in Message |-> {m}]
@@ -171,7 +208,7 @@ PROOF
 LEMMA Tran_Message ==
     ASSUME NEW m1 \in Message, NEW m2 \in Tran(m1)
     PROVE m2 \in Message
-PROOF BY TranBound_Message DEF Tran
+PROOF BY Tran_spec, TranBound_Message
 
 LEMMA TranBound_monotone_1 ==
     ASSUME NEW n \in Nat, NEW m \in Message
@@ -247,27 +284,27 @@ LEMMA Tran_trans ==
     ASSUME NEW m1 \in Message, NEW m2 \in Tran(m1), NEW m3 \in Tran(m2)
     PROVE  m3 \in Tran(m1)
 PROOF
-<1>0. PICK n1 \in Nat : m2 \in TranBound[n1][m1] BY DEF Tran
-<1>1. PICK n2 \in Nat : m3 \in TranBound[n2][m2] BY DEF Tran
+<1>0. PICK n1 \in Nat : m2 \in TranBound[n1][m1] BY Tran_spec
+<1>1. PICK n2 \in Nat : m3 \in TranBound[n2][m2] BY TranBound_Message, Tran_spec
 <1>2. m3 \in TranBound[n2 + n1][m1] BY TranBound_trans, <1>0, <1>1
-<1>3. QED BY <1>2 DEF Tran
+<1>3. QED BY <1>2, Tran_spec
 
 LEMMA Message_ref_Tran ==
     ASSUME NEW m1 \in Message, NEW m2 \in m1.ref
     PROVE m2 \in Tran(m1)
-PROOF BY Message_ref_TranBound1 DEF Tran
+PROOF BY Message_ref_TranBound1 DEF Tran, TranDepthRange, MessageDepthRange
 
 LEMMA MessageRec0_Tran ==
     ASSUME NEW m1 \in MessageRec[0], NEW m2 \in Tran(m1)
     PROVE m1 = m2
 PROOF
-<1> PICK k \in Nat : m2 \in TranBound[k][m1] BY DEF Tran
-<1> m1 \in Message BY DEF Message
+<1> m1 \in Message BY Message_spec DEF MessageDepthRange
+<1> PICK k \in Nat : m2 \in TranBound[k][m1] BY Tran_spec
 <1> m2 \in Message BY Tran_Message
 <1>1. CASE k = 0 BY TranBound_eq0, <1>1
 <1>2. CASE k # 0
   <2>1. CASE m2 \in UNION { TranBound[k - 1][r] : r \in m1.ref }
-        BY MessageRec_eq0 DEF MessageRec0
+        BY <2>1, MessageRec_eq0 DEF MessageRec0
   <2>2. QED BY Isa, TranBound_eq1, <1>2, <2>1
 <1>3. QED BY <1>1, <1>2
 
@@ -279,8 +316,9 @@ PROOF
                    \A x \in MessageRec[k] :
                    \A y \in TranBound[l][x] :
                         y \in MessageRec[k]
-<1> SUFFICES ASSUME NEW j \in Nat PROVE P(j) BY DEF Tran
-<1>0. P(0) BY TranBound_eq0, Message_spec DEF Tran
+<1> SUFFICES ASSUME NEW j \in Nat PROVE P(j)
+    BY Tran_spec, Message_spec DEF MessageDepthRange
+<1>0. P(0) BY TranBound_eq0, Message_spec
 <1>1. ASSUME NEW m \in Nat, P(m) PROVE P(m+1)
   <2> SUFFICES ASSUME NEW k \in Nat,
                       NEW x \in MessageRec[k],
@@ -288,8 +326,8 @@ PROOF
                PROVE y \in MessageRec[k]
       OBVIOUS
   <2> SUFFICES ASSUME k # 0 PROVE y \in MessageRec[k]
-      BY MessageRec0_Tran DEF Tran
-  <2> x \in Message BY DEF Message
+      BY MessageRec0_Tran DEF Tran, TranDepthRange, MessageDepthRange
+  <2> x \in Message BY Message_spec
   <2>1. CASE y = x BY <2>1
   <2>2. CASE y \in UNION { TranBound[m][r] : r \in x.ref }
     <3>1. PICK r \in x.ref : y \in TranBound[m][r] BY <2>2
@@ -348,7 +386,7 @@ PROOF
                     NEW x \in Message,
                     NEW y \in x.ref, x \in Tran(y)
              PROVE x \in MessageRec[n] => FALSE
-    BY DEF Message
+    BY DEF Message, MessageDepthRange
 <1>0. PICK k \in Nat : /\ x \in MessageRec[k]
                        /\ \A k1 \in 0 .. k - 1 : x \notin MessageRec[k1]
       BY MessageRec_min
@@ -364,13 +402,13 @@ LEMMA Tran_acyclic ==
            m1 \in Tran(m2)
     PROVE m1 = m2
 PROOF
-<1> PICK n \in Nat : m2 \in TranBound[n][m1] BY DEF Tran
+<1> PICK n \in Nat : m2 \in TranBound[n][m1] BY Tran_spec
 <1> SUFFICES ASSUME n # 0 PROVE m1 = m2 BY TranBound_eq0
 <1>1. CASE m1 = m2 BY <1>1
 <1>2. CASE m2 \in UNION { TranBound[n - 1][r] : r \in m1.ref }
   <2> PICK r \in m1.ref : m2 \in TranBound[n - 1][r] BY <1>2
   <2> r \in Message BY Message_ref
-  <2> m2 \in Tran(r) BY DEF Tran
+  <2> m2 \in Tran(r) BY Tran_spec
   <2>1. m1 \in Tran(r) BY Tran_trans
   <2>2. QED BY <2>1, Tran_ref_acyclic
 <1>3. QED BY <1>1, <1>2, TranBound_eq1, Isa
@@ -397,10 +435,10 @@ PROOF
             /\ x.type = "2a" => /\ x.lrn \in Learner
                                 /\ x.acc \in Acceptor
                                 /\ x.ref \in SUBSET Message
-<1> SUFFICES ASSUME NEW j \in Nat PROVE P(j) BY DEF Message
+<1> SUFFICES ASSUME NEW j \in Nat PROVE P(j) BY Message_spec
 <1>0. P(0) BY MessageRec_eq0 DEF MessageRec0
 <1>1. ASSUME NEW k \in Nat, P(k) PROVE P(k + 1)
-   BY <1>1, MessageRec_eq1 DEF MessageRec1, Message
+      BY <1>1, MessageRec_eq1, Message_spec, FinSubset_sub DEF MessageRec1, Message
 <1>2. HIDE DEF P
 <1>3. QED BY <1>0, <1>1, NatInduction, Isa
 
@@ -411,7 +449,228 @@ LEMMA B_func ==
            NEW b2 \in Ballot, B(m, b2)
     PROVE b1 = b2
 PROOF BY DEF B, Get1a, Ballot
+
+-----------------------------------------------------------------------------
+DecisionSpec ==
+    \A L \in Learner : \A BAL \in Ballot : \A VAL \in Value :
+        VAL \in decision[L, BAL] => ChosenIn(L, BAL, VAL)
+
+
+
+\* vars == << msgs, known_msgs, recent_msgs, 2a_lrn_loop, processed_lrns, decision >>
+TypeOK ==
+    /\ msgs \in SUBSET Message
+    /\ known_msgs \in [Acceptor \cup Learner -> SUBSET Message]
+    /\ recent_msgs \in [Acceptor \cup Learner -> SUBSET Message]
+    /\ 2a_lrn_loop \in [Acceptor -> BOOLEAN]
+    /\ processed_lrns \in [Acceptor -> SUBSET Learner]
+    /\ decision \in [Learner \X Ballot -> SUBSET Value]
+
+LEMMA WellFormedMessage ==
+    ASSUME NEW M, WellFormed(M)
+    PROVE M \in Message
+BY DEF WellFormed
+
+LEMMA TypeOKInvariant == TypeOK /\ Next => TypeOK'
+PROOF
+<1> SUFFICES ASSUME TypeOK, Next PROVE TypeOK' OBVIOUS
+<1> USE DEF Next
+<1>1. CASE ProposerSendAction
+  <2> PICK bal \in Ballot, val \in Value : Send1a(bal, val) BY <1>1 DEF ProposerSendAction
+  <2> [type |-> "1a", bal |-> bal, val |-> val, ref |-> {}] \in Message
+        BY Message_spec, MessageRec_eq0 DEF MessageRec0
+  <2> QED BY Zenon DEF Send1a, Send, TypeOK            
+<1>2. CASE \E a \in SafeAcceptor : \E m \in msgs : Process1a(a, m)
+  <2> PICK acc \in SafeAcceptor, msg \in msgs : Process1a(acc, msg)
+      BY <1>2
+  <2> msg \in Message BY DEF TypeOK
+  <2> msgs' \in SUBSET Message
+        BY WellFormedMessage, Zenon DEF Process1a, Send, TypeOK
+  <2> known_msgs' \in [Acceptor \cup Learner -> SUBSET Message]
+        BY Zenon DEF Process1a, Recv, TypeOK
+  <2> QED BY DEF Process1a, TypeOK
+<1>3. CASE \E a \in SafeAcceptor : \E m \in msgs : Process1b(a, m)
+  <2> PICK acc \in SafeAcceptor, msg \in msgs : Process1b(acc, msg)
+      BY <1>3
+  <2> acc \in Acceptor BY AcceptorAssumption
+  <2> known_msgs' \in [Acceptor \cup Learner -> SUBSET Message]
+      BY DEF Process1b, Recv, TypeOK
+  <2> QED BY Zenon DEF Process1b, TypeOK
+<1>4. CASE \E a \in SafeAcceptor : \E l \in Learner : Process1bLearnerLoopStep(a, l)
+  <2> PICK acc \in SafeAcceptor, lrn \in Learner : Process1bLearnerLoopStep(acc, lrn)
+      BY <1>4
+  <2> acc \in Acceptor BY AcceptorAssumption
+  <2> msgs' \in SUBSET Message
+      BY WellFormedMessage, Zenon DEF Process1bLearnerLoopStep, Send, TypeOK
+  <2> 2a_lrn_loop' \in [Acceptor -> BOOLEAN]
+      BY Zenon DEF Process1bLearnerLoopStep, TypeOK
+  <2> recent_msgs' \in [Acceptor \cup Learner -> SUBSET Message]
+      BY AllProvers, WellFormedMessage, AcceptorAssumption DEF Process1bLearnerLoopStep, TypeOK
+  <2> processed_lrns' \in [Acceptor -> SUBSET Learner]
+      BY Isa DEF Process1bLearnerLoopStep, TypeOK
+  <2>1. QED BY DEF Process1bLearnerLoopStep, TypeOK
+<1>5. CASE \E a \in SafeAcceptor : Process1bLearnerLoopDone(a)
+      BY <1>5, Zenon DEF Process1bLearnerLoopDone, TypeOK
+<1>6. CASE LearnerAction
+      BY <1>6, Isa DEF LearnerAction, LearnerRecv, LearnerDecide, Recv, TypeOK
+<1>7. CASE FakeAcceptorAction
+      BY <1>7 DEF FakeAcceptorAction, FakeSend, Send, TypeOK
+<1>8. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, <1>7
+          DEF AcceptorProcessAction, Process1bLearnerLoop 
+
+LEMMA DecisionSpecInvariant == TypeOK /\ Next /\ DecisionSpec => DecisionSpec'
+PROOF OMITTED
+
+LEMMA ChosenSafe ==
+    ASSUME NEW L1 \in Learner, NEW L2 \in Learner,
+               NEW B1 \in Ballot, NEW B2 \in Ballot,
+               NEW V1 \in Value, NEW V2 \in Value,
+               TypeOK, \*ReceivedSpec, ReceivedByLearnerSpec, VotesSentSpec4, MsgInv,
+               \*HeterogeneousSpec,
+               <<L1, L2>> \in Ent,
+               ChosenIn(L1, B1, V1), ChosenIn(L2, B2, V2)
+    PROVE V1 = V2
+
+LEMMA SafetyStep ==
+    TypeOK /\ Next /\
+    DecisionSpec /\
+    Safety => Safety'
+PROOF
+<1> SUFFICES
+        ASSUME TypeOK, Next,
+               DecisionSpec,
+               Safety,
+               NEW L1 \in Learner, NEW L2 \in Learner,
+               NEW B1 \in Ballot, NEW B2 \in Ballot,
+               NEW V1 \in Value, NEW V2 \in Value,
+               <<L1, L2>> \in Ent,
+               V1 \in decision'[L1, B1], V2 \in decision'[L2, B2]
+        PROVE V1 = V2
+    BY DEF Safety
+<1>1. CASE ProposerSendAction
+      BY <1>1 DEF ProposerSendAction, Send1a, Safety
+<1>2. CASE \E a \in SafeAcceptor : \E m \in msgs : Process1a(a, m)
+      BY <1>2 DEF Process1a, Safety
+<1>3. CASE \E a \in SafeAcceptor : \E m \in msgs : Process1b(a, m)
+      BY <1>3 DEF Process1b, Safety
+<1>4. CASE \E a \in SafeAcceptor : \E l \in Learner : Process1bLearnerLoopStep(a, l)
+      BY <1>4 DEF Process1bLearnerLoopStep, Safety
+<1>5. CASE \E a \in SafeAcceptor : Process1bLearnerLoopDone(a)
+      BY <1>5 DEF Process1bLearnerLoopDone, Safety
+<1>6. CASE \E lrn \in Learner : LearnerRecv(lrn)
+      BY <1>6 DEF LearnerRecv, Safety
+<1>7. CASE \E lrn \in Learner : \E bal \in Ballot : \E val \in Value :
+            LearnerDecide(lrn, bal, val)
+  <2> PICK lrn \in Learner, bal \in Ballot, val \in Value :
+        /\ ChosenIn(lrn, bal, val)
+        /\ decision' = [decision EXCEPT ![<<lrn, bal>>] = decision[lrn, bal] \cup {val}]
+        /\ UNCHANGED << msgs, known_msgs, recent_msgs, 2a_lrn_loop, processed_lrns >>
+      BY <1>7 DEF LearnerDecide
+  <2> CASE V1 # V2
+    <3>1. CASE val # V1 /\ val # V2 BY <3>1 DEF Safety, TypeOK
+    <3>2. CASE val = V1
+      <4> V2 \in decision[L2, B2] BY <3>2 DEF TypeOK
+      <4>1. ChosenIn(L2, B2, V2) BY DEF DecisionSpec
+      <4>2. CASE V1 \in decision[L1, B1] BY <4>2 DEF Safety
+      <4>3. CASE V1 \notin decision[L1, B1]
+        <5> lrn = L1 /\ bal = B1 BY <4>3, <3>2 DEF TypeOK
+        <5>2. ChosenIn(L1, B1, V1) BY <3>2
+        <5>3. QED BY <4>1, <5>2, ChosenSafe
+      <4>4. QED BY <4>2, <4>3
+    <3>3. CASE val = V2
+      <4> V1 \in decision[L1, B1] BY <3>3 DEF TypeOK
+      <4>1. ChosenIn(L1, B1, V1) BY DEF DecisionSpec
+      <4>2. CASE V2 \in decision[L2, B2] BY <4>2 DEF Safety
+      <4>3. CASE V2 \notin decision[L2, B2]
+        <5> lrn = L2 /\ bal = B2 BY <4>3, <3>2 DEF TypeOK
+        <5>2. ChosenIn(L2, B2, V2) BY <3>3
+        <5>3. QED BY <4>1, <5>2, ChosenSafe
+      <4>4. QED BY <4>2, <4>3
+    <3>10. QED BY <3>1, <3>2, <3>3
+  <2>10. QED OBVIOUS
+<1>8. CASE FakeAcceptorAction
+      BY <1>8 DEF FakeAcceptorAction, FakeSend, Safety
+<1>9. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, <1>7, <1>8
+          DEF Next, AcceptorProcessAction, Process1bLearnerLoop, LearnerAction 
+
+-----------------------------------------------------------------------------
+\*LEMMA SafetyStep ==
+\*    TypeOK /\ Next /\ MsgInv /\
+\*    DecisionSpec /\ ReceivedSpec /\ ReceivedByLearnerSpec /\
+\*    2avSentSpec1 /\ 2avSentSpec3 /\ VotesSentSpec4 /\
+\*    HeterogeneousSpec /\ Safety => Safety'
+\*PROOF
+\*<1> SUFFICES
+\*        ASSUME TypeOK, Next, MsgInv, Safety, DecisionSpec, ReceivedSpec, ReceivedByLearnerSpec,
+\*               2avSentSpec1, 2avSentSpec3, VotesSentSpec4,
+\*               HeterogeneousSpec,
+\*               NEW L1 \in Learner, NEW L2 \in Learner,
+\*               NEW B1 \in Ballot, NEW B2 \in Ballot,
+\*               NEW V1 \in Value, NEW V2 \in Value,
+\*               <<L1, L2>> \in Ent,
+\*               V1 \in decision'[L1, B1], V2 \in decision'[L2, B2]
+\*        PROVE V1 = V2
+\*    BY DEF Safety
+\*<1>0a. TypeOK OBVIOUS
+\*<1>0b. TypeOK' BY TypeOKInvariant
+\*<1>1. CASE ProposerAction BY <1>1 DEF ProposerAction, Phase1a, Phase1c, Send, Safety
+\*<1>2. CASE AcceptorSendAction
+\*  <2>0. SUFFICES ASSUME NEW lrn \in Learner,
+\*                      NEW bal \in Ballot,
+\*                      NEW acc \in SafeAcceptor,
+\*                      NEW val \in Value,
+\*                      \/ Phase1b(lrn, bal, acc)
+\*                      \/ Phase2av(lrn, bal, acc, val)
+\*                      \/ Phase2b(lrn, bal, acc, val)
+\*               PROVE V1 = V2
+\*        BY <1>2 DEF AcceptorSendAction
+\*  <2>2. CASE Phase1b(lrn, bal, acc) BY <2>2, <1>0a, <1>0b DEF AcceptorSendAction, Send, Phase1b, Safety, TypeOK
+\*  <2>3. CASE Phase2av(lrn, bal, acc, val) BY <2>3, <1>0a, <1>0b DEF AcceptorSendAction, Send, Phase2av, Safety, TypeOK
+\*  <2>4. CASE Phase2b(lrn, bal, acc, val) BY <2>4, <1>0a, <1>0b DEF AcceptorSendAction, Send, Phase2b, Safety, TypeOK
+\*  <2>5. QED BY <2>0, <2>2, <2>3, <2>4
+\*<1>3. CASE AcceptorReceiveAction BY <1>3, <1>0a, <1>0b DEF AcceptorReceiveAction, Recv, TypeOK, Safety
+\*<1>4. CASE AcceptorDisconnectAction BY <1>4 DEF AcceptorDisconnectAction, Disconnect, Safety
+\*<1>5. CASE LearnerAction
+\*  <2> SUFFICES ASSUME NEW lrn \in Learner, NEW bal \in Ballot,
+\*                       \/ LearnerDecide(lrn, bal)
+\*                       \/ LearnerRecv(lrn)
+\*               PROVE V1 = V2 BY <1>5 DEF LearnerAction
+\*  <2>1. CASE LearnerRecv(lrn) BY <2>1 DEF LearnerRecv, Safety
+\*  <2>2. CASE LearnerDecide(lrn, bal)
+\*    <3> SUFFICES ASSUME NEW val \in Value,
+\*                        ChosenIn(lrn, bal, val),
+\*                        decision' = [decision EXCEPT ![<<lrn, bal>>] = decision[lrn, bal] \cup {val}],
+\*                        UNCHANGED <<msgs, maxBal, votesSent, 2avSent, received, connected, receivedByLearner>>
+\*                 PROVE V1 = V2
+\*        BY <2>2 DEF LearnerDecide
+\*    <3>0. CASE V1 = V2 BY <3>0
+\*    <3>1. CASE V1 # V2
+\*      <4>1. CASE val # V1 /\ val # V2 BY <4>1 DEF Safety, TypeOK
+\*      <4>2. CASE val = V1
+\*        <5>0. V2 \in decision[L2, B2] BY <3>1, <4>2 DEF TypeOK
+\*        <5>1. ChosenIn(L2, B2, V2) BY <5>0 DEF DecisionSpec
+\*        <5>2. CASE V1 \in decision[L1, B1] BY <5>0, <5>2 DEF Safety
+\*        <5>3. CASE V1 \notin decision[L1, B1]
+\*          <6>1. lrn = L1 /\ bal = B1 BY <5>3, <4>2 DEF TypeOK
+\*          <6>2. ChosenIn(L1, B1, V1) BY <6>1, <4>2
+\*          <6>3. QED BY <5>1, <6>2, ChosenSafe
+\*        <5>4. QED BY <5>2, <5>3
+\*      <4>3. CASE val = V2
+\*        <5>0. V1 \in decision[L1, B1] BY <3>1, <4>3 DEF TypeOK
+\*        <5>1. ChosenIn(L1, B1, V1) BY <5>0 DEF DecisionSpec
+\*        <5>2. CASE V2 \in decision[L2, B2] BY <5>0, <5>2 DEF Safety
+\*        <5>3. CASE V2 \notin decision[L2, B2]
+\*          <6>1. lrn = L2 /\ bal = B2 BY <5>3, <4>3 DEF TypeOK
+\*          <6>2. ChosenIn(L2, B2, V2) BY <6>1, <4>3
+\*          <6>10. QED BY <5>1, <6>2, ChosenSafe
+\*        <5>4. QED BY <5>2, <5>3
+\*      <4>4. QED BY <4>1, <4>2, <4>3
+\*    <3>2. QED BY <3>0, <3>1
+\*  <2>3. QED BY <2>1, <2>2
+\*<1>6. CASE FakeAcceptorAction BY <1>6 DEF FakeAcceptorAction, FakeSend, Send, Safety
+\*<1>7. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6 DEF Next
+
 =============================================================================
 \* Modification History
-\* Last modified Thu Aug 25 10:22:00 CEST 2022 by aleph
+\* Last modified Tue Sep 06 19:55:15 CEST 2022 by aleph
 \* Created Thu Aug 25 10:12:00 CEST 2022 by aleph
