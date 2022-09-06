@@ -133,7 +133,9 @@ ASSUME emptyLayerEmpty == DOMAIN emptyLayer = {}
 (* - no leader blocks are chosen                                           *)
 (***************************************************************************)
 \* @type: Bool;
-Init == dag = << emptyLayer >>  /\ leaderBlocks = <<  >>
+Init == 
+  /\ dag = << emptyLayer >>  
+  /\ leaderBlocks = <<  >>
     
 
 (***************************************************************************)
@@ -219,7 +221,7 @@ AddBlockInHigherLayer(v, b, n) ==
 (* Combining the block addition into a single operator.                    *)
 (***************************************************************************)
   
-\* @type: (BYZ_VAL, $block, Int) => Bool;
+\* @\\type: (BYZ_VAL, $block, Int) => Bool;
 AddBlock(v, b, n) == 
 /\ \/ /\ n < 1 
       /\ FALSE \* we do not do anything for n < 1
@@ -240,6 +242,7 @@ The following operator makes a narrow description of
 the possible blocks that a validator _v_ could propose 
 at layer _n_
 *)
+\* @type: (Int, BYZ_VAL) => Set($block);
 CurrentBlockCandidates(n, v) == 
 IF n = 1
 THEN 
@@ -256,19 +259,19 @@ ELSE
   winks : {{}}, \* SUBSET (Nat \X ByzValidator),
   height : {n}
 ]
- 
+
 (*
 Adding a block. 
 *)
 
-\* @type: Bool;
+
 NewBlock == 
   \E n \in 1..(Len(dag)+1) :
   \E v \in IF n = (Len(dag)+1)
            THEN ByzValidator
            ELSE ByzValidator \ DOMAIN dag[n]:           
   \E b \in CurrentBlockCandidates(n,v) :  AddBlock(v, b, n)
-  
+
 (***************************************************************************)
 (* Leader block selection: we allow for a sequence of leader blocks        *)
 (*                                                                         *)
@@ -276,7 +279,7 @@ NewBlock ==
 (*                                                                         *)
 (* - and the depth of leader blocks has to increase.                       *)
 (***************************************************************************)
-  
+
 ChooseSupportedLeaderBlock == 
   LET
     dagLen == Len(dag)
@@ -292,30 +295,34 @@ ChooseSupportedLeaderBlock ==
   \* we are looking for supporting validators in the next layer
   \E W \in WeakQuorum :
     /\ W \subseteq DOMAIN dag[n+1]
-    /\ \A w \in W : v \in dag[n+1][w].links 
+    /\ \A w \in W : v \in (dag[n+1][w]).links 
   \* post-condition
     /\ leaderBlocks' = leaderBlocks \o << << n, v >> >>  
     /\ UNCHANGED dag
 
+
 (***************************************************************************)
 (* The Lamport-esque Next .                                                *)
 (***************************************************************************)
-Next == 
+
+
+Next ==
   \/ NewBlock
   \/ ChooseSupportedLeaderBlock
 
-
 \* ChooseArbitraryLeaderBlock == 'soon ™' \* not really needed/wanted
 
-\* 
+\* @\\type: Bool;
 CensorshipResistance == 
  \A v \in ByzValidator : \A b \in Block : \A n \in Nat :
    WF_vars( AddBlock(v, b, n) )
 
+
+\* @\\type: Bool;
 Spec == Init /\ [][Next]_vars /\ CensorshipResistance
          
-         
 ========
+
   
 
 (*
