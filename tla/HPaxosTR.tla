@@ -68,11 +68,12 @@ ASSUME MaxRefCardinality \in Nat
 
 RefCardinality == Nat
 
-FINSUBSET(S, R) == { Range(seq) : seq \in [R -> S]}
-\*FINSUBSET(S, K) == {Range(seq) : seq \in [1..K -> S]}
+FINSUBSET(S, R) == { Range(seq) : seq \in [R -> S] }
+\*FINSUBSET(S, K) == { Range(seq) : seq \in [1..K -> S] }
+\*FINSUBSET(S, R) == UNION { {Range(seq) : seq \in [1..K -> S]} : K \in R }
 
 MessageRec0 ==
-    [ type : {"1a"}, bal : Ballot, val : Value, ref : {{}} ] \cup
+    [ type : {"1a"}, bal : Ballot, ref : {{}} ] \cup
     [ type : {"1b"}, acc : Acceptor, ref : {{}} ] \cup
     [ type : {"2a"}, lrn : Learner, acc : Acceptor, ref : {{}} ]
 
@@ -152,20 +153,21 @@ VARIABLES msgs,
           recent_msgs,
           2a_lrn_loop,
           processed_lrns,
-          decision
+          decision,
+          BVal \* TODO comment
 
-Get1a(m, x) ==
-    /\ x.type = "1a"
-    /\ x \in Tran(m)
-    /\ \A y \in Tran(m) :
-        y.type = "1a" => y.bal <= x.bal
-\* Invariant: Get1a(m, x) /\ Get1a(m, y) => x = y
+Get1a(m) ==
+    { x \in Tran(m) :
+        /\ x.type = "1a"
+        /\ \A y \in Tran(m) :
+            y.type = "1a" => y.bal <= x.bal }
+\* Invariant: x \in Get1a(m) /\ y \in Get1a(m) => x = y
 \* TODO: totality for 1b, 2a messages. Required invariant:
 \*   each well-formed 1b references a 1a.
 
-B(m, bal) == \E x \in Tran(m) : Get1a(m, x) /\ x.bal = bal
+B(m, bal) == \E x \in Get1a(m) : bal = x.bal
 
-V(m, val) == \E x \in Tran(m) : Get1a(m, x) /\ x.val = val
+V(m, val) == \E x \in Get1a(m) : val = BVal[x.bal]
 
 \* Maximal ballot number of any messages known to acceptor a
 MaxBal(a, mbal) ==
@@ -241,11 +243,11 @@ WellFormed(m) ==
 \*        /\ \A r1, r2 \in m.ref :
 \*            r1.bal = m.bal /\ r2.bal = m.bal => r1 = r2
         /\ \A y \in Tran(m) :
-            m # y /\ SameBallot(m, y) => Get1a(m, y)
+            m # y /\ SameBallot(m, y) => y \in Get1a(m)
     /\ m.type = "2a" =>
         /\ [lr |-> m.lrn, q |-> q(m)] \in TrustLive
 
-vars == << msgs, known_msgs, recent_msgs, 2a_lrn_loop, processed_lrns, decision >>
+vars == << msgs, known_msgs, recent_msgs, 2a_lrn_loop, processed_lrns, decision, BVal >>
 
 Init ==
     /\ msgs = {}
@@ -254,6 +256,7 @@ Init ==
     /\ 2a_lrn_loop = [a \in Acceptor |-> FALSE]
     /\ processed_lrns = [a \in Acceptor |-> {}]
     /\ decision = [lb \in Learner \X Ballot |-> {}]
+    /\ BVal \in [Ballot -> Value]
 \*    /\ \A acc \in SafeAcceptor : known_msgs[acc] = {}
 \*    /\ \A lrn \in Learner : known_msgs[lrn] = {}
 \*    /\ \A acc \in SafeAcceptor : recent_msgs[acc] = {}
@@ -271,9 +274,8 @@ Recv(a, m) ==
     /\ known_msgs' = [known_msgs EXCEPT ![a] = known_msgs[a] \cup {m}]
 
 Send1a(b, v) ==
-    /\ \A m \in msgs : m.type = "1a" => m.bal # b \* TODO comment
-    /\ Send([type |-> "1a", bal |-> b, val |-> v, ref |-> {}])
-    /\ UNCHANGED << known_msgs, recent_msgs, 2a_lrn_loop, processed_lrns, decision >>
+    /\ Send([type |-> "1a", bal |-> b, ref |-> {}])
+    /\ UNCHANGED << known_msgs, recent_msgs, 2a_lrn_loop, processed_lrns, decision, BVal >>
 
 Process1a(a, m) ==
     LET new1b == [type |-> "1b", acc |-> a, ref |-> recent_msgs[a] \cup {m}] IN
@@ -285,7 +287,7 @@ Process1a(a, m) ==
     /\ (~WellFormed(new1b)) =>
         /\ recent_msgs' = [recent_msgs EXCEPT ![a] = recent_msgs[a] \cup {m}]
         /\ UNCHANGED msgs
-    /\ UNCHANGED << 2a_lrn_loop, processed_lrns, decision >>
+    /\ UNCHANGED << 2a_lrn_loop, processed_lrns, decision, BVal >>
 
 Process1b(a, m) ==
     /\ Recv(a, m)
@@ -296,7 +298,7 @@ Process1b(a, m) ==
         /\ processed_lrns' = [processed_lrns EXCEPT ![a] = {}]
     /\ (~(\A b \in Ballot : B(m, b) => MaxBal(a, b))) =>
         UNCHANGED << 2a_lrn_loop, processed_lrns >>
-    /\ UNCHANGED << msgs, decision >>
+    /\ UNCHANGED << msgs, decision, BVal >>
 
 Process1bLearnerLoopStep(a, lrn) ==
     LET new2a == [type |-> "2a", lrn |-> lrn, ref |-> recent_msgs[a]] IN
@@ -307,12 +309,12 @@ Process1bLearnerLoopStep(a, lrn) ==
         /\ recent_msgs' = [recent_msgs EXCEPT ![a] = {new2a}]
     /\ (~WellFormed(new2a)) =>
         UNCHANGED << msgs, recent_msgs >>
-    /\ UNCHANGED << known_msgs, 2a_lrn_loop, decision >>
+    /\ UNCHANGED << known_msgs, 2a_lrn_loop, decision, BVal >>
 
 Process1bLearnerLoopDone(a) ==
     /\ Learner \ processed_lrns[a] = {}
     /\ 2a_lrn_loop' = [2a_lrn_loop EXCEPT ![a] = FALSE]
-    /\ UNCHANGED << msgs, known_msgs, recent_msgs, processed_lrns, decision >>
+    /\ UNCHANGED << msgs, known_msgs, recent_msgs, processed_lrns, decision, BVal >>
 
 Process1bLearnerLoop(a) ==
     \/ \E lrn \in Learner \ processed_lrns[a] :
@@ -323,7 +325,7 @@ Process2a(a, m) ==
     /\ Recv(a, m)
     /\ m.type = "2a"
     /\ recent_msgs' = [recent_msgs EXCEPT ![a] = recent_msgs[a] \cup {m}]
-    /\ UNCHANGED << msgs, 2a_lrn_loop, processed_lrns, decision >>
+    /\ UNCHANGED << msgs, 2a_lrn_loop, processed_lrns, decision, BVal >>
 
 ProposerSendAction ==
     \E bal \in Ballot : \E val \in Value :
@@ -349,14 +351,14 @@ FakeSend(a) ==
                                        \* wellformed messages
                 } :
         Send(m)
-    /\ UNCHANGED << known_msgs, recent_msgs, 2a_lrn_loop, processed_lrns, decision >>
+    /\ UNCHANGED << known_msgs, recent_msgs, 2a_lrn_loop, processed_lrns, decision, BVal >>
 
 \*FakeRecv(a) ==
 \*    /\ UNCHANGED << msgs >>
 
 LearnerRecv(l) ==
     /\ \E m \in msgs : Recv(l, m)
-    /\ UNCHANGED << msgs, recent_msgs, 2a_lrn_loop, processed_lrns, decision >>
+    /\ UNCHANGED << msgs, recent_msgs, 2a_lrn_loop, processed_lrns, decision, BVal >>
 
 ChosenIn(l, b, v) ==
     \E S \in SUBSET { x \in known_msgs[l] :
@@ -372,7 +374,7 @@ ChosenIn(l, b, v) ==
 LearnerDecide(l, b, v) ==
     /\ ChosenIn(l, b, v)
     /\ decision' = [decision EXCEPT ![<<l, b>>] = decision[l, b] \cup {v}]
-    /\ UNCHANGED << msgs, known_msgs, recent_msgs, 2a_lrn_loop, processed_lrns >>
+    /\ UNCHANGED << msgs, known_msgs, recent_msgs, 2a_lrn_loop, processed_lrns, BVal >>
 
 LearnerAction ==
     \E lrn \in Learner :
