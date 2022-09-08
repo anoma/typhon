@@ -22,7 +22,8 @@ ASSUME AcceptorAssumption ==
 
 FakeAcceptor == Acceptor \ SafeAcceptor
 
-ASSUME BQAssumption == \A Q \in ByzQuorum : Q \subseteq Acceptor
+ASSUME BQAssumption ==
+        \A Q \in ByzQuorum : Q \subseteq Acceptor
 
 \*ASSUME BallotAssumption ==
 \*        /\ (Ballot \cup {-1}) \cap Acceptor = {}
@@ -33,10 +34,12 @@ ASSUME BQAssumption == \A Q \in ByzQuorum : Q \subseteq Acceptor
 (* Learner graph *)
 
 CONSTANT TrustLive
-ASSUME TrustLiveAssumption == TrustLive \in SUBSET [lr : Learner, q : ByzQuorum]
+ASSUME TrustLiveAssumption ==
+    TrustLive \in SUBSET [lr : Learner, q : ByzQuorum]
 
 CONSTANT TrustSafe
-ASSUME TrustSafeAssumption == TrustSafe \in SUBSET [from : Learner, to : Learner, q : ByzQuorum]
+ASSUME TrustSafeAssumption ==
+    TrustSafe \in SUBSET [from : Learner, to : Learner, q : ByzQuorum]
 
 ASSUME LearnerGraphAssumption ==
         (* symmetry *)
@@ -275,7 +278,8 @@ Recv(a, m) ==
 
 Send1a(b, v) ==
     /\ Send([type |-> "1a", bal |-> b, ref |-> {}])
-    /\ UNCHANGED << known_msgs, recent_msgs, 2a_lrn_loop, processed_lrns, decision, BVal >>
+    /\ UNCHANGED << known_msgs, recent_msgs, 2a_lrn_loop, processed_lrns, decision >>
+    /\ UNCHANGED BVal
 
 Process1a(a, m) ==
     LET new1b == [type |-> "1b", acc |-> a, ref |-> recent_msgs[a] \cup {m}] IN
@@ -287,7 +291,8 @@ Process1a(a, m) ==
     /\ (~WellFormed(new1b)) =>
         /\ recent_msgs' = [recent_msgs EXCEPT ![a] = recent_msgs[a] \cup {m}]
         /\ UNCHANGED msgs
-    /\ UNCHANGED << 2a_lrn_loop, processed_lrns, decision, BVal >>
+    /\ UNCHANGED << 2a_lrn_loop, processed_lrns, decision >>
+    /\ UNCHANGED BVal
 
 Process1b(a, m) ==
     /\ Recv(a, m)
@@ -298,7 +303,8 @@ Process1b(a, m) ==
         /\ processed_lrns' = [processed_lrns EXCEPT ![a] = {}]
     /\ (~(\A b \in Ballot : B(m, b) => MaxBal(a, b))) =>
         UNCHANGED << 2a_lrn_loop, processed_lrns >>
-    /\ UNCHANGED << msgs, decision, BVal >>
+    /\ UNCHANGED << msgs, decision >>
+    /\ UNCHANGED BVal
 
 Process1bLearnerLoopStep(a, lrn) ==
     LET new2a == [type |-> "2a", lrn |-> lrn, ref |-> recent_msgs[a]] IN
@@ -309,12 +315,14 @@ Process1bLearnerLoopStep(a, lrn) ==
         /\ recent_msgs' = [recent_msgs EXCEPT ![a] = {new2a}]
     /\ (~WellFormed(new2a)) =>
         UNCHANGED << msgs, recent_msgs >>
-    /\ UNCHANGED << known_msgs, 2a_lrn_loop, decision, BVal >>
+    /\ UNCHANGED << known_msgs, 2a_lrn_loop, decision >>
+    /\ UNCHANGED BVal
 
 Process1bLearnerLoopDone(a) ==
     /\ Learner \ processed_lrns[a] = {}
     /\ 2a_lrn_loop' = [2a_lrn_loop EXCEPT ![a] = FALSE]
-    /\ UNCHANGED << msgs, known_msgs, recent_msgs, processed_lrns, decision, BVal >>
+    /\ UNCHANGED << msgs, known_msgs, recent_msgs, processed_lrns, decision >>
+    /\ UNCHANGED BVal
 
 Process1bLearnerLoop(a) ==
     \/ \E lrn \in Learner \ processed_lrns[a] :
@@ -325,7 +333,8 @@ Process2a(a, m) ==
     /\ Recv(a, m)
     /\ m.type = "2a"
     /\ recent_msgs' = [recent_msgs EXCEPT ![a] = recent_msgs[a] \cup {m}]
-    /\ UNCHANGED << msgs, 2a_lrn_loop, processed_lrns, decision, BVal >>
+    /\ UNCHANGED << msgs, 2a_lrn_loop, processed_lrns, decision >>
+    /\ UNCHANGED BVal
 
 ProposerSendAction ==
     \E bal \in Ballot : \E val \in Value :
@@ -351,14 +360,16 @@ FakeSend(a) ==
                                        \* wellformed messages
                 } :
         Send(m)
-    /\ UNCHANGED << known_msgs, recent_msgs, 2a_lrn_loop, processed_lrns, decision, BVal >>
+    /\ UNCHANGED << known_msgs, recent_msgs, 2a_lrn_loop, processed_lrns, decision >>
+    /\ UNCHANGED BVal
 
 \*FakeRecv(a) ==
 \*    /\ UNCHANGED << msgs >>
 
 LearnerRecv(l) ==
     /\ \E m \in msgs : Recv(l, m)
-    /\ UNCHANGED << msgs, recent_msgs, 2a_lrn_loop, processed_lrns, decision, BVal >>
+    /\ UNCHANGED << msgs, recent_msgs, 2a_lrn_loop, processed_lrns, decision >>
+    /\ UNCHANGED BVal
 
 ChosenIn(l, b, v) ==
     \E S \in SUBSET { x \in known_msgs[l] :
@@ -374,7 +385,8 @@ ChosenIn(l, b, v) ==
 LearnerDecide(l, b, v) ==
     /\ ChosenIn(l, b, v)
     /\ decision' = [decision EXCEPT ![<<l, b>>] = decision[l, b] \cup {v}]
-    /\ UNCHANGED << msgs, known_msgs, recent_msgs, 2a_lrn_loop, processed_lrns, BVal >>
+    /\ UNCHANGED << msgs, known_msgs, recent_msgs, 2a_lrn_loop, processed_lrns >>
+    /\ UNCHANGED BVal
 
 LearnerAction ==
     \E lrn \in Learner :
@@ -429,5 +441,5 @@ THEOREM SafetyResult == Spec => []Safety
 
 =============================================================================
 \* Modification History
-\* Last modified Thu Sep 08 16:13:29 CEST 2022 by aleph
+\* Last modified Thu Sep 08 19:04:40 CEST 2022 by aleph
 \* Created Mon Jul 25 14:24:03 CEST 2022 by aleph
