@@ -162,7 +162,6 @@ NextPreWitnesses(Xs) == { n \in NN :
   }
 
 
-
 \* @type: ($request) => Bool;
 Next(Xs) == 
   LET
