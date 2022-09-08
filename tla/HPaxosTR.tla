@@ -429,5 +429,5 @@ THEOREM SafetyResult == Spec => []Safety
 
 =============================================================================
 \* Modification History
-\* Last modified Tue Sep 06 20:03:17 CEST 2022 by aleph
+\* Last modified Thu Sep 08 16:13:29 CEST 2022 by aleph
 \* Created Mon Jul 25 14:24:03 CEST 2022 by aleph

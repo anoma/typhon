@@ -445,14 +445,14 @@ Msg1aInv ==
 -----------------------------------------------------------------------------
 
 LEMMA MessageTypeOK ==
-    ASSUME NEW m \in Message 
+    ASSUME NEW m \in Message
     PROVE /\ m.type = "1a" => /\ m.bal \in Ballot
                               /\ m.ref = {}
           /\ m.type = "1b" => /\ m.acc \in Acceptor
                               /\ m.ref \in SUBSET Message
           /\ m.type = "2a" => /\ m.lrn \in Learner
                               /\ m.acc \in Acceptor
-                              /\ m.ref \in SUBSET Message 
+                              /\ m.ref \in SUBSET Message
 PROOF
 <1> DEFINE P(n) ==
         \A x \in MessageRec[n] :
@@ -849,5 +849,5 @@ PROOF
 
 =============================================================================
 \* Modification History
-\* Last modified Thu Sep 08 14:55:51 CEST 2022 by aleph
+\* Last modified Thu Sep 08 16:02:45 CEST 2022 by aleph
 \* Created Thu Aug 25 10:12:00 CEST 2022 by aleph
