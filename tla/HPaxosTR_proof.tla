@@ -109,9 +109,11 @@ PROOF
                PROVE mm.ref \subseteq MessageRec[m]
       OBVIOUS
   <2>1. CASE m = 0
-        BY <2>1, MessageRec_eq1, MessageRec_ref0, FinSubset_sub DEF MessageRec1
+        BY <2>1, MessageRec_eq1, MessageRec_ref0, FinSubset_sub
+           DEF MessageRec1, RefCardinality
   <2>2. CASE m # 0
-        BY <1>1, <2>2, MessageRec_eq1, MessageRec_monotone, FinSubset_sub DEF MessageRec1
+        BY <1>1, <2>2, MessageRec_eq1, MessageRec_monotone, FinSubset_sub
+           DEF MessageRec1, RefCardinality
   <2>3. QED BY <2>1, <2>2
 <1>2. HIDE DEF P
 <1>3. QED BY <1>0, <1>1, NatInduction, Isa
@@ -147,7 +149,7 @@ PROOF
 <1>1. CASE n = 0 BY <1>0, <1>1, MessageRec_eq0 DEF MessageRec0
 <1>2. CASE n # 0 /\ m \in m.ref
   <2>1. m.ref \in SUBSET MessageRec[n-1]
-        BY <1>0, <1>2, MessageRec_eq1, FinSubset_sub DEF MessageRec1
+        BY <1>0, <1>2, MessageRec_eq1, FinSubset_sub DEF MessageRec1, RefCardinality
   <2>10. QED BY <2>1, <1>0, <1>2
 <1>10. QED BY <1>1, <1>2
 
@@ -442,6 +444,18 @@ Msg1aInv ==
     \A m1, m2 \in msgs :
         m1.type = "1a" /\ m2.type = "1a" /\ m1.bal = m2.bal => m1 = m2
 
+\*Msg2aInv(m) ==
+\*    /\ [lr |-> m.lr, bal |-> m.bal, val |-> m.val] \in votesSent[m.acc]
+\*    /\ \E Q \in ByzQuorum :
+\*        /\ [lr |-> m.lr, q |-> Q] \in TrustLive
+\*        /\ \A ba \in Q :
+\*            \E m2av \in received[m.acc] :
+\*                /\ m2av.type = "2av"
+\*                /\ m2av.lr = m.lr
+\*                /\ m2av.acc = ba
+\*                /\ m2av.bal = m.bal
+\*                /\ m2av.val = m.val
+
 -----------------------------------------------------------------------------
 
 LEMMA MessageTypeOK ==
@@ -524,6 +538,11 @@ PROOF BY Get1a_TypeOK DEF V, B
 \*    PROVE V(m1, v) <=> V(m2, v)
 \*PROOF BY Get1a_correct, Zenon DEF B, V
 
+\*LEMMA q_ByzQuorum ==
+\*    ASSUME NEW m \in Message
+\*    PROVE q(m) \in ByzQuorum
+\*PROOF BY DEF q, ByzQuorum
+
 -----------------------------------------------------------------------------
 \* vars == << msgs, known_msgs, recent_msgs, 2a_lrn_loop, processed_lrns, decision >>
 TypeOK ==
@@ -544,7 +563,7 @@ DecisionSpec ==
 KnownMessagesSpec ==
     \A AL \in SafeAcceptor \cup Learner :
         /\ known_msgs[AL] \in SUBSET msgs
-        /\ \A M \in known_msgs[AL] : Proper(AL, M)
+        /\ \A M \in known_msgs[AL] : Proper(AL, M) /\ WellFormed(M)
 
 LEMMA WellFormedMessage ==
     ASSUME NEW M, WellFormed(M) PROVE M \in Message
@@ -676,6 +695,7 @@ PROOF
     BY EntanglementTrustLive
 <1>4. PICK m1 \in msgs :
         /\ Proper(L1, m1)
+        /\ WellFormed(m1)
         /\ m1.type = "2a"
         /\ m1.lrn = L1
         /\ m1.acc = A
@@ -684,12 +704,35 @@ PROOF
       BY DEF ChosenIn, KnownMessagesSpec
 <1>5. PICK m2 \in msgs :
         /\ Proper(L2, m2)
+        /\ WellFormed(m2)
         /\ m2.type = "2a"
         /\ m2.lrn = L2
         /\ m2.acc = A
         /\ B(m2, B2)
         /\ V(m2, V2)
       BY DEF ChosenIn, KnownMessagesSpec
+<1> [lr |-> L1, q |-> q(m1)] \in TrustLive
+      BY <1>4 DEF WellFormed
+<1> [lr |-> L2, q |-> q(m2)] \in TrustLive
+      BY <1>5 DEF WellFormed
+<1> q(m1) \in ByzQuorum BY TrustLiveAssumption
+<1> q(m2) \in ByzQuorum BY TrustLiveAssumption
+<1>8. PICK A0 \in SafeAcceptor : A0 \in q(m1) /\ A0 \in q(m2)
+      BY EntanglementTrustLive DEF TypeOK
+\*q(x) ==
+\*    LET Q == { m \in Tran(x) :
+\*                /\ m.type = "1b"
+\*                /\ Fresh(x.lrn, m)
+\*                /\ \A mb, xb \in Ballot :
+\*                    B(m, mb) /\ B(x, xb) => mb = xb }
+\*    IN {a \in Acceptor : \E m \in Q : m.acc = a}
+<1>9. PICK m1b \in Tran(m2) :
+        /\ m1b.type = "1b"
+        /\ m1b.acc = A0
+        /\ Fresh(L2, m1b)
+        /\ \A b \in Ballot : B(m1b, b) => b = B2
+      BY <1>5, <1>8 DEF q
+\*<1>7. PICK R2 \in ByzQuorum :
 <1>20. QED
 \*<1> USE DEF MsgInv
 \*<1> SUFFICES ASSUME V1 # V2 PROVE FALSE OBVIOUS
@@ -780,12 +823,12 @@ PROOF
 
 LEMMA SafetyStep ==
     TypeOK /\ Next /\
-    DecisionSpec /\
+    KnownMessagesSpec /\ DecisionSpec /\
     Safety => Safety'
 PROOF
 <1> SUFFICES
         ASSUME TypeOK, Next,
-               DecisionSpec,
+               KnownMessagesSpec, DecisionSpec,
                Safety,
                NEW L1 \in Learner, NEW L2 \in Learner,
                NEW B1 \in Ballot, NEW B2 \in Ballot,
@@ -811,7 +854,7 @@ PROOF
   <2> PICK lrn \in Learner, bal \in Ballot, val \in Value :
         /\ ChosenIn(lrn, bal, val)
         /\ decision' = [decision EXCEPT ![<<lrn, bal>>] = decision[lrn, bal] \cup {val}]
-        /\ UNCHANGED << msgs, known_msgs, recent_msgs, 2a_lrn_loop, processed_lrns >>
+        /\ UNCHANGED << msgs, known_msgs, recent_msgs, 2a_lrn_loop, processed_lrns, BVal >>
       BY <1>7 DEF LearnerDecide
   <2> CASE V1 # V2
     <3>1. CASE val # V1 /\ val # V2 BY <3>1 DEF Safety, TypeOK
@@ -822,7 +865,7 @@ PROOF
       <4>3. CASE V1 \notin decision[L1, B1]
         <5> lrn = L1 /\ bal = B1 BY <4>3, <3>2 DEF TypeOK
         <5>2. ChosenIn(L1, B1, V1) BY <3>2
-        <5>3. QED BY <4>1, <5>2, ChosenSafe
+        <5>3. QED BY <4>1, <5>2, ChosenSafe, AllProvers
       <4>4. QED BY <4>2, <4>3
     <3>3. CASE val = V2
       <4> V1 \in decision[L1, B1] BY <3>3 DEF TypeOK
@@ -849,5 +892,5 @@ PROOF
 
 =============================================================================
 \* Modification History
-\* Last modified Thu Sep 08 16:02:45 CEST 2022 by aleph
+\* Last modified Thu Sep 08 20:10:02 CEST 2022 by aleph
 \* Created Thu Aug 25 10:12:00 CEST 2022 by aleph
