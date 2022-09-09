@@ -184,6 +184,33 @@ PROOF
 \*<1>10. QED
 
 -----------------------------------------------------------------------------
+LEMMA MessageTypeSpec ==
+    ASSUME NEW m \in Message
+    PROVE /\ m.type = "1a" => /\ m.bal \in Ballot
+                              /\ m.ref = {}
+          /\ m.type = "1b" => /\ m.acc \in Acceptor
+                              /\ m.ref \in SUBSET Message
+          /\ m.type = "2a" => /\ m.lrn \in Learner
+                              /\ m.acc \in Acceptor
+                              /\ m.ref \in SUBSET Message
+PROOF
+<1> DEFINE P(n) ==
+        \A x \in MessageRec[n] :
+            /\ x.type = "1a" => /\ x.bal \in Ballot
+                                /\ x.ref = {}
+            /\ x.type = "1b" => /\ x.acc \in Acceptor
+                                /\ x.ref \in SUBSET Message
+            /\ x.type = "2a" => /\ x.lrn \in Learner
+                                /\ x.acc \in Acceptor
+                                /\ x.ref \in SUBSET Message
+<1> SUFFICES ASSUME NEW j \in Nat PROVE P(j) BY Message_spec
+<1>0. P(0) BY MessageRec_eq0 DEF MessageRec0
+<1>1. ASSUME NEW k \in Nat, P(k) PROVE P(k + 1)
+  BY <1>1, MessageRec_eq1, Message_spec, FinSubset_sub DEF MessageRec1, RefCardinality
+<1>2. HIDE DEF P
+<1>3. QED BY <1>0, <1>1, NatInduction, Isa
+
+-----------------------------------------------------------------------------
 (* Transitive references *)
 
 LEMMA TranBound_def ==
@@ -210,6 +237,20 @@ LEMMA TranBound_eq1 ==
     PROVE TranBound[n] =
             [m \in Message |-> {m} \cup UNION {TranBound[n-1][r] : r \in m.ref}]
 PROOF BY TranBound_def DEF TranBound1
+
+LEMMA Tran_1a ==
+    ASSUME NEW m \in Message, m.type = "1a"
+    PROVE Tran(m) = {m}
+PROOF
+<1> DEFINE P(n) == TranBound[n][m] = {m}
+<1> SUFFICES ASSUME NEW j \in Nat PROVE P(j)
+    BY DEF Tran, TranDepthRange, MessageDepthRange
+<1>0. P(0) BY TranBound_eq0
+<1>1. ASSUME NEW k \in Nat, P(k) PROVE P(k + 1)
+  <2> SUFFICES TranBound[k + 1][m] = {m} OBVIOUS
+  <2> QED BY <1>1, TranBound_eq1, MessageTypeSpec, Isa
+<1>2. HIDE DEF P
+<1>3. QED BY <1>0, <1>1, NatInduction, Isa
 
 LEMMA TranBound_Message ==
     ASSUME NEW m1 \in Message,
@@ -457,46 +498,17 @@ Msg1aInv ==
 \*                /\ m2av.val = m.val
 
 -----------------------------------------------------------------------------
-
-LEMMA MessageTypeOK ==
-    ASSUME NEW m \in Message
-    PROVE /\ m.type = "1a" => /\ m.bal \in Ballot
-                              /\ m.ref = {}
-          /\ m.type = "1b" => /\ m.acc \in Acceptor
-                              /\ m.ref \in SUBSET Message
-          /\ m.type = "2a" => /\ m.lrn \in Learner
-                              /\ m.acc \in Acceptor
-                              /\ m.ref \in SUBSET Message
-PROOF
-<1> DEFINE P(n) ==
-        \A x \in MessageRec[n] :
-            /\ x.type = "1a" => /\ x.bal \in Ballot
-                                /\ x.ref = {}
-            /\ x.type = "1b" => /\ x.acc \in Acceptor
-                                /\ x.ref \in SUBSET Message
-            /\ x.type = "2a" => /\ x.lrn \in Learner
-                                /\ x.acc \in Acceptor
-                                /\ x.ref \in SUBSET Message
-<1> SUFFICES ASSUME NEW j \in Nat PROVE P(j) BY Message_spec
-<1>0. P(0) BY MessageRec_eq0 DEF MessageRec0
-<1>1. ASSUME NEW k \in Nat, P(k) PROVE P(k + 1)
-  BY <1>1, MessageRec_eq1, Message_spec, FinSubset_sub DEF MessageRec1, RefCardinality
-<1>2. HIDE DEF P
-<1>3. QED BY <1>0, <1>1, NatInduction, Isa
-
------------------------------------------------------------------------------
-
 LEMMA Get1a_TypeOK ==
     ASSUME NEW m \in Message
     PROVE /\ Get1a(m) \subseteq Message
           /\ \A x \in Get1a(m) : x.bal \in Ballot
-PROOF BY Tran_Message, MessageTypeOK DEF Get1a
+PROOF BY Tran_Message, MessageTypeSpec DEF Get1a
 
 LEMMA Get1a_correct ==
     ASSUME NEW m \in Message,
            NEW x \in Get1a(m), NEW y \in Get1a(m)
     PROVE x.bal = y.bal
-PROOF BY Tran_Message, MessageTypeOK DEF Get1a, Ballot
+PROOF BY Tran_Message, MessageTypeSpec DEF Get1a, Ballot
 
 LEMMA B_func ==
     ASSUME NEW m \in Message,
@@ -556,6 +568,9 @@ TypeOK ==
 
 -----------------------------------------------------------------------------
 
+CaughtSpec ==
+    \A M \in msgs : Caught(M) \cap SafeAcceptor = {}
+
 DecisionSpec ==
     \A L \in Learner : \A BB \in Ballot : \A VV \in Value :
         VV \in decision[L, BB] => ChosenIn(L, BB, VV)
@@ -574,10 +589,11 @@ PROOF
 <1> SUFFICES ASSUME TypeOK, Next PROVE TypeOK' OBVIOUS
 <1> USE DEF Next
 <1>1. CASE ProposerSendAction
-  <2> PICK bal \in Ballot, val \in Value : Send1a(bal, val) BY <1>1 DEF ProposerSendAction
+  <2> PICK bal \in Ballot, val \in Value : Send1a(bal, val)
+      BY <1>1 DEF ProposerSendAction
   <2> [type |-> "1a", bal |-> bal, ref |-> {}] \in Message
-        BY Message_spec, MessageRec_eq0 DEF MessageRec0
-  <2> QED BY Zenon DEF Send1a, Send, TypeOK            
+      BY Message_spec, MessageRec_eq0 DEF MessageRec0
+  <2> QED BY Zenon DEF Send1a, Send, TypeOK
 <1>2. CASE \E a \in SafeAcceptor : \E m \in msgs : Process1a(a, m)
   <2> PICK acc \in SafeAcceptor, msg \in msgs : Process1a(acc, msg)
       BY <1>2
@@ -615,6 +631,30 @@ PROOF
       BY <1>7 DEF FakeAcceptorAction, FakeSend, Send, TypeOK
 <1>8. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, <1>7
           DEF AcceptorProcessAction, Process1bLearnerLoop 
+
+LEMMA CaughtSpecInvariant ==
+    TypeOK /\ Next /\ CaughtSpec => CaughtSpec'
+PROOF
+<1> SUFFICES ASSUME TypeOK, Next, CaughtSpec
+             PROVE CaughtSpec'
+    OBVIOUS
+<1> TypeOK' BY TypeOKInvariant
+<1> SUFFICES ASSUME NEW M \in msgs', M \notin msgs,
+                    NEW X \in Caught(M)
+             PROVE X \notin SafeAcceptor
+    BY DEF CaughtSpec
+<1>1. CASE ProposerSendAction
+  <2> PICK bal \in Ballot, val \in Value : Send1a(bal, val)
+      BY <1>1 DEF ProposerSendAction
+  <2> M = [type |-> "1a", bal |-> bal, ref |-> {}] BY DEF Send1a, Send
+  <2>10. QED BY Tran_1a, Isa DEF Caught, TypeOK
+<1>2. CASE \E a \in SafeAcceptor : \E m \in msgs : Process1a(a, m)
+  <2> PICK acc \in SafeAcceptor, m1a \in msgs : Process1a(acc, m1a)
+      BY <1>2
+  <2> M = [type |-> "1b", acc |-> acc, ref |-> recent_msgs[acc] \cup {m1a}]
+      BY DEF Process1a, Send
+  <2>10. QED
+<1>10. QED
 
 LEMMA DecisionSpecInvariant ==
     TypeOK /\ Next /\ DecisionSpec => DecisionSpec'
@@ -892,5 +932,5 @@ PROOF
 
 =============================================================================
 \* Modification History
-\* Last modified Thu Sep 08 20:10:02 CEST 2022 by aleph
+\* Last modified Fri Sep 09 13:50:30 CEST 2022 by aleph
 \* Created Thu Aug 25 10:12:00 CEST 2022 by aleph
