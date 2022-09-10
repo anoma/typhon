@@ -184,15 +184,16 @@ SameBallot(x, y) ==
 \* The acceptor is _caught_ in a message x if the transitive references of x
 \* include evidence such as two messages both signed by the acceptor, in which
 \* neither is featured in the other's transitive references.
-Caught(x) ==
-    LET P == { m \in Tran(x) :
-                /\ m.type # "1a"
-                /\ \E m1 \in Tran(x) :
-                    /\ m1.type # "1a"
-                    /\ m.acc = m1.acc
-                    /\ m \notin Tran(m1)
-                    /\ m1 \notin Tran(m) }
-    IN UNION { m.acc : m \in P }
+CaughtMsg(x) ==
+    { m \in Tran(x) :
+        /\ m.type # "1a"
+        /\ \E m1 \in Tran(x) :
+            /\ m1.type # "1a"
+            /\ m.acc = m1.acc
+            /\ m \notin Tran(m1)
+            /\ m1 \notin Tran(m) }
+
+Caught(x) == { m.acc : m \in CaughtMsg(x) }
 
 \* Connected
 Con(a, x) ==
