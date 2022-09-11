@@ -287,8 +287,8 @@ Process1a(a, m) ==
     /\ Recv(a, m)
     /\ m.type = "1a"
     /\ WellFormed(new1b) =>
-        /\ recent_msgs' = [recent_msgs EXCEPT ![a] = {}]
         /\ Send(new1b)
+        /\ recent_msgs' = [recent_msgs EXCEPT ![a] = {new1b}]
     /\ (~WellFormed(new1b)) =>
         /\ recent_msgs' = [recent_msgs EXCEPT ![a] = recent_msgs[a] \cup {m}]
         /\ UNCHANGED msgs
