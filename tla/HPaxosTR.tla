@@ -11,16 +11,16 @@ CONSTANT Value
 ASSUME ValueNotEmpty == Value # {}
 
 -----------------------------------------------------------------------------
-CONSTANTS Acceptor,
-          SafeAcceptor,
+CONSTANTS SafeAcceptor,
+          FakeAcceptor,
           ByzQuorum,
           Learner
 
-ASSUME AcceptorAssumption ==
-    /\ Acceptor \cap Learner = {}
-    /\ SafeAcceptor \subseteq Acceptor
+Acceptor == SafeAcceptor \cup FakeAcceptor
 
-FakeAcceptor == Acceptor \ SafeAcceptor
+ASSUME AcceptorAssumption ==
+    /\ SafeAcceptor \cup FakeAcceptor = {}
+    /\ Acceptor \cap Learner = {}
 
 ASSUME BQAssumption ==
         \A Q \in ByzQuorum : Q \subseteq Acceptor
