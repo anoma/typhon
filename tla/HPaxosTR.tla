@@ -25,11 +25,6 @@ ASSUME AcceptorAssumption ==
 ASSUME BQAssumption ==
         \A Q \in ByzQuorum : Q \subseteq Acceptor
 
-\*ASSUME BallotAssumption ==
-\*        /\ (Ballot \cup {-1}) \cap Acceptor = {}
-\*        /\ (Ballot \cup {-1}) \cap ByzQuorum = {}
-\*        /\ (Ballot \cup {-1}) \cap Learner = {}
-
 -----------------------------------------------------------------------------
 (* Learner graph *)
 
@@ -41,23 +36,25 @@ CONSTANT TrustSafe
 ASSUME TrustSafeAssumption ==
     TrustSafe \in SUBSET [from : Learner, to : Learner, q : ByzQuorum]
 
-ASSUME LearnerGraphAssumption ==
-        (* symmetry *)
-        /\ \A E \in TrustSafe :
-            [from |-> E.to, to |-> E.from, q |-> E.q] \in TrustSafe
-        (* transitivity *)
-        /\ \A E1, E2 \in TrustSafe :
-            E1.q = E2.q /\ E1.to = E2.from =>
-            [from |-> E1.from, to |-> E2.to, q |-> E1.q] \in TrustSafe
-        (* closure *)
-        /\ \A E \in TrustSafe : \A Q \in ByzQuorum :
-            E.q \subseteq Q =>
-            [from |-> E.from, to |-> E.to, q |-> Q] \in TrustSafe
-        (* validity *)
-        /\ \A E \in TrustSafe : \A Q1, Q2 \in ByzQuorum :
-            [lr |-> E.from, q |-> Q1] \in TrustLive /\
-            [lr |-> E.to, q |-> Q2] \in TrustLive =>
-            \E N \in E.q : N \in Q1 /\ N \in Q2
+ASSUME LearnerGraphAssumptionSymmetry ==
+    \A E \in TrustSafe :
+        [from |-> E.to, to |-> E.from, q |-> E.q] \in TrustSafe
+
+ASSUME LearnerGraphAssumptionTransitivity ==
+    \A E1, E2 \in TrustSafe :
+        E1.q = E2.q /\ E1.to = E2.from =>
+        [from |-> E1.from, to |-> E2.to, q |-> E1.q] \in TrustSafe
+
+ASSUME LearnerGraphAssumptionClosure ==
+    \A E \in TrustSafe : \A Q \in ByzQuorum :
+        E.q \subseteq Q =>
+        [from |-> E.from, to |-> E.to, q |-> Q] \in TrustSafe
+
+ASSUME LearnerGraphAssumptionValidity ==
+    \A E \in TrustSafe : \A Q1, Q2 \in ByzQuorum :
+        [lr |-> E.from, q |-> Q1] \in TrustLive /\
+        [lr |-> E.to, q |-> Q2] \in TrustLive =>
+        \E N \in E.q : N \in Q1 /\ N \in Q2
 
 (* Entanglement relation *)
 Ent == { LL \in Learner \X Learner :
@@ -136,7 +133,6 @@ TranDepthRange == MessageDepthRange
 Tran(m) == UNION {TranBound[n][m] : n \in TranDepthRange}
 
 -----------------------------------------------------------------------------
-
 \* We assume that each 1a-message has a unique value and ballot number,
 \* which could be accomplished by incorporating a hash of the value and the
 \* sender signature information in the ballot number.
@@ -214,7 +210,7 @@ Buried(x, y) ==
                         B(x, bx) /\ B(z, bz) => bx < bz
                     /\ \A vx, vz \in Value :
                         V(x, vx) /\ V(z, vz) => vx # vz }
-    IN [lr |-> x.lrn, q |-> {a \in Acceptor : \E m \in Q : m.acc = a}] \in TrustLive
+    IN [lr |-> x.lrn, q |-> { m.acc : m \in Q }] \in TrustLive
 
 \* Connected 2a messages
 Con2as(l, x) ==
@@ -225,7 +221,7 @@ Con2as(l, x) ==
         /\ m.lrn \in Con(l, x) }
 
 \* Fresh 1b messages
-Fresh(l, x) ==
+Fresh(l, x) == \* x : 1b
     \A m \in Con2as(l, x) : \A v \in Value : V(x, v) <=> V(m, v)
 
 \* Quorum of messages referenced by 2a
@@ -233,15 +229,15 @@ q(x) ==
     LET Q == { m \in Tran(x) :
                 /\ m.type = "1b"
                 /\ Fresh(x.lrn, m)
-                /\ \A mb, xb \in Ballot :
-                    B(m, mb) /\ B(x, xb) => mb = xb }
-    IN {a \in Acceptor : \E m \in Q : m.acc = a}
+                /\ \A b \in Ballot : B(m, b) <=> B(x, b) }
+    IN { m.acc : m \in Q }
 
 WellFormed(m) ==
     /\ m \in Message
     /\ m.type = "1b" =>
         /\ \E r1a \in m.ref :
             /\ r1a.type = "1a"
+            /\ \A r \in m.ref : r.type = "1a" => r = r1a
 \*            /\ r1a.bal = m.bal
 \*        /\ \A r \in m.ref : r.bal =< m.bal
 \*        /\ \A r1, r2 \in m.ref :
@@ -250,6 +246,7 @@ WellFormed(m) ==
             m # y /\ SameBallot(m, y) => y \in Get1a(m)
     /\ m.type = "2a" =>
         /\ [lr |-> m.lrn, q |-> q(m)] \in TrustLive
+        \* /\ m.acc \in q(m)
 
 vars == << msgs, known_msgs, recent_msgs, 2a_lrn_loop, processed_lrns, decision, BVal >>
 
@@ -308,7 +305,7 @@ Process1b(a, m) ==
     /\ UNCHANGED BVal
 
 Process1bLearnerLoopStep(a, lrn) ==
-    LET new2a == [type |-> "2a", lrn |-> lrn, ref |-> recent_msgs[a]] IN
+    LET new2a == [type |-> "2a", lrn |-> lrn, acc |-> a, ref |-> recent_msgs[a]] IN
     /\ processed_lrns' =
         [processed_lrns EXCEPT ![a] = processed_lrns[a] \cup {lrn}]
     /\ WellFormed(new2a) =>
@@ -419,9 +416,22 @@ SanityCheck1 ==
     \A b1, b2 \in Ballot :
         B(m1, b1) /\ B(m2, b2) => b1 = b2
 
+2aNotSent ==
+    \A M \in msgs : M.type # "2a"
+
+2aNotSentBySafeAcceptor ==
+    \A M \in msgs : M.type = "2a" => M.acc \notin SafeAcceptor
+
+1bNotSentBySafeAcceptor ==
+    \A M \in msgs : M.type = "1b" => M.acc \notin SafeAcceptor
+
 \*Inv_msgs ==
 \*    /\ \A m \in msgs : m \in Message
 \*    /\ \A m \in msgs : WellFormed(m)
+
+NoDecision ==
+    \A L \in Learner : \A BB \in Ballot : \A VV \in Value :
+        VV \notin decision[L, BB]
 
 UniqueDecision ==
     \A L1, L2 \in Learner: \A B1, B2 \in Ballot : \A V1, V2 \in Value :
@@ -442,5 +452,5 @@ THEOREM SafetyResult == Spec => []Safety
 
 =============================================================================
 \* Modification History
-\* Last modified Thu Sep 08 19:04:40 CEST 2022 by aleph
+\* Last modified Tue Sep 13 17:32:23 CEST 2022 by aleph
 \* Created Mon Jul 25 14:24:03 CEST 2022 by aleph
