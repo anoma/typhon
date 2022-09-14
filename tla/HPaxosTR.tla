@@ -19,7 +19,7 @@ CONSTANTS SafeAcceptor,
 Acceptor == SafeAcceptor \cup FakeAcceptor
 
 ASSUME AcceptorAssumption ==
-    /\ SafeAcceptor \cup FakeAcceptor = {}
+    /\ SafeAcceptor \cap FakeAcceptor = {}
     /\ Acceptor \cap Learner = {}
 
 ASSUME BQAssumption ==
@@ -296,10 +296,10 @@ Process1b(a, m) ==
     /\ Recv(a, m)
     /\ m.type = "1b"
     /\ recent_msgs' = [recent_msgs EXCEPT ![a] = recent_msgs[a] \cup {m}]
-    /\ (\A b \in Ballot : B(m, b) => MaxBal(a, b)) =>
+    /\ (\A mb, b \in Ballot : MaxBal(a, mb) /\ B(m, b) => mb <= b) =>
         /\ 2a_lrn_loop' = [2a_lrn_loop EXCEPT ![a] = TRUE]
         /\ processed_lrns' = [processed_lrns EXCEPT ![a] = {}]
-    /\ (~(\A b \in Ballot : B(m, b) => MaxBal(a, b))) =>
+    /\ (~(\A mb, b \in Ballot : MaxBal(a, mb) /\ B(m, b) => mb <= b)) =>
         UNCHANGED << 2a_lrn_loop, processed_lrns >>
     /\ UNCHANGED << msgs, decision >>
     /\ UNCHANGED BVal
@@ -452,5 +452,5 @@ THEOREM SafetyResult == Spec => []Safety
 
 =============================================================================
 \* Modification History
-\* Last modified Tue Sep 13 17:32:23 CEST 2022 by aleph
+\* Last modified Wed Sep 14 09:28:22 CEST 2022 by aleph
 \* Created Mon Jul 25 14:24:03 CEST 2022 by aleph
