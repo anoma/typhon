@@ -612,15 +612,10 @@ RecentMsgsSafeAcceptorSpec ==
 
 MsgsSafeAcceptorSpec ==
     \A A \in SafeAcceptor :
-        /\ \A m1, m2 \in msgs :
+        \A m1, m2 \in msgs :
             m1.type \in {"1b", "2a"} /\ m2.type \in {"1b", "2a"} /\
             m1.acc = A /\ m2.acc = A =>
             m1 \in Tran(m2) \/ m2 \in Tran(m1)
-        /\ \E m0 \in recent_msgs[A] :
-            \A m1 \in msgs :
-                m1.type \in {"1b", "2a"} /\
-                m1.acc = A =>
-                m1 \in Tran(m0)
 
 LEMMA WellFormedMessage ==
     ASSUME NEW M, WellFormed(M) PROVE M \in Message
@@ -705,7 +700,8 @@ PROOF
   <2> PICK acc \in SafeAcceptor, m1a \in msgs : Process1a(acc, m1a)
       BY <1>2
   <2> CASE acc # A
-    <3> SentBy(A) = SentBy(A)' BY DEF Process1a, Send, SentBy
+    <3> SentBy(A) = SentBy(A)'
+        BY DEF Process1a, Send, SentBy
     <3>1. CASE SentBy(A) = {}
           BY <3>1 DEF Process1a, Send, SentBy
     <3>2. CASE SentBy(A) # {}
@@ -788,8 +784,26 @@ PROOF
       <4>3. QED BY <4>1, <4>2
     <3>3. QED BY <3>1, <3>2
   <2>10. QED OBVIOUS
-
-<1>20. QED
+<1>3. CASE \E a \in SafeAcceptor : \E m \in msgs : Process1b(a, m)
+  <2> PICK acc \in SafeAcceptor, msg \in msgs : Process1b(acc, msg)
+      BY <1>3
+  <2> acc \in Acceptor BY DEF Acceptor
+  <2> SentBy(A) = SentBy(A)'
+      BY DEF Process1b, Send, SentBy
+  <2>1. CASE SentBy(A) = {}
+        BY <2>1 DEF Process1b, Send, SentBy
+  <2>2. CASE SentBy(A) # {}
+    <3> PICK m0 \in recent_msgs[A] :
+                \A m1 \in SentBy(A) : m1 \in Tran(m0)
+        BY DEF RecentMsgsSafeAcceptorSpec
+    <3> QED BY DEF Process1b
+  <2>3. QED BY <2>1, <2>2
+<1>4. CASE \E a \in SafeAcceptor : \E l \in Learner : Process1bLearnerLoopStep(a, l)
+  <2> PICK acc \in SafeAcceptor, lrn \in Learner : Process1bLearnerLoopStep(acc, lrn)
+      BY <1>4
+  <2> acc \in Acceptor BY DEF Acceptor
+  <2>10. QED BY DEF Process1bLearnerLoopStep
+<1>20. QED BY <1>1, <1>2, <1>3\*, <1>4,
 
 
 LEMMA MsgsSafeAcceptorSpecInvariant ==
