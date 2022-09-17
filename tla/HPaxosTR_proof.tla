@@ -593,16 +593,22 @@ RecentMsgSpec ==
 KnownMsgSpec ==
     \A AL \in SafeAcceptor \cup Learner :
         /\ known_msgs[AL] \in SUBSET msgs
-        /\ \A M \in known_msgs[AL] : Proper(AL, M) /\ WellFormed(M)
+        /\ \A M \in known_msgs[AL] :
+            /\ Proper(AL, M)
+            /\ WellFormed(M)
+            /\ Tran(M) \in SUBSET known_msgs[AL]
 
 CaughtSpec ==
-    \A M \in msgs : Caught(M) \cap SafeAcceptor = {}
+    \A AL \in SafeAcceptor \cup Learner :
+        \A M \in known_msgs[AL] :
+            Caught(M) \cap SafeAcceptor = {}
 
 DecisionSpec ==
     \A L \in Learner : \A BB \in Ballot : \A VV \in Value :
         VV \in decision[L, BB] => ChosenIn(L, BB, VV)
 
-SentBy(acc) == { mm \in msgs : mm.type \in {"1b", "2a"} /\ mm.acc = acc }
+SentBy(acc) ==
+    { mm \in msgs : mm.type \in {"1b", "2a"} /\ mm.acc = acc }
 
 RecentMsgsSafeAcceptorSpec ==
     \A A \in SafeAcceptor :
