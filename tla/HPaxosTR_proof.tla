@@ -867,13 +867,16 @@ PROOF
 <1>8. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, <1>7
            DEF Next, AcceptorProcessAction, Process1bLearnerLoop
 
+\* TODO
 LEMMA UniqueMessageSent ==
     TypeOK /\ Next =>
     \A m1 \in msgs' : \A m2 \in msgs' :
         m1 \notin msgs /\ m2 \notin msgs =>
         m1 = m2
-PROOF
-<1> QED
+
+\* TODO
+LEMMA KnownMsgSpecInvariant ==
+    TypeOK /\ Next /\ KnownMsgSpec => KnownMsgSpec'
 
 LEMMA MsgsSafeAcceptorSpecInvariant ==
     TypeOK /\ Next /\ RecentMsgsSafeAcceptorSpec /\
