@@ -955,8 +955,51 @@ PROOF
 LEMMA MsgsSafeAcceptorSpecImpliesCaughtSpec ==
     ASSUME TypeOK, KnownMsgSpec, MsgsSafeAcceptorSpec
     PROVE CaughtSpec
-PROOF BY MessageTypeSpec DEF MsgsSafeAcceptorSpec,
-            CaughtSpec, Caught, CaughtMsg, KnownMsgSpec, TypeOK
+PROOF BY MessageTypeSpec
+      DEF MsgsSafeAcceptorSpec, CaughtSpec, Caught, CaughtMsg, KnownMsgSpec, TypeOK
+
+LEMMA QuorumIntersection ==
+    ASSUME TypeOK,
+           NEW a \in Learner, NEW b \in Learner,
+           NEW M \in Message,
+           NEW Qa \in SUBSET Message, NEW Qb \in SUBSET Message,
+           { mm.acc : mm \in Qa } \in ByzQuorum,
+           { mm.acc : mm \in Qb } \in ByzQuorum,
+           [lr |-> a, q |-> { mm.acc : mm \in Qa }] \in TrustLive,
+           [lr |-> b, q |-> { mm.acc : mm \in Qb }] \in TrustLive,
+           b \in Con(a, M)
+    PROVE \E p \in Acceptor, ma \in Qa, mb \in Qb :
+            ma.acc = p /\ mb.acc = p
+PROOF
+<1> PICK S \in ByzQuorum :
+            /\ [from |-> a, to |-> b, q |-> S] \in TrustSafe
+            /\ S \cap Caught(M) = {}
+    BY Zenon DEF Con
+<1> PICK acc \in S : /\ acc \in { mm.acc : mm \in Qa }
+                     /\ acc \in { mm.acc : mm \in Qb }
+    BY LearnerGraphAssumptionValidity, Zenon
+<1> QED BY BQAssumption
+
+LEMMA EntConnected ==
+    ASSUME CaughtSpec,
+           NEW a \in Learner, NEW b \in Learner,
+           <<a, b>> \in Ent,
+           NEW s \in SafeAcceptor,
+           NEW m \in known_msgs[s]
+    PROVE b \in Con(a, m)
+PROOF BY BQAssumption DEF Con, Ent, CaughtSpec
+
+\*Con(a, x) ==
+\*    { b \in Learner :
+\*        \E S \in ByzQuorum :
+\*            /\ [from |-> a, to |-> b, q |-> S] \in TrustSafe
+\*            /\ S \cap Caught(x) = {} }
+
+\*CaughtSpec ==
+\*    \A AL \in SafeAcceptor \cup Learner :
+\*        \A M \in known_msgs[AL] :
+\*            Caught(M) \cap SafeAcceptor = {}
+
 
 \* TODO
 LEMMA DecisionSpecInvariant ==
