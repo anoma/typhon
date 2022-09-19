@@ -41,7 +41,8 @@ PROOF BY LearnerGraphAssumptionSymmetry DEF Ent
 LEMMA EntanglementSelf ==
     ASSUME NEW L1 \in Learner, NEW L2 \in Learner, <<L1, L2>> \in Ent
     PROVE <<L1, L1>> \in Ent
-PROOF BY LearnerGraphAssumptionSymmetry, Zenon DEF Ent
+PROOF BY LearnerGraphAssumptionSymmetry,
+         LearnerGraphAssumptionTransitivity, Zenon DEF Ent
 
 LEMMA EntanglementTrustLive ==
     ASSUME NEW L1 \in Learner, NEW L2 \in Learner,
@@ -50,7 +51,13 @@ LEMMA EntanglementTrustLive ==
            [lr |-> L1, q |-> Q1] \in TrustLive,
            [lr |-> L2, q |-> Q2] \in TrustLive
     PROVE  \E N \in SafeAcceptor : N \in Q1 /\ N \in Q2
-PROOF BY LearnerGraphAssumptionSymmetry DEF Ent
+PROOF BY LearnerGraphAssumptionValidity DEF Ent
+
+LEMMA EntanglementTransitive ==
+    ASSUME NEW L1 \in Learner, NEW L2 \in Learner, NEW L3 \in Learner,
+    <<L1, L2>> \in Ent, <<L2, L3>> \in Ent
+    PROVE <<L1, L3>> \in Ent
+PROOF BY LearnerGraphAssumptionTransitivity DEF Ent
 
 -----------------------------------------------------------------------------
 (* Messages *)
@@ -136,7 +143,7 @@ PROOF
       OBVIOUS
 <1>3. PICK n1 \in Nat : P(n1) BY Message_spec
 <1>4. HIDE DEF P
-<1>5. QED BY <1>3, SmallestNatural
+<1>5. QED BY <1>3, SmallestNatural, Isa
 
 LEMMA Message_ref_acyclic ==
     ASSUME NEW m \in Message
@@ -242,7 +249,7 @@ LEMMA TranBound_eq1 ==
     ASSUME NEW n \in Nat, n # 0
     PROVE TranBound[n] =
             [m \in Message |-> {m} \cup UNION {TranBound[n-1][r] : r \in m.ref}]
-PROOF BY TranBound_def DEF TranBound1
+PROOF BY TranBound_def, Zenon DEF TranBound1
 
 LEMMA Tran_refl ==
     ASSUME NEW m \in Message PROVE m \in Tran(m)
@@ -258,7 +265,8 @@ PROOF
 <1>0. P(0) BY TranBound_eq0
 <1>1. ASSUME NEW k \in Nat, P(k) PROVE P(k + 1)
   <2> SUFFICES TranBound[k + 1][m] = {m} OBVIOUS
-  <2> QED BY <1>1, TranBound_eq1, MessageTypeSpec, Isa
+  <2> m.ref = {} BY MessageTypeSpec
+  <2> QED BY <1>1, TranBound_eq1, Isa
 <1>2. HIDE DEF P
 <1>3. QED BY <1>0, <1>1, NatInduction, Isa
 
@@ -294,7 +302,7 @@ PROOF
 <1> DEFINE P(j) == \A mm \in Message :
                     TranBound[j][mm] \subseteq TranBound[j+1][mm]
 <1> SUFFICES ASSUME NEW j \in Nat PROVE P(j) OBVIOUS
-<1>0. P(0) BY TranBound_eq0, TranBound_eq1
+<1>0. P(0) BY TranBound_eq0, TranBound_eq1, Isa
 <1>1. ASSUME NEW k \in Nat, P(k) PROVE P(k+1)
   <2> SUFFICES ASSUME NEW mm \in Message
                PROVE TranBound[k+1][mm] \subseteq TranBound[(k+1)+1][mm]
@@ -371,7 +379,8 @@ PROOF
 LEMMA Message_ref_Tran ==
     ASSUME NEW m1 \in Message, NEW m2 \in m1.ref
     PROVE m2 \in Tran(m1)
-PROOF BY Message_ref_TranBound1 DEF Tran, TranDepthRange, MessageDepthRange
+PROOF BY Message_ref_TranBound1, Zenon
+      DEF Tran, TranDepthRange, MessageDepthRange
 
 LEMMA MessageRec0_Tran ==
     ASSUME NEW m1 \in MessageRec[0], NEW m2 \in Tran(m1)
