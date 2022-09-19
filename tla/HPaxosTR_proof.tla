@@ -944,56 +944,13 @@ PROOF
 <1>8. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, <1>7
           DEF Next, AcceptorProcessAction, Process1bLearnerLoop
 
-LEMMA CaughtSpecInvariant ==
-    TypeOK /\ Next /\ RecentMsgSpec /\ KnownMsgSpec /\ CaughtSpec => CaughtSpec'
-PROOF
-<1> SUFFICES ASSUME TypeOK, Next, RecentMsgSpec, KnownMsgSpec, CaughtSpec
-             PROVE CaughtSpec'
-    OBVIOUS
-<1> TypeOK' BY TypeOKInvariant
-<1> SUFFICES ASSUME NEW M \in msgs', M \notin msgs,
-                    NEW X \in Caught(M), X \in SafeAcceptor
-             PROVE FALSE
-    BY DEF CaughtSpec
-<1> M \in Message BY DEF TypeOK
-\*<1> CaughtMsg(M) # {} BY DEF Caught
-<1> M \notin CaughtMsg(M) BY DEF CaughtMsg
-<1> PICK mX \in CaughtMsg(M) : X = mX.acc
-    BY CaughtMsgSpec, MessageTypeSpec DEF Caught
-\*  <2> CaughtMsg(M) \in SUBSET Message BY CaughtMsgSpec
-\*  <2> \A x \in CaughtMsg(M) : x.type # "1a" BY CaughtMsgSpec
-\*  <2> \A x \in CaughtMsg(M) : x.acc \in Acceptor BY MessageTypeSpec
-\*  <2> X \in Acceptor BY AllProvers, MessageTypeSpec DEF Caught
-\*  <2>10. QED BY DEF Caught
-<1> mX # M OBVIOUS
-<1> mX \in Tran(M) /\ mX.type # "1a" BY DEF CaughtMsg
-<1> PICK mY \in Tran(M) :
-            /\ mY.type # "1a"
-            /\ mY.acc = mX.acc
-            /\ mX \notin Tran(mY)
-            /\ mY \notin Tran(mX)
-    BY DEF CaughtMsg
-<1> mY # M OBVIOUS
-<1>1. CASE ProposerSendAction
-  <2> PICK bal \in Ballot, val \in Value : Send1a(bal, val)
-      BY <1>1 DEF ProposerSendAction
-  <2> M = [type |-> "1a", bal |-> bal, ref |-> {}] BY DEF Send1a, Send
-  <2>10. QED BY Tran_1a, Isa DEF Caught, CaughtMsg, TypeOK
-<1>2. CASE \E a \in SafeAcceptor : \E m \in msgs : Process1a(a, m)
-  <2> PICK acc \in SafeAcceptor, m1a \in msgs : Process1a(acc, m1a)
-      BY <1>2
-  <2> m1a.type = "1a" BY DEF Process1a, Send
-  <2> Tran(m1a) = {m1a} BY Tran_1a DEF TypeOK
-  <2> M = [type |-> "1b", acc |-> acc, ref |-> recent_msgs[acc] \cup {m1a}]
-      BY DEF Process1a, Send
-  
-  <2>10. QED
-<1>10. QED
+LEMMA MsgsSafeAcceptorSpecImpliesCaughtSpec ==
+    ASSUME TypeOK, KnownMsgSpec, MsgsSafeAcceptorSpec
+    PROVE CaughtSpec
+PROOF BY MessageTypeSpec DEF MsgsSafeAcceptorSpec,
+            CaughtSpec, Caught, CaughtMsg, KnownMsgSpec, TypeOK
 
-
-LEMMA KnownMsgSpecInvariant ==
-    TypeOK /\ Next /\ KnownMsgSpec => KnownMsgSpec'
-
+\* TODO
 LEMMA DecisionSpecInvariant ==
     TypeOK /\ Next /\ DecisionSpec => DecisionSpec'
 
@@ -1038,7 +995,7 @@ LEMMA ChosenSafeCaseLt ==
     ASSUME NEW L1 \in Learner, NEW L2 \in Learner,
            NEW B1 \in Ballot, NEW B2 \in Ballot,
            NEW V1 \in Value, NEW V2 \in Value,
-           TypeOK, KnownMessagesSpec, \*ReceivedSpec, MsgInv,
+           TypeOK, KnownMsgSpec, \*ReceivedSpec, MsgInv,
            \*HeterogeneousSpec,
            <<L1, L2>> \in Ent,
            B1 < B2,
@@ -1076,7 +1033,7 @@ PROOF
         /\ m1.acc = A
         /\ B(m1, B1)
         /\ V(m1, V1)
-      BY DEF ChosenIn, KnownMessagesSpec
+      BY Tran_refl DEF ChosenIn, KnownMsgSpec, TypeOK
 <1>5. PICK m2 \in msgs :
         /\ Proper(L2, m2)
         /\ WellFormed(m2)
@@ -1085,7 +1042,7 @@ PROOF
         /\ m2.acc = A
         /\ B(m2, B2)
         /\ V(m2, V2)
-      BY DEF ChosenIn, KnownMessagesSpec
+      BY Tran_refl DEF ChosenIn, KnownMsgSpec, TypeOK
 <1> [lr |-> L1, q |-> q(m1)] \in TrustLive
       BY <1>4 DEF WellFormed
 <1> [lr |-> L2, q |-> q(m2)] \in TrustLive
@@ -1184,7 +1141,7 @@ LEMMA ChosenSafe ==
     ASSUME NEW L1 \in Learner, NEW L2 \in Learner,
            NEW B1 \in Ballot, NEW B2 \in Ballot,
            NEW V1 \in Value, NEW V2 \in Value,
-           TypeOK, KnownMessagesSpec,
+           TypeOK, KnownMsgSpec,
            \*ReceivedSpec, VotesSentSpec4, MsgInv,
            \*HeterogeneousSpec,
            <<L1, L2>> \in Ent,
@@ -1198,12 +1155,12 @@ PROOF
 
 LEMMA SafetyStep ==
     TypeOK /\ Next /\
-    KnownMessagesSpec /\ DecisionSpec /\
+    KnownMsgSpec /\ DecisionSpec /\
     Safety => Safety'
 PROOF
 <1> SUFFICES
         ASSUME TypeOK, Next,
-               KnownMessagesSpec, DecisionSpec,
+               KnownMsgSpec, DecisionSpec,
                Safety,
                NEW L1 \in Learner, NEW L2 \in Learner,
                NEW B1 \in Ballot, NEW B2 \in Ballot,
@@ -1267,5 +1224,5 @@ PROOF
 
 =============================================================================
 \* Modification History
-\* Last modified Fri Sep 09 13:50:30 CEST 2022 by aleph
+\* Last modified Mon Sep 19 13:11:03 CEST 2022 by aleph
 \* Created Thu Aug 25 10:12:00 CEST 2022 by aleph
