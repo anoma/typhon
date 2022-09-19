@@ -616,8 +616,7 @@ DecisionSpec ==
     \A L \in Learner : \A BB \in Ballot : \A VV \in Value :
         VV \in decision[L, BB] => ChosenIn(L, BB, VV)
 
-SentBy(acc) ==
-    { mm \in msgs : mm.type \in {"1b", "2a"} /\ mm.acc = acc }
+SentBy(acc) == { mm \in msgs : mm.type # "1a" /\ mm.acc = acc }
 
 RecentMsgsSafeAcceptorSpec ==
     \A A \in SafeAcceptor :
@@ -628,7 +627,7 @@ RecentMsgsSafeAcceptorSpec ==
 MsgsSafeAcceptorSpec ==
     \A A \in SafeAcceptor :
         \A m1, m2 \in msgs :
-            m1.type \in {"1b", "2a"} /\ m2.type \in {"1b", "2a"} /\
+            m1.type # "1a" /\ m2.type # "1a" /\
             m1.acc = A /\ m2.acc = A =>
             m1 \in Tran(m2) \/ m2 \in Tran(m1)
 
@@ -709,7 +708,7 @@ PROOF
                         \A m1 \in SentBy(A)' : m1 \in Tran(m0)
     BY DEF RecentMsgsSafeAcceptorSpec
 <1> A \in Acceptor BY DEF Acceptor
-<1> mm \in msgs' /\ mm.type \in {"1b", "2a"} /\ mm.acc = A BY DEF SentBy
+<1> mm \in msgs' /\ mm.type # "1a" /\ mm.acc = A BY DEF SentBy
 <1> USE DEF RecentMsgsSafeAcceptorSpec
 <1>1. CASE ProposerSendAction
   <2> PICK bal \in Ballot, val \in Value : Send1a(bal, val)
@@ -898,14 +897,14 @@ PROOF
 <1> TypeOK' BY TypeOKInvariant
 <1> SUFFICES ASSUME NEW A \in SafeAcceptor,
                     NEW m1 \in msgs', NEW m2 \in msgs',
-                    m1.type \in {"1b", "2a"}, m2.type \in {"1b", "2a"},
+                    m1.type # "1a", m2.type # "1a",
                     m1.acc = A, m2.acc = A,
                     m1 \in msgs, m2 \notin msgs
              PROVE  m1 \in Tran(m2)
   <2> USE DEF MsgsSafeAcceptorSpec
   <2> SUFFICES ASSUME NEW A \in SafeAcceptor,
                       NEW x \in msgs', NEW y \in msgs',
-                      x.type \in {"1b", "2a"}, y.type \in {"1b", "2a"},
+                      x.type # "1a", y.type # "1a",
                       x.acc = A, y.acc = A
                PROVE  x \in Tran(y) \/ y \in Tran(x)
       OBVIOUS
