@@ -23,7 +23,8 @@ ASSUME AcceptorAssumption ==
     /\ Acceptor \cap Learner = {}
 
 ASSUME BQAssumption ==
-        \A Q \in ByzQuorum : Q \subseteq Acceptor
+    /\ \A Q \in ByzQuorum : Q \subseteq Acceptor
+    /\ SafeAcceptor \in ByzQuorum
 
 -----------------------------------------------------------------------------
 (* Learner graph *)
@@ -375,10 +376,7 @@ ChosenIn(l, b, v) ==
                             /\ x.lrn = l
                             /\ B(x, b)
                             /\ V(x, v) } :
-        \E Q \in ByzQuorum :
-            /\ [lr |-> l, q |-> Q] \in TrustLive
-            /\ \A a \in Q :
-                \E m \in S : m.acc = a
+        [lr |-> l, q |-> { m.acc : m \in S }] \in TrustLive
 
 LearnerDecide(l, b, v) ==
     /\ ChosenIn(l, b, v)
@@ -452,5 +450,5 @@ THEOREM SafetyResult == Spec => []Safety
 
 =============================================================================
 \* Modification History
-\* Last modified Wed Sep 14 09:28:22 CEST 2022 by aleph
+\* Last modified Tue Sep 20 19:30:59 CEST 2022 by aleph
 \* Created Mon Jul 25 14:24:03 CEST 2022 by aleph
