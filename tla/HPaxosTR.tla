@@ -23,8 +23,9 @@ ASSUME AcceptorAssumption ==
     /\ Acceptor \cap Learner = {}
 
 ASSUME BQAssumption ==
-    /\ \A Q \in ByzQuorum : Q \subseteq Acceptor
     /\ SafeAcceptor \in ByzQuorum
+    /\ \A Q \in ByzQuorum :
+        Q # {} /\ Q \subseteq Acceptor
 
 -----------------------------------------------------------------------------
 (* Learner graph *)
@@ -450,5 +451,5 @@ THEOREM SafetyResult == Spec => []Safety
 
 =============================================================================
 \* Modification History
-\* Last modified Tue Sep 20 19:30:59 CEST 2022 by aleph
+\* Last modified Wed Sep 21 19:45:31 CEST 2022 by aleph
 \* Created Mon Jul 25 14:24:03 CEST 2022 by aleph
