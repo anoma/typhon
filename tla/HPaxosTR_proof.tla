@@ -32,6 +32,10 @@ PROOF BY DEF Range, FINSUBSET
 \*<1>9. QED BY <1>1
 
 -----------------------------------------------------------------------------
+LEMMA TrustSafeSelfAgreement ==
+    ASSUME NEW E \in TrustSafe
+    PROVE [from |-> E.from, to |-> E.from, q |-> E.q] \in TrustSafe
+BY LearnerGraphAssumptionSymmetry, LearnerGraphAssumptionTransitivity, Zenon
 
 LEMMA EntanglementSym ==
     ASSUME NEW L1 \in Learner, NEW L2 \in Learner, <<L1, L2>> \in Ent
@@ -882,6 +886,13 @@ LEMMA UniqueMessageSent ==
         m1 \notin msgs /\ m2 \notin msgs =>
         m1 = m2
 
+LEMMA UniqueMessageLearned ==
+    TypeOK /\ Next =>
+    \A AL \in SafeAcceptor \cup Learner :
+    \A m1 \in known_msgs[AL]' : \A m2 \in known_msgs[AL]' :
+        m1 \notin known_msgs[AL] /\ m2 \notin known_msgs[AL] =>
+        m1 = m2
+
 \* TODO
 LEMMA KnownMsgSpecInvariant ==
     TypeOK /\ Next /\ KnownMsgSpec => KnownMsgSpec'
@@ -954,17 +965,16 @@ PROOF
 
 LEMMA MsgsSafeAcceptorSpecImpliesCaughtSpec ==
     ASSUME TypeOK, KnownMsgSpec, MsgsSafeAcceptorSpec
-    PROVE CaughtSpec
+    PROVE  CaughtSpec
 PROOF BY MessageTypeSpec
       DEF MsgsSafeAcceptorSpec, CaughtSpec, Caught, CaughtMsg, KnownMsgSpec, TypeOK
 
+\* TODO remove
 LEMMA QuorumIntersection ==
     ASSUME TypeOK,
            NEW a \in Learner, NEW b \in Learner,
            NEW M \in Message,
            NEW Qa \in SUBSET Message, NEW Qb \in SUBSET Message,
-           { mm.acc : mm \in Qa } \in ByzQuorum,
-           { mm.acc : mm \in Qb } \in ByzQuorum,
            [lr |-> a, q |-> { mm.acc : mm \in Qa }] \in TrustLive,
            [lr |-> b, q |-> { mm.acc : mm \in Qb }] \in TrustLive,
            b \in Con(a, M)
@@ -977,15 +987,40 @@ PROOF
     BY Zenon DEF Con
 <1> PICK acc \in S : /\ acc \in { mm.acc : mm \in Qa }
                      /\ acc \in { mm.acc : mm \in Qb }
-    BY LearnerGraphAssumptionValidity, Zenon
+    BY TrustLiveAssumption, LearnerGraphAssumptionValidity, Zenon
 <1> QED BY BQAssumption
+
+\* TODO rename
+LEMMA QuorumIntersectionBis ==
+    ASSUME TypeOK,
+           NEW a \in Learner, NEW b \in Learner,
+           NEW M \in Message,
+\*           NEW Qa \in SUBSET Tran(M), NEW Qb \in SUBSET Tran(M),
+           NEW Qa \in SUBSET Message, NEW Qb \in SUBSET Message,
+           [lr |-> a, q |-> { mm.acc : mm \in Qa }] \in TrustLive,
+           [lr |-> b, q |-> { mm.acc : mm \in Qb }] \in TrustLive,
+           b \in Con(a, M)
+    PROVE \E p \in Acceptor, ma \in Qa, mb \in Qb :
+            /\ p \notin Caught(M)
+            /\ ma.acc = p
+            /\ mb.acc = p
+PROOF
+<1> PICK S \in ByzQuorum :
+            /\ [from |-> a, to |-> b, q |-> S] \in TrustSafe
+            /\ S \cap Caught(M) = {}
+    BY Zenon DEF Con
+<1> PICK acc \in S : /\ acc \in { mm.acc : mm \in Qa }
+                     /\ acc \in { mm.acc : mm \in Qb }
+    BY TrustLiveAssumption, LearnerGraphAssumptionValidity, Zenon
+<1> QED BY BQAssumption
+
 
 LEMMA EntConnected ==
     ASSUME CaughtSpec,
            NEW a \in Learner, NEW b \in Learner,
            <<a, b>> \in Ent,
-           NEW s \in SafeAcceptor,
-           NEW m \in known_msgs[s]
+           NEW AL \in SafeAcceptor \cup Learner,
+           NEW m \in known_msgs[AL]
     PROVE b \in Con(a, m)
 PROOF BY BQAssumption DEF Con, Ent, CaughtSpec
 
@@ -1004,6 +1039,242 @@ PROOF BY BQAssumption DEF Con, Ent, CaughtSpec
 \* TODO
 LEMMA DecisionSpecInvariant ==
     TypeOK /\ Next /\ DecisionSpec => DecisionSpec'
+
+HeterogeneousSpec ==
+    \A a, b \in Learner :
+    \A Va, Vb \in Value :
+    \A Ba \in Ballot :
+        ChosenIn(a, Ba, Va) =>
+        \A w \in known_msgs[b] :
+           w.type = "2a" /\
+           w.lrn = b /\
+           (\A Bb \in Ballot : B(w, Bb) => Ba < Bb) /\
+           V(w, Vb) =>
+           Va = Vb
+
+HeterogeneousSpecBis(bal) ==
+    \A L1, L2 \in Learner :
+        <<L1, L2>> \in Ent =>
+        \A V1, V2 \in Value :
+        \A B1 \in Ballot :
+            ChosenIn(L1, B1, V1) =>
+            \A M \in known_msgs[L2] :
+                M.type = "2a" /\
+                M.lrn = L2 /\
+                B(M, bal) /\
+                B1 < bal /\
+                V(M, V2) =>
+                V1 = V2
+
+\* TODO
+LEMMA XXX ==
+    ASSUME Next, NEW m \in Message, NEW v \in Value
+    PROVE V(m, v) <=> V(m, v)'
+
+LEMMA YYY ==
+    ASSUME Next, NEW m \in Message, NEW v \in Value, V(m, v)'
+    PROVE V(m, v)
+
+THEOREM GeneralBallotInduction ==
+    ASSUME NEW P(_),
+           \A bal \in Ballot : (\A b \in Ballot : b < bal => P(b)) => P(bal)
+    PROVE  \A bal \in Ballot : P(bal)
+PROOF
+<1> USE DEF Ballot
+<1> SUFFICES \A n \in Nat : (\A m \in 0..n - 1 : P(m)) => P(n)
+    BY GeneralNatInduction, IsaM("blast")
+<1> QED OBVIOUS
+
+LEMMA HeterogeneousLemma ==
+    TypeOK /\ KnownMsgSpec /\ CaughtSpec =>
+    \A bal \in Ballot : HeterogeneousSpecBis(bal)
+PROOF
+<1> ASSUME TypeOK, KnownMsgSpec, CaughtSpec,
+           NEW bal \in Ballot,
+           (\A b \in Ballot : b < bal => HeterogeneousSpecBis(b))
+    PROVE HeterogeneousSpecBis(bal)
+  <2> SUFFICES ASSUME NEW L1 \in Learner, NEW L2 \in Learner,
+                      NEW V1 \in Value, NEW V2 \in Value,
+                      NEW B1 \in Ballot,
+                      NEW M \in known_msgs[L2],
+                      <<L1, L2>> \in Ent,
+                      ChosenIn(L1, B1, V1),
+                      M.type = "2a",
+                      M.lrn = L2,
+                      B(M, bal),
+                      B1 < bal,
+                      V(M, V2)
+               PROVE  V1 = V2
+      BY DEF HeterogeneousSpecBis
+  <2>1. M \in msgs /\ Proper(L2, M) /\ WellFormed(M)
+      BY DEF KnownMsgSpec
+  <2> M \in Message
+      BY <2>1 DEF TypeOK
+  <2>3. [lr |-> L2, q |-> q(M)] \in TrustLive
+      BY <2>1 DEF WellFormed
+  <2> DEFINE Q2 == { m \in Tran(M) :
+                        /\ m.type = "1b"
+                        /\ Fresh(M.lrn, m)
+                        /\ \A b \in Ballot : B(m, b) <=> B(M, b) }
+  <2> Q2 \in SUBSET Message
+      BY Tran_Message
+  <2>5. q(M) = { mm.acc : mm \in Q2 }
+      BY DEF q
+  <2> [lr |-> L2, q |-> { mm.acc : mm \in Q2 }] \in TrustLive
+      BY <2>5, <2>3
+  <2> L1 \in Con(L2, M)
+      BY EntConnected, EntanglementSym, Zenon
+  <2>8. PICK Q1 \in SUBSET { x \in known_msgs[L1] :
+                            /\ x.type = "2a"
+                            /\ x.lrn = L1
+                            /\ B(x, B1)
+                            /\ V(x, V1) } :
+            [lr |-> L1, q |-> { mm.acc : mm \in Q1 }] \in TrustLive
+      BY Zenon DEF ChosenIn
+  <2> Q1 \in SUBSET Message
+      BY DEF KnownMsgSpec, TypeOK
+  <2> [lr |-> L1, q |-> { mm.acc : mm \in Q1 }] \in TrustLive
+      BY <2>8
+  <2> PICK p \in Acceptor, m1b \in Q2, m2a \in Q1 :
+            /\ p \notin Caught(M)
+            /\ m1b.acc = p
+            /\ m2a.acc = p
+    <3> HIDE DEF Q2
+    <3> QED BY QuorumIntersectionBis
+  <2> m2a.type = "2a"
+      BY <2>8
+  <2> m2a.lrn = L1
+      BY <2>8
+  <2> V(m2a, V1)
+      BY <2>8
+  <2> m1b \in known_msgs[L2]
+      BY DEF KnownMsgSpec
+  <2> Fresh(L2, m1b) BY DEF q
+  \* TODO
+  <2>13. \A r \in Tran(m1b) :
+            r.type = "2a" =>
+            \A b1, b2 \in Ballot : B(r, b1) /\ B(m1b, b2) => b1 < b2
+  \* TODO
+  <2>14. m2a \in Tran(m1b)
+  <2>15. CASE ~Buried(m2a, m1b)
+    <3> L1 \in Con(L2, m1b)
+        BY EntConnected, EntanglementSym, Zenon
+    <3> m2a \in Con2as(L2, m1b)
+        BY <2>14, <2>15 DEF Con2as
+    <3> V(m1b, V1)
+        BY DEF Fresh
+    \* TODO
+    <3> QED  
+  <2>16. CASE Buried(m2a, m1b)
+    <3> DEFINE Q == { m \in Tran(m1b) :
+                        \E z \in Tran(m) :
+                            /\ z.type = "2a"
+                            /\ z.lrn = m2a.lrn
+                            /\ \A bx, bz \in Ballot :
+                                B(m2a, bx) /\ B(z, bz) => bx < bz
+                            /\ \A vx, vz \in Value :
+                                V(m2a, vx) /\ V(z, vz) => vx # vz }
+    <3> [lr |-> L1, q |-> { m.acc : m \in Q }] \in TrustLive
+        BY <2>16 DEF Buried
+    <3> { m.acc : m \in Q } \in ByzQuorum
+        BY TrustLiveAssumption, Zenon
+    <3> PICK r \in Tran(m1b) :
+            /\ r.type = "2a"
+            /\ r.lrn = L1
+            /\ \A b2a, br \in Ballot :
+                B(m2a, b2a) /\ B(r, br) => b2a < br
+            /\ \A v2a, vr \in Value :
+                V(m2a, v2a) /\ V(r, vr) => v2a # vr
+        BY Tran_trans, BQAssumption
+    <3> <<L1, L1>> \in Ent
+        BY EntanglementSelf
+    <3> QED
+
+\* 2a-message is _buried_ if there exists a quorum of acceptors that have seen
+\* 2a-messages with different values, the same learner, and higher ballot
+\* numbers.
+\*Buried(x, y) ==
+\*    LET Q == { m \in Tran(y) :
+\*                \E z \in Tran(m) :
+\*                    /\ z.type = "2a"
+\*                    /\ z.lrn = x.lrn
+\*                    /\ \A bx, bz \in Ballot :
+\*                        B(x, bx) /\ B(z, bz) => bx < bz
+\*                    /\ \A vx, vz \in Value :
+\*                        V(x, vx) /\ V(z, vz) => vx # vz }
+\*    IN [lr |-> x.lrn, q |-> { m.acc : m \in Q }] \in TrustLive
+
+\* 2a-message is _buried_ if there exists a quorum of acceptors that have seen
+\* 2a-messages with different values, the same learner, and higher ballot
+\* numbers.
+\*Buried(x, y) ==
+\*    LET Q == { m \in Tran(y) :
+\*                \E z \in Tran(m) :
+\*                    /\ z.type = "2a"
+\*                    /\ z.lrn = x.lrn
+\*                    /\ \A bx, bz \in Ballot :
+\*                        B(x, bx) /\ B(z, bz) => bx < bz
+\*                    /\ \A vx, vz \in Value :
+\*                        V(x, vx) /\ V(z, vz) => vx # vz }
+\*    IN [lr |-> x.lrn, q |-> { m.acc : m \in Q }] \in TrustLive
+
+\*Fresh(l, x) == \* x : 1b
+\*    \A m \in Con2as(l, x) : \A v \in Value : V(x, v) <=> V(m, v)
+
+\*Con(a, x) ==
+\*    { b \in Learner :
+\*        \E S \in ByzQuorum :
+\*            /\ [from |-> a, to |-> b, q |-> S] \in TrustSafe
+\*            /\ S \cap Caught(x) = {} }
+
+\* Connected 2a messages
+\*Con2as(l, x) ==
+\*    { m \in Tran(x) :
+\*        /\ m.type = "2a"
+\*        /\ m.acc = x.acc
+\*        /\ ~Buried(m, x)
+\*        /\ m.lrn \in Con(l, x) }
+
+\*WellFormed(m) ==
+\*    /\ m \in Message
+\*    /\ m.type = "1b" =>
+\*        /\ \E r1a \in m.ref :
+\*            /\ r1a.type = "1a"
+\*            /\ \A r \in m.ref : r.type = "1a" => r = r1a
+\*        /\ \A y \in Tran(m) :
+\*            m # y /\ SameBallot(m, y) => y \in Get1a(m)
+\*    /\ m.type = "2a" =>
+\*        /\ [lr |-> m.lrn, q |-> q(m)] \in TrustLive
+\*        \* /\ m.acc \in q(m)
+
+\*q(x) ==
+\*    LET Q == { m \in Tran(x) :
+\*                /\ m.type = "1b"
+\*                /\ Fresh(x.lrn, m)
+\*                /\ \A b \in Ballot : B(m, b) <=> B(x, b) }
+\*    IN { m.acc : m \in Q } 
+
+\*ChosenIn(l, b, v) ==
+\*    \E S \in SUBSET { x \in known_msgs[l] :
+\*                            /\ x.type = "2a"
+\*                            /\ x.lrn = l
+\*                            /\ B(x, b)
+\*                            /\ V(x, v) } :
+\*        [lr |-> l, q |-> { m.acc : m \in S }] \in TrustLive  
+\*LEMMA QuorumIntersection ==
+\*    ASSUME TypeOK,
+\*           NEW a \in Learner, NEW b \in Learner,
+\*           NEW M \in Message,
+\*           NEW Qa \in SUBSET Message, NEW Qb \in SUBSET Message,
+\*           { mm.acc : mm \in Qa } \in ByzQuorum,
+\*           { mm.acc : mm \in Qb } \in ByzQuorum,
+\*           [lr |-> a, q |-> { mm.acc : mm \in Qa }] \in TrustLive,
+\*           [lr |-> b, q |-> { mm.acc : mm \in Qb }] \in TrustLive,
+\*           b \in Con(a, M)
+\*    PROVE \E p \in Acceptor, ma \in Qa, mb \in Qb :
+\*            ma.acc = p /\ mb.acc = p
+  <2>17. QED BY <2>15, <2>16
+<1> QED BY GeneralBallotInduction, IsaM("blast")
 
 LEMMA ChosenSafeCaseEq ==
     ASSUME NEW L1 \in Learner, NEW L2 \in Learner,
@@ -1058,12 +1329,11 @@ PROOF
                             /\ x.type = "2a"
                             /\ x.lrn = L1
                             /\ B(x, B1)
-                            /\ V(x, V1) },
-         Q1 \in ByzQuorum :
-            /\ [lr |-> L1, q |-> Q1] \in TrustLive
-            /\ \A aa \in Q1 :
-                \E mm \in S1 : mm.acc = aa
-    BY DEF ChosenIn
+                            /\ V(x, V1) } :
+         [lr |-> L1, q |-> { m.acc : m \in S1 }] \in TrustLive
+    BY Zenon DEF ChosenIn
+<1> DEFINE Q1 == { m.acc : m \in S1 }
+<1> Q1 \in ByzQuorum BY TrustLiveAssumption
 <1> PICK S2 \in SUBSET { x \in known_msgs[L2] :
                             /\ x.type = "2a"
                             /\ x.lrn = L2
