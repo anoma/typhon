@@ -3,14 +3,14 @@
 (***************************************************************************)
 (* In short, DAGpool is the specification of the properties Narwhal and    *)
 (* Tusk aims for, plus censorship resistance.  However, questions of       *)
-(* availability are not explicitly mentioned.                              *)
+(* availability are ignored / abstracted away.                             *)
 (*                                                                         *)
 (* A DAGpool “is” (more precisely, refines to) a mempool, consisting of a  *)
 (* growing                                                                 *)
 (*                                                                         *)
 (* (1) DAG---nodes of which are blocks / block headers---                  *)
 (*                                                                         *)
-(* (2) a sequence of _apex_ nodes, aka leader blocks                       *)
+(* (2) a sequence of _anchor_ nodes, aka leader blocks                     *)
 (*                                                                         *)
 (* (3) a partial proposed-by map from nodes to validators                  *)
 (*                                                                         *)
@@ -81,14 +81,13 @@ QuorumOption == ByzQuorum \cup {noQuorum}
 \*   height : Int
 \* };
 \* 
-\* @type: Set($block); 
+\* @type: Set($block); 
 Block == [
   txs : Payload,
   links : QuorumOption,
-  winks : {{}}, \* SUBSET (Nat \X ByzValidator),
+  winks : {{}}, \* (Bounded) SUBSET (Nat \X ByzValidator),
   height : Nat
 ]
-
 
 (***************************************************************************)
 (* The DAG to be built is encoded as                                       *)
@@ -103,15 +102,16 @@ VARIABLE
   dag 
   
 (***************************************************************************)
-(* Within the dag, we have choices of leader block, reminiscent of Tusk.   *)
-(* The leader block is encoded as a pair of the block height and the       *)
+(* Within the dag, we have choices of anchor, reminiscent of Tusk.   *)
+(* The anchor is encoded as a pair of the block height and the       *)
 (* proposing validator.                                                    *)
 (***************************************************************************)
 VARIABLE    
+  \* a 
   \* @type: Seq(<<Int, BYZ_VAL>>);
-  leaderBlocks
+  anchors
 
-vars == <<dag, leaderBlocks>>
+vars == <<dag, anchors>>
 
 
 (* Specifying a Apalache accepted `emptyLayer` *)   
@@ -127,12 +127,12 @@ ASSUME emptyLayerEmpty == DOMAIN emptyLayer = {}
 (*                                                                         *)
 (* - the DAG consists of an empty layer and                                *)
 (*                                                                         *)
-(* - no leader blocks are chosen                                           *)
+(* - no anchors are chosen                                           *)
 (***************************************************************************)
 \* @type: Bool;
 Init == 
   /\ dag = << emptyLayer >>  
-  /\ leaderBlocks = <<  >>
+  /\ anchors = <<  >>
     
 
 (***************************************************************************)
@@ -177,7 +177,7 @@ AddBlockInGenesisLayer(v, b) ==
   \* post-condition
   \* - add the layer at genesis (depth 1)
   /\ dag' = [dag EXCEPT ![1] = extendedLayer]
-  /\ UNCHANGED leaderBlocks
+  /\ UNCHANGED anchors
 
 \* @type: Set( << BYZ_VAL, $block >> );
 AddBlockInGenesisLayerPossibilities == 
@@ -207,7 +207,7 @@ AddBlockInNewLayer(v, b) ==
     \* weak links are purely optional 
     \* post-condition
     /\ dag' = dag \o << newLayer >> 
-    /\ UNCHANGED leaderBlocks
+    /\ UNCHANGED anchors
 
 (***************************************************************************)
 (* Adding blocks in a higher layer                                         *)
@@ -226,7 +226,7 @@ AddBlockInHigherLayer(v, b, n) ==
   /\ b.links \subseteq DOMAIN dag[n-1]
   \* post-condition
   /\ dag' = [dag EXCEPT ![n] = extendedLayer]
-  /\ UNCHANGED leaderBlocks
+  /\ UNCHANGED anchors
                          
 (***************************************************************************)
 (* Combining the block addition into a single operator.                    *)
@@ -283,36 +283,36 @@ NewBlock ==
   \E b \in CurrentBlockCandidates(n,v) :  AddBlock(v, b, n)
 
 (***************************************************************************)
-(* Leader block selection: we allow for a sequence of leader blocks        *)
+(* anchor selection: we allow for a sequence of anchors        *)
 (*                                                                         *)
 (* - at most one per layer                                                 *)
 (*                                                                         *)
-(* - and the depth of leader blocks has to increase.                       *)
+(* - and the depth of anchors has to increase.                       *)
 (***************************************************************************)
 
 ChooseSupportedLeaderBlock == 
   LET
     dagLen == Len(dag)
     lastLeaderHeight == 
-      IF Len(leaderBlocks) = 0
+      IF Len(anchors) = 0
       THEN 0 
-      ELSE leaderBlocks[Len(leaderBlocks)][1]
+      ELSE anchors[Len(anchors)][1]
   IN         
   \* pre-condition
   \E n \in (lastLeaderHeight+1)..(dagLen-1) :
-  \* the validator owning the candidate leader block 
+  \* the validator owning the candidate anchor 
   \E v \in DOMAIN dag[n] : \* v has proposed 
   \* we are looking for supporting validators in the next layer
   \E W \in WeakQuorum :
     /\ W \subseteq DOMAIN dag[n+1]
     /\ \A w \in W : v \in (dag[n+1][w]).links 
   \* post-condition
-    /\ leaderBlocks' = leaderBlocks \o << << n, v >> >>  
+    /\ anchors' = anchors \o << << n, v >> >>  
     /\ UNCHANGED dag
 
 
 (***************************************************************************)
-(* The Lamport-esque Next .                                                *)
+(* The Lamport-esque "Next".                                               *)
 (***************************************************************************)
 
 Next == NewBlock
@@ -321,7 +321,7 @@ Next == NewBlock
   \/ ChooseSupportedLeaderBlock
 *)
 
-\* ChooseArbitraryLeaderBlock == 'soon ™' \* not really needed/wanted
+\* ChooseArbitraryLeaderBlock == 'soon ™' \* not really needed/useful
 
 \* @\\type: Bool;
 CensorshipResistance == 
@@ -331,11 +331,63 @@ CensorshipResistance ==
 
 \* @\\type: Bool;
 Spec == Init /\ [][Next]_vars /\ CensorshipResistance
-         
-========
+        
 
-  
+-----------------------------------------------------------------------------        
 
+\* @type: (<<Int, BYZ_VAL>>, <<Int, BYZ_VAL>>) => Bool;
+LinkFromTo(x,y) == 
+  LET
+    ix == x[1]
+    vx == x[2]
+    iy == y[1]
+    vy == y[2]
+  IN
+    /\ ix <= Len(dag)
+    /\ ix > iy 
+    /\ {vx,vy} \subseteq ByzValidator
+    /\ vx \in DOMAIN dag[ix]
+    /\ vy \in DOMAIN dag[iy]
+    /\ vy \in dag[ix][vx].links
+
+\* @type: (Int, BYZ_VAL) => Set(<<Int, BYZ_VAL>>);
+FullCauses(i, v) == 
+  IF i > Len(dag) \/ v \notin DOMAIN dag[i] \/ v = noValidator
+  THEN
+    {}
+  ELSE 
+    { << i, v >> }
+    \cup
+    { x \in (1..i-1) \X ByzValidator : 
+                 LET 
+                   \* @type: Int;
+                   j == x[1]
+                   \* @type: BYZ_VAL;
+                   w == x[2]
+                 IN
+                   /\ w \in DOMAIN dag[j]
+                   /\ \E f \in Injection(j..i, ByzValidator) :
+                         /\ f[i] = v
+                         /\ f[j] = w
+                         /\ \A k \in j..i : 
+                                f[k] \in DOMAIN dag[k]
+                         /\ \A k \in j..i-1 : 
+                                LinkFromTo(<<k+1,f[k+1]>>, <<k,f[k]>>)
+    }
+
+\* @type: (Int, BYZ_VAL) => Set(<<Int, BYZ_VAL>>);
+Causes(i, v) == FullCauses(i, v) \ { <<i,v>>}
+
+
+\* @type: (Int, BYZ_VAL) => $block;
+BlockOfIndex(i, v) == dag[i][v] 
+
+\* @type: Set(<<Int, BYZ_VAL>>) => Set($block);
+BlocksOfIndices(X) ==      
+  { BlockOfIndex(x[1], x[2]) : x \in X }
+
+
+====    
 (*
 On the DAG:
 the DAG will be layered such that each node as a unique natural number _depth_,
@@ -359,9 +411,9 @@ The final condition on the DAG structure is that
 
 
 (*
-Consensus is abstracted out by a weakly fair choice of leader blocks
+Consensus is abstracted out by a weakly fair choice of anchors
 with enough support
-such that the hight of chosen leader blocks is strictly increasing.   
+such that the hight of chosen anchors is strictly increasing.   
 
 *)
 
