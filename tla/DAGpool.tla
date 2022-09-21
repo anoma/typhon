@@ -315,11 +315,10 @@ ChooseSupportedLeaderBlock ==
 (* The Lamport-esque "Next".                                               *)
 (***************************************************************************)
 
-Next == NewBlock
-(*
+Next == 
   \/ NewBlock
   \/ ChooseSupportedLeaderBlock
-*)
+
 
 \* ChooseArbitraryLeaderBlock == 'soon ™' \* not really needed/useful
 
@@ -386,7 +385,18 @@ BlockOfIndex(i, v) == dag[i][v]
 BlocksOfIndices(X) ==      
   { BlockOfIndex(x[1], x[2]) : x \in X }
 
-
+\* @type: Int => Set($block);
+Epoch(h) == 
+  IF h \in 1..Len(anchors)
+  THEN LET 
+    \* @type: Int;
+    i == anchors[h][1]
+    \* @type: BYZ_VAL;
+    v == anchors[h][2]
+  IN 
+    BlocksOfIndices(FullCauses(i,v))
+  ELSE
+    {}
 ====    
 (*
 On the DAG:
