@@ -599,6 +599,8 @@ TypeOK ==
     /\ BVal \in [Ballot -> Value]
 
 -----------------------------------------------------------------------------
+BValSpec == BVal \in [Ballot -> Value]
+
 RecentMsgSpec ==
     \A AL \in SafeAcceptor \cup Learner :
         /\ recent_msgs[AL] \in SUBSET known_msgs[AL]
@@ -886,12 +888,17 @@ LEMMA UniqueMessageSent ==
         m1 \notin msgs /\ m2 \notin msgs =>
         m1 = m2
 
+\* TODO check if used
 LEMMA UniqueMessageLearned ==
     TypeOK /\ Next =>
     \A AL \in SafeAcceptor \cup Learner :
     \A m1 \in known_msgs[AL]' : \A m2 \in known_msgs[AL]' :
         m1 \notin known_msgs[AL] /\ m2 \notin known_msgs[AL] =>
         m1 = m2
+
+\* TODO
+LEMMA BValSpecInvariant ==
+    TypeOK /\ Next /\ BValSpec => BValSpec'
 
 \* TODO
 LEMMA KnownMsgSpecInvariant ==
@@ -969,7 +976,6 @@ LEMMA MsgsSafeAcceptorSpecImpliesCaughtSpec ==
 PROOF BY MessageTypeSpec
       DEF MsgsSafeAcceptorSpec, CaughtSpec, Caught, CaughtMsg, KnownMsgSpec, TypeOK
 
-\* TODO remove
 LEMMA QuorumIntersection ==
     ASSUME TypeOK,
            NEW a \in Learner, NEW b \in Learner,
@@ -978,29 +984,7 @@ LEMMA QuorumIntersection ==
            [lr |-> a, q |-> { mm.acc : mm \in Qa }] \in TrustLive,
            [lr |-> b, q |-> { mm.acc : mm \in Qb }] \in TrustLive,
            b \in Con(a, M)
-    PROVE \E p \in Acceptor, ma \in Qa, mb \in Qb :
-            ma.acc = p /\ mb.acc = p
-PROOF
-<1> PICK S \in ByzQuorum :
-            /\ [from |-> a, to |-> b, q |-> S] \in TrustSafe
-            /\ S \cap Caught(M) = {}
-    BY Zenon DEF Con
-<1> PICK acc \in S : /\ acc \in { mm.acc : mm \in Qa }
-                     /\ acc \in { mm.acc : mm \in Qb }
-    BY TrustLiveAssumption, LearnerGraphAssumptionValidity, Zenon
-<1> QED BY BQAssumption
-
-\* TODO rename
-LEMMA QuorumIntersectionBis ==
-    ASSUME TypeOK,
-           NEW a \in Learner, NEW b \in Learner,
-           NEW M \in Message,
-\*           NEW Qa \in SUBSET Tran(M), NEW Qb \in SUBSET Tran(M),
-           NEW Qa \in SUBSET Message, NEW Qb \in SUBSET Message,
-           [lr |-> a, q |-> { mm.acc : mm \in Qa }] \in TrustLive,
-           [lr |-> b, q |-> { mm.acc : mm \in Qb }] \in TrustLive,
-           b \in Con(a, M)
-    PROVE \E p \in Acceptor, ma \in Qa, mb \in Qb :
+    PROVE  \E p \in Acceptor, ma \in Qa, mb \in Qb :
             /\ p \notin Caught(M)
             /\ ma.acc = p
             /\ mb.acc = p
@@ -1040,25 +1024,25 @@ PROOF BY BQAssumption DEF Con, Ent, CaughtSpec
 LEMMA DecisionSpecInvariant ==
     TypeOK /\ Next /\ DecisionSpec => DecisionSpec'
 
-HeterogeneousSpec ==
-    \A a, b \in Learner :
-    \A Va, Vb \in Value :
-    \A Ba \in Ballot :
-        ChosenIn(a, Ba, Va) =>
-        \A w \in known_msgs[b] :
-           w.type = "2a" /\
-           w.lrn = b /\
-           (\A Bb \in Ballot : B(w, Bb) => Ba < Bb) /\
-           V(w, Vb) =>
-           Va = Vb
+\*HeterogeneousSpec ==
+\*    \A a, b \in Learner :
+\*    \A Va, Vb \in Value :
+\*    \A Ba \in Ballot :
+\*        ChosenIn(a, Ba, Va) =>
+\*        \A w \in known_msgs[b] :
+\*           w.type = "2a" /\
+\*           w.lrn = b /\
+\*           (\A Bb \in Ballot : B(w, Bb) => Ba < Bb) /\
+\*           V(w, Vb) =>
+\*           Va = Vb
 
 HeterogeneousSpecBis(bal) ==
-    \A L1, L2 \in Learner :
+    \A L0, L1, L2 \in Learner :
         <<L1, L2>> \in Ent =>
         \A V1, V2 \in Value :
         \A B1 \in Ballot :
             ChosenIn(L1, B1, V1) =>
-            \A M \in known_msgs[L2] :
+            \A M \in known_msgs[L0] :
                 M.type = "2a" /\
                 M.lrn = L2 /\
                 B(M, bal) /\
@@ -1086,17 +1070,18 @@ PROOF
 <1> QED OBVIOUS
 
 LEMMA HeterogeneousLemma ==
-    TypeOK /\ KnownMsgSpec /\ CaughtSpec =>
+    TypeOK /\ BValSpec /\ KnownMsgSpec /\ CaughtSpec =>
     \A bal \in Ballot : HeterogeneousSpecBis(bal)
 PROOF
-<1> ASSUME TypeOK, KnownMsgSpec, CaughtSpec,
+<1> ASSUME TypeOK, BValSpec, KnownMsgSpec, CaughtSpec,
            NEW bal \in Ballot,
            (\A b \in Ballot : b < bal => HeterogeneousSpecBis(b))
     PROVE HeterogeneousSpecBis(bal)
-  <2> SUFFICES ASSUME NEW L1 \in Learner, NEW L2 \in Learner,
+  <2> SUFFICES ASSUME NEW L0 \in Learner,
+                      NEW L1 \in Learner, NEW L2 \in Learner,
                       NEW V1 \in Value, NEW V2 \in Value,
                       NEW B1 \in Ballot,
-                      NEW M \in known_msgs[L2],
+                      NEW M \in known_msgs[L0],
                       <<L1, L2>> \in Ent,
                       ChosenIn(L1, B1, V1),
                       M.type = "2a",
@@ -1106,7 +1091,7 @@ PROOF
                       V(M, V2)
                PROVE  V1 = V2
       BY DEF HeterogeneousSpecBis
-  <2>1. M \in msgs /\ Proper(L2, M) /\ WellFormed(M)
+  <2>1. M \in msgs /\ Proper(L0, M) /\ WellFormed(M)
       BY DEF KnownMsgSpec
   <2> M \in Message
       BY <2>1 DEF TypeOK
@@ -1140,15 +1125,19 @@ PROOF
             /\ m1b.acc = p
             /\ m2a.acc = p
     <3> HIDE DEF Q2
-    <3> QED BY QuorumIntersectionBis
+    <3> QED BY QuorumIntersection, Isa
   <2> m2a.type = "2a"
       BY <2>8
   <2> m2a.lrn = L1
       BY <2>8
+  <2> B(m2a, B1)
+      BY <2>8
   <2> V(m2a, V1)
       BY <2>8
-  <2> m1b \in known_msgs[L2]
+  <2> m1b \in known_msgs[L0]
       BY DEF KnownMsgSpec
+  <2> B(m1b, bal)
+      OBVIOUS
   <2> Fresh(L2, m1b) BY DEF q
   \* TODO
   <2>13. \A r \in Tran(m1b) :
@@ -1164,12 +1153,12 @@ PROOF
     <3> V(m1b, V1)
         BY DEF Fresh
     \* TODO
-    <3> QED  
+    <3> QED
   <2>16. CASE Buried(m2a, m1b)
     <3> DEFINE Q == { m \in Tran(m1b) :
                         \E z \in Tran(m) :
                             /\ z.type = "2a"
-                            /\ z.lrn = m2a.lrn
+                            /\ z.lrn = L1
                             /\ \A bx, bz \in Ballot :
                                 B(m2a, bx) /\ B(z, bz) => bx < bz
                             /\ \A vx, vz \in Value :
@@ -1188,7 +1177,21 @@ PROOF
         BY Tran_trans, BQAssumption
     <3> <<L1, L1>> \in Ent
         BY EntanglementSelf
-    <3> QED
+    <3> r \in known_msgs[L0]
+        BY DEF KnownMsgSpec
+    <3> r \in Message
+        BY DEF TypeOK
+    \* TODO formulate a respective known_msg invariant
+    <3> PICK br \in Ballot : B(r, br)
+    <3> PICK vr \in Value : V(r, vr)
+        BY V_def DEF BValSpec
+    <3> B1 < br
+        OBVIOUS
+    <3> V1 # vr
+        OBVIOUS
+    <3> br < bal
+        BY <2>13
+    <3> QED BY DEF HeterogeneousSpecBis
 
 \* 2a-message is _buried_ if there exists a quorum of acceptors that have seen
 \* 2a-messages with different values, the same learner, and higher ballot
