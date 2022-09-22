@@ -74,6 +74,7 @@ FINSUBSET(S, R) == { Range(seq) : seq \in [R -> S] }
 \*FINSUBSET(S, K) == { Range(seq) : seq \in [1..K -> S] }
 \*FINSUBSET(S, R) == UNION { {Range(seq) : seq \in [1..K -> S]} : K \in R }
 
+\* TODO remove 1b, 2a cases
 MessageRec0 ==
     [ type : {"1a"}, bal : Ballot, ref : {{}} ] \cup
     [ type : {"1b"}, acc : Acceptor, ref : {{}} ] \cup
@@ -237,6 +238,7 @@ q(x) ==
 WellFormed(m) ==
     /\ m \in Message
     /\ m.type = "1b" =>
+        \* TODO remove \E r1a part
         /\ \E r1a \in m.ref :
             /\ r1a.type = "1a"
             /\ \A r \in m.ref : r.type = "1a" => r = r1a
@@ -244,11 +246,12 @@ WellFormed(m) ==
 \*        /\ \A r \in m.ref : r.bal =< m.bal
 \*        /\ \A r1, r2 \in m.ref :
 \*            r1.bal = m.bal /\ r2.bal = m.bal => r1 = r2
+        \* TODO replace with `<`
         /\ \A y \in Tran(m) :
             m # y /\ SameBallot(m, y) => y \in Get1a(m)
     /\ m.type = "2a" =>
         /\ [lr |-> m.lrn, q |-> q(m)] \in TrustLive
-        \* /\ m.acc \in q(m)
+        \* /\ m.acc \in q(m) \* TODO required for liveness?
 
 vars == << msgs, known_msgs, recent_msgs, 2a_lrn_loop, processed_lrns, decision, BVal >>
 
@@ -451,5 +454,5 @@ THEOREM SafetyResult == Spec => []Safety
 
 =============================================================================
 \* Modification History
-\* Last modified Wed Sep 21 19:45:31 CEST 2022 by aleph
+\* Last modified Thu Sep 22 15:46:10 CEST 2022 by aleph
 \* Created Mon Jul 25 14:24:03 CEST 2022 by aleph
