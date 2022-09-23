@@ -57,6 +57,14 @@ LEMMA EntanglementTrustLive ==
     PROVE  \E N \in SafeAcceptor : N \in Q1 /\ N \in Q2
 PROOF BY LearnerGraphAssumptionValidity DEF Ent
 
+LEMMA EntaglementTrustLiveNonEmpty ==
+    ASSUME NEW L1 \in Learner, NEW L2 \in Learner,
+           NEW Q \in ByzQuorum,
+           <<L1, L2>> \in Ent,
+           [lr |-> L1, q |-> Q] \in TrustLive
+    PROVE  \E N \in SafeAcceptor : N \in Q
+PROOF BY EntanglementTrustLive, EntanglementSelf, Zenon
+
 LEMMA EntanglementTransitive ==
     ASSUME NEW L1 \in Learner, NEW L2 \in Learner, NEW L3 \in Learner,
     <<L1, L2>> \in Ent, <<L2, L3>> \in Ent
@@ -998,7 +1006,6 @@ PROOF
     BY TrustLiveAssumption, LearnerGraphAssumptionValidity, Zenon
 <1> QED BY BQAssumption
 
-
 LEMMA EntConnected ==
     ASSUME CaughtSpec,
            NEW a \in Learner, NEW b \in Learner,
@@ -1036,7 +1043,7 @@ LEMMA DecisionSpecInvariant ==
 \*           V(w, Vb) =>
 \*           Va = Vb
 
-HeterogeneousSpecBis(bal) ==
+HeterogeneousSpec(bal) ==
     \A L0, L1, L2 \in Learner :
         <<L1, L2>> \in Ent =>
         \A V1, V2 \in Value :
@@ -1071,12 +1078,12 @@ PROOF
 
 LEMMA HeterogeneousLemma ==
     TypeOK /\ BValSpec /\ KnownMsgSpec /\ CaughtSpec =>
-    \A bal \in Ballot : HeterogeneousSpecBis(bal)
+    \A bal \in Ballot : HeterogeneousSpec(bal)
 PROOF
 <1> ASSUME TypeOK, BValSpec, KnownMsgSpec, CaughtSpec,
            NEW bal \in Ballot,
-           (\A b \in Ballot : b < bal => HeterogeneousSpecBis(b))
-    PROVE HeterogeneousSpecBis(bal)
+           (\A b \in Ballot : b < bal => HeterogeneousSpec(b))
+    PROVE HeterogeneousSpec(bal)
   <2> SUFFICES ASSUME NEW L0 \in Learner,
                       NEW L1 \in Learner, NEW L2 \in Learner,
                       NEW V1 \in Value, NEW V2 \in Value,
@@ -1090,7 +1097,7 @@ PROOF
                       B1 < bal,
                       V(M, V2)
                PROVE  V1 = V2
-      BY DEF HeterogeneousSpecBis
+      BY DEF HeterogeneousSpec
   <2>1. M \in msgs /\ Proper(L0, M) /\ WellFormed(M)
       BY DEF KnownMsgSpec
   <2> M \in Message
@@ -1167,6 +1174,8 @@ PROOF
         BY <2>16 DEF Buried
     <3> { m.acc : m \in Q } \in ByzQuorum
         BY TrustLiveAssumption, Zenon
+    <3>3. PICK m0 \in { m.acc : m \in Q } : TRUE
+        BY EntaglementTrustLiveNonEmpty
     <3> PICK r \in Tran(m1b) :
             /\ r.type = "2a"
             /\ r.lrn = L1
@@ -1174,7 +1183,7 @@ PROOF
                 B(m2a, b2a) /\ B(r, br) => b2a < br
             /\ \A v2a, vr \in Value :
                 V(m2a, v2a) /\ V(r, vr) => v2a # vr
-        BY Tran_trans, BQAssumption
+        BY <3>3, Tran_trans, BQAssumption
     <3> <<L1, L1>> \in Ent
         BY EntanglementSelf
     <3> r \in known_msgs[L0]
@@ -1191,7 +1200,7 @@ PROOF
         OBVIOUS
     <3> br < bal
         BY <2>13
-    <3> QED BY DEF HeterogeneousSpecBis
+    <3> QED BY DEF HeterogeneousSpec
 
 \* 2a-message is _buried_ if there exists a quorum of acceptors that have seen
 \* 2a-messages with different values, the same learner, and higher ballot
@@ -1290,20 +1299,20 @@ LEMMA ChosenSafeCaseEq ==
 PROOF
 <1> PICK S1 \in SUBSET { x \in known_msgs[L1] :
                             /\ B(x, BB)
-                            /\ V(x, V1) },
-         Q1 \in ByzQuorum :
-            /\ [lr |-> L1, q |-> Q1] \in TrustLive
-            /\ \A aa \in Q1 :
-                \E mm \in S1 : mm.acc = aa
-    BY DEF ChosenIn
+                            /\ V(x, V1) } :
+            [lr |-> L1, q |-> { m.acc : m \in S1 }] \in TrustLive
+    BY DEF ChosenIn, Zenon
+<1> DEFINE Q1 == { m.acc : m \in S1 }
+<1> Q1 \in ByzQuorum
+    BY TrustLiveAssumption, Zenon
 <1> PICK S2 \in SUBSET { x \in known_msgs[L2] :
                             /\ B(x, BB)
-                            /\ V(x, V2) },
-         Q2 \in ByzQuorum :
-            /\ [lr |-> L2, q |-> Q2] \in TrustLive
-            /\ \A aa \in Q2 :
-                \E mm \in S2 : mm.acc = aa
-    BY DEF ChosenIn
+                            /\ V(x, V2) } :
+         [lr |-> L2, q |-> { m.acc : m \in S2 }] \in TrustLive
+    BY DEF ChosenIn, Zenon
+<1> DEFINE Q2 == { m.acc : m \in S2 }
+<1> Q2 \in ByzQuorum
+    BY TrustLiveAssumption, Zenon
 <1> PICK A \in SafeAcceptor : A \in Q1 /\ A \in Q2
     BY EntanglementTrustLive
 <1>4. PICK m1 \in known_msgs[L1] :
@@ -1320,14 +1329,12 @@ LEMMA ChosenSafeCaseLt ==
     ASSUME NEW L1 \in Learner, NEW L2 \in Learner,
            NEW B1 \in Ballot, NEW B2 \in Ballot,
            NEW V1 \in Value, NEW V2 \in Value,
-           TypeOK, KnownMsgSpec, \*ReceivedSpec, MsgInv,
-           \*HeterogeneousSpec,
+           TypeOK, BValSpec, KnownMsgSpec, CaughtSpec,
            <<L1, L2>> \in Ent,
            B1 < B2,
            ChosenIn(L1, B1, V1), ChosenIn(L2, B2, V2)
     PROVE V1 = V2
 PROOF
-<1> SUFFICES ASSUME V1 # V2 PROVE FALSE OBVIOUS
 <1> PICK S1 \in SUBSET { x \in known_msgs[L1] :
                             /\ x.type = "2a"
                             /\ x.lrn = L1
@@ -1341,133 +1348,29 @@ PROOF
                             /\ x.type = "2a"
                             /\ x.lrn = L2
                             /\ B(x, B2)
-                            /\ V(x, V2) },
-         Q2 \in ByzQuorum :
-            /\ [lr |-> L2, q |-> Q2] \in TrustLive
-            /\ \A aa \in Q2 :
-                \E mm \in S2 : mm.acc = aa
-    BY DEF ChosenIn
-<1> PICK A \in SafeAcceptor : A \in Q1 /\ A \in Q2
-    BY EntanglementTrustLive
-<1>4. PICK m1 \in msgs :
-        /\ Proper(L1, m1)
-        /\ WellFormed(m1)
-        /\ m1.type = "2a"
-        /\ m1.lrn = L1
-        /\ m1.acc = A
-        /\ B(m1, B1)
-        /\ V(m1, V1)
-      BY Tran_refl DEF ChosenIn, KnownMsgSpec, TypeOK
-<1>5. PICK m2 \in msgs :
-        /\ Proper(L2, m2)
-        /\ WellFormed(m2)
-        /\ m2.type = "2a"
-        /\ m2.lrn = L2
-        /\ m2.acc = A
-        /\ B(m2, B2)
-        /\ V(m2, V2)
-      BY Tran_refl DEF ChosenIn, KnownMsgSpec, TypeOK
-<1> [lr |-> L1, q |-> q(m1)] \in TrustLive
-      BY <1>4 DEF WellFormed
-<1> [lr |-> L2, q |-> q(m2)] \in TrustLive
-      BY <1>5 DEF WellFormed
-<1> q(m1) \in ByzQuorum BY TrustLiveAssumption
-<1> q(m2) \in ByzQuorum BY TrustLiveAssumption
-<1>8. PICK A0 \in SafeAcceptor : A0 \in q(m1) /\ A0 \in q(m2)
-      BY EntanglementTrustLive DEF TypeOK
-\*q(x) ==
-\*    LET Q == { m \in Tran(x) :
-\*                /\ m.type = "1b"
-\*                /\ Fresh(x.lrn, m)
-\*                /\ \A mb, xb \in Ballot :
-\*                    B(m, mb) /\ B(x, xb) => mb = xb }
-\*    IN {a \in Acceptor : \E m \in Q : m.acc = a}
-<1>9. PICK m1b \in Tran(m2) :
-        /\ m1b.type = "1b"
-        /\ m1b.acc = A0
-        /\ Fresh(L2, m1b)
-        /\ \A b \in Ballot : B(m1b, b) => b = B2
-      BY <1>5, <1>8 DEF q
-\*<1>7. PICK R2 \in ByzQuorum :
-<1>20. QED
-\*<1> USE DEF MsgInv
-\*<1> SUFFICES ASSUME V1 # V2 PROVE FALSE OBVIOUS
-\*<1>1. PICK Q1 \in ByzQuorum :
-\*        /\ [lr |-> L1, q |-> Q1] \in TrustLive
-\*        /\ \A aa \in Q1 :
-\*            \E m \in {mm \in receivedByLearner[L1] : mm.bal = B1} :
-\*                /\ m.val = V1
-\*                /\ m.acc = aa
-\*      BY DEF ChosenIn
-\*<1>2. PICK Q2 \in ByzQuorum :
-\*        /\ [lr |-> L2, q |-> Q2] \in TrustLive
-\*        /\ \A aa \in Q2 :
-\*            \E m \in {mm \in receivedByLearner[L2] : mm.bal = B2} :
-\*                /\ m.val = V2
-\*                /\ m.acc = aa
-\*      BY DEF ChosenIn
-\*<1>3. PICK A \in SafeAcceptor : A \in Q1 /\ A \in Q2 BY EntanglementTrustLive, <1>1, <1>2
-\*<1>4. PICK m1 \in receivedByLearner[L1] : m1.acc = A /\ m1.bal = B1 /\ m1.val = V1 BY <1>1, <1>3 DEF ChosenIn
-\*<1>5. PICK m2 \in receivedByLearner[L2] : m2.acc = A /\ m2.bal = B2 /\ m2.val = V2 BY <1>2, <1>3 DEF ChosenIn
-\*<1>6. /\ m1 \in msgs
-\*      /\ m1.type = "2b"
-\*      /\ m1.lr = L1
-\*      /\ m1.acc = A
-\*      /\ m1.bal = B1
-\*      /\ m1.val = V1
-\*      BY <1>4 DEF ReceivedByLearnerSpec, TypeOK
-\*<1>7. /\ m2 \in msgs
-\*      /\ m2.type = "2b"
-\*      /\ m2.lr = L2
-\*      /\ m2.acc = A
-\*      /\ m2.bal = B2
-\*      /\ m2.val = V2
-\*      BY <1>5 DEF ReceivedByLearnerSpec, TypeOK
-\*<1>10. PICK R1 \in ByzQuorum :
-\*            /\ [lr |-> L1, q |-> R1] \in TrustLive
-\*       BY <1>6 DEF MsgInv2b
-\*<1>11. PICK R2 \in ByzQuorum :
-\*            /\ [lr |-> L2, q |-> R2] \in TrustLive
-\*            /\ \A aa \in R2 :
-\*                \E m2av \in received[A] :
-\*                    /\ m2av.type = "2av"
-\*                    /\ m2av.lr = L2
-\*                    /\ m2av.acc = aa
-\*                    /\ m2av.bal = B2
-\*                    /\ m2av.val = V2
-\*       BY <1>7 DEF MsgInv2b
-\*<1>12. PICK A0 \in SafeAcceptor : A0 \in R1 /\ A0 \in R2 BY EntanglementTrustLive, <1>10, <1>11
-\*<1>14. PICK m2av2 \in received[A] :
-\*            m2av2.type = "2av" /\ m2av2.lr = L2 /\ m2av2.acc = A0 /\ m2av2.bal = B2 /\ m2av2.val = V2
-\*       BY <1>12, <1>11
-\*<1>16. /\ m2av2 \in msgs
-\*       /\ m2av2.type = "2av"
-\*       /\ m2av2.lr = L2
-\*       /\ m2av2.acc = A0
-\*       /\ m2av2.bal = B2
-\*       /\ m2av2.val = V2
-\*       BY <1>14, SafeAcceptorIsAcceptor DEF ReceivedSpec, TypeOK
-\*<1>17. CannotDecide(Q1, L1, B1, V1)
-\*  <2>1. [lr |-> L1, q |-> Q1] \in TrustLive BY <1>1
-\*  <2>5. QED BY <1>16, <2>1 DEF HeterogeneousSpec
-\*<1>18. PICK S \in SafeAcceptor : S \in Q1 /\ ~VotedFor(L1, S, B1, V1) BY <1>17 DEF CannotDecide
-\*<1>19. PICK m \in receivedByLearner[L1] : m.acc = S /\ m.bal = B1 /\ m.val = V1
-\*       BY <1>18, <1>1 DEF CannotDecide
-\*<1>20. /\ m \in {mm \in msgs : mm.type = "2b"}
-\*       /\ m.lr = L1
-\*       /\ m.acc = S
-\*       /\ m.bal = B1
-\*       /\ m.val = V1
-\*       BY <1>19 DEF ReceivedByLearnerSpec, TypeOK
-\*<1>50. QED BY <1>20, <1>18 DEF CannotDecide, VotedFor, ReceivedByLearnerSpec, TypeOK
+                            /\ V(x, V2) } :
+            [lr |-> L2, q |-> { m.acc : m \in S2 }] \in TrustLive
+    BY Zenon DEF ChosenIn
+<1> DEFINE Q2 == { m.acc : m \in S2 }
+<1> Q2 \in ByzQuorum
+    BY TrustLiveAssumption, Zenon
+<1> <<L2, L2>> \in Ent
+    BY EntanglementSelf, EntanglementSym, Zenon
+<1> PICK A \in Q2 : TRUE
+    BY EntaglementTrustLiveNonEmpty
+<1> PICK M \in known_msgs[L2] :
+        /\ M.type = "2a"
+        /\ M.lrn = L2
+        /\ B(M, B2)
+        /\ V(M, V2)
+    OBVIOUS
+<1> QED BY HeterogeneousLemma DEF HeterogeneousSpec
 
 LEMMA ChosenSafe ==
     ASSUME NEW L1 \in Learner, NEW L2 \in Learner,
            NEW B1 \in Ballot, NEW B2 \in Ballot,
            NEW V1 \in Value, NEW V2 \in Value,
            TypeOK, KnownMsgSpec,
-           \*ReceivedSpec, VotesSentSpec4, MsgInv,
-           \*HeterogeneousSpec,
            <<L1, L2>> \in Ent,
            ChosenIn(L1, B1, V1), ChosenIn(L2, B2, V2)
     PROVE V1 = V2
@@ -1511,28 +1414,28 @@ PROOF
         /\ ChosenIn(lrn, bal, val)
         /\ decision' = [decision EXCEPT ![<<lrn, bal>>] = decision[lrn, bal] \cup {val}]
         /\ UNCHANGED << msgs, known_msgs, recent_msgs, 2a_lrn_loop, processed_lrns, BVal >>
-      BY <1>7 DEF LearnerDecide
+      BY <1>7, Zenon DEF LearnerDecide
   <2> CASE V1 # V2
     <3>1. CASE val # V1 /\ val # V2 BY <3>1 DEF Safety, TypeOK
     <3>2. CASE val = V1
       <4> V2 \in decision[L2, B2] BY <3>2 DEF TypeOK
-      <4>1. ChosenIn(L2, B2, V2) BY DEF DecisionSpec
+      <4> ChosenIn(L2, B2, V2) BY DEF DecisionSpec
       <4>2. CASE V1 \in decision[L1, B1] BY <4>2 DEF Safety
       <4>3. CASE V1 \notin decision[L1, B1]
         <5> lrn = L1 /\ bal = B1 BY <4>3, <3>2 DEF TypeOK
-        <5>2. ChosenIn(L1, B1, V1) BY <3>2
-        <5>3. QED BY <4>1, <5>2, ChosenSafe, AllProvers
-      <4>4. QED BY <4>2, <4>3
+        <5> ChosenIn(L1, B1, V1) BY <3>2
+        <5> QED BY ChosenSafe, AllProvers
+      <4> QED BY <4>2, <4>3
     <3>3. CASE val = V2
       <4> V1 \in decision[L1, B1] BY <3>3 DEF TypeOK
-      <4>1. ChosenIn(L1, B1, V1) BY DEF DecisionSpec
+      <4> ChosenIn(L1, B1, V1) BY DEF DecisionSpec
       <4>2. CASE V2 \in decision[L2, B2] BY <4>2 DEF Safety
       <4>3. CASE V2 \notin decision[L2, B2]
         <5> lrn = L2 /\ bal = B2 BY <4>3, <3>2 DEF TypeOK
-        <5>2. ChosenIn(L2, B2, V2) BY <3>3
-        <5>3. QED BY <4>1, <5>2, ChosenSafe
-      <4>4. QED BY <4>2, <4>3
-    <3>10. QED BY <3>1, <3>2, <3>3
+        <5> ChosenIn(L2, B2, V2) BY <3>3
+        <5> QED BY ChosenSafe
+      <4> QED BY <4>2, <4>3
+    <3> QED BY <3>1, <3>2, <3>3
   <2>10. QED OBVIOUS
 <1>8. CASE FakeAcceptorAction
       BY <1>8 DEF FakeAcceptorAction, FakeSend, Safety
@@ -1548,5 +1451,5 @@ PROOF
 
 =============================================================================
 \* Modification History
-\* Last modified Mon Sep 19 13:11:03 CEST 2022 by aleph
+\* Last modified Fri Sep 23 12:38:38 CEST 2022 by aleph
 \* Created Thu Aug 25 10:12:00 CEST 2022 by aleph
