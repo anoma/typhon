@@ -75,9 +75,9 @@ FINSUBSET(S, R) == { Range(seq) : seq \in [R -> S] }
 
 \* TODO remove 1b, 2a cases
 MessageRec0 ==
-    [ type : {"1a"}, bal : Ballot, ref : {{}} ] \cup
-    [ type : {"1b"}, acc : Acceptor, ref : {{}} ] \cup
-    [ type : {"2a"}, lrn : Learner, acc : Acceptor, ref : {{}} ]
+    [ type : {"1a"}, bal : Ballot, ref : {{}} ]
+\*    [ type : {"1b"}, acc : Acceptor, ref : {{}} ] \cup
+\*    [ type : {"2a"}, lrn : Learner, acc : Acceptor, ref : {{}} ]
 
 MessageRec1(M, n) ==
     M \cup
@@ -194,11 +194,12 @@ CaughtMsg(x) ==
 Caught(x) == { m.acc : m \in CaughtMsg(x) }
 
 \* Connected
+ConByQuorum(a, b, x, S) ==
+    /\ [from |-> a, to |-> b, q |-> S] \in TrustSafe
+    /\ S \cap Caught(x) = {}
+
 Con(a, x) ==
-    { b \in Learner :
-        \E S \in ByzQuorum :
-            /\ [from |-> a, to |-> b, q |-> S] \in TrustSafe
-            /\ S \cap Caught(x) = {} }
+    { b \in Learner : \E S \in ByzQuorum : ConByQuorum(a, b, x, S) }
 
 \* 2a-message is _buried_ if there exists a quorum of acceptors that have seen
 \* 2a-messages with different values, the same learner, and higher ballot
@@ -236,21 +237,16 @@ q(x) ==
 
 WellFormed(m) ==
     /\ m \in Message
+    /\ \E b \in Ballot : B(m, b) \* TODO
     /\ m.type = "1b" =>
         \* TODO remove \E r1a part
-        /\ \E r1a \in m.ref :
-            /\ r1a.type = "1a"
-            /\ \A r \in m.ref : r.type = "1a" => r = r1a
-\*            /\ r1a.bal = m.bal
-\*        /\ \A r \in m.ref : r.bal =< m.bal
-\*        /\ \A r1, r2 \in m.ref :
-\*            r1.bal = m.bal /\ r2.bal = m.bal => r1 = r2
-        \* TODO replace with `<`
+\*        /\ \E r1a \in m.ref :
+\*            /\ r1a.type = "1a"
+\*            /\ \A r \in m.ref : r.type = "1a" => r = r1a
         /\ \A y \in Tran(m) :
-            m # y /\ SameBallot(m, y) => y \in Get1a(m)
+            m # y /\ SameBallot(m, y) => y.type = "1a"
     /\ m.type = "2a" =>
         /\ [lr |-> m.lrn, q |-> q(m)] \in TrustLive
-        \* /\ m.acc \in q(m) \* TODO required for liveness?
 
 vars == << msgs, known_msgs, recent_msgs, 2a_lrn_loop, processed_lrns, decision, BVal >>
 
@@ -270,8 +266,7 @@ Init ==
 
 Send(m) == msgs' = msgs \cup {m}
 
-Proper(a, m) ==
-    /\ \A r \in m.ref : r \in known_msgs[a]
+Proper(a, m) == \A r \in m.ref : r \in known_msgs[a]
 
 Recv(a, m) ==
     /\ WellFormed(m)
@@ -282,6 +277,13 @@ Send1a(b, v) ==
     /\ Send([type |-> "1a", bal |-> b, ref |-> {}])
     /\ UNCHANGED << known_msgs, recent_msgs, 2a_lrn_loop, processed_lrns, decision >>
     /\ UNCHANGED BVal
+
+Known2a(l, b, v) ==
+    { x \in known_msgs[l] :
+        /\ x.type = "2a"
+        /\ x.lrn = l
+        /\ B(x, b)
+        /\ V(x, v) }
 
 Process1a(a, m) ==
     LET new1b == [type |-> "1b", acc |-> a, ref |-> recent_msgs[a] \cup {m}] IN
@@ -342,8 +344,6 @@ ProposerSendAction ==
     \E bal \in Ballot : \E val \in Value :
         Send1a(bal, val)
 
-\* vars == << msgs, known_msgs, recent_msgs, 2a_lrn_loop, processed_lrns, decision >>
-
 AcceptorProcessAction ==
     \E a \in SafeAcceptor:
         \/ /\ 2a_lrn_loop[a] = FALSE
@@ -361,12 +361,11 @@ FakeSend(a) ==
                     /\ WellFormed(mm)  \* assume that adversaries can send only
                                        \* wellformed messages
                 } :
-        Send(m)
+        \* ===>
+\*        /\ B(m, 0)
+        /\ Send(m)
     /\ UNCHANGED << known_msgs, recent_msgs, 2a_lrn_loop, processed_lrns, decision >>
     /\ UNCHANGED BVal
-
-\*FakeRecv(a) ==
-\*    /\ UNCHANGED << msgs >>
 
 LearnerRecv(l) ==
     /\ \E m \in msgs : Recv(l, m)
@@ -374,11 +373,7 @@ LearnerRecv(l) ==
     /\ UNCHANGED BVal
 
 ChosenIn(l, b, v) ==
-    \E S \in SUBSET { x \in known_msgs[l] :
-                            /\ x.type = "2a"
-                            /\ x.lrn = l
-                            /\ B(x, b)
-                            /\ V(x, v) } :
+    \E S \in SUBSET Known2a(l, b, v) :
         [lr |-> l, q |-> { m.acc : m \in S }] \in TrustLive
 
 LearnerDecide(l, b, v) ==
@@ -396,10 +391,7 @@ LearnerAction ==
 
 FakeAcceptorAction == \E a \in FakeAcceptor : FakeSend(a)
 
-\*MessageNumLimit == 10
-
 Next ==
-\*    /\ Cardinality(msgs) < MessageNumLimit
     /\ \/ ProposerSendAction
        \/ AcceptorProcessAction
        \/ LearnerAction
@@ -425,10 +417,6 @@ SanityCheck1 ==
 
 1bNotSentBySafeAcceptor ==
     \A M \in msgs : M.type = "1b" => M.acc \notin SafeAcceptor
-
-\*Inv_msgs ==
-\*    /\ \A m \in msgs : m \in Message
-\*    /\ \A m \in msgs : WellFormed(m)
 
 NoDecision ==
     \A L \in Learner : \A BB \in Ballot : \A VV \in Value :
