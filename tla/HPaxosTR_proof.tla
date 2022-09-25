@@ -4,22 +4,22 @@ EXTENDS HPaxosTR, Sequences, NaturalsInduction, WellFoundedInduction, TLAPS
 -----------------------------------------------------------------------------
 LEMMA FinSubset_sub ==
     ASSUME NEW S, NEW R \in SUBSET Nat, NEW F \in FINSUBSET(S, R)
-    PROVE F \subseteq S
+    PROVE  F \subseteq S
 PROOF BY DEF Range, FINSUBSET
 
 \*LEMMA FinSubset_sub ==
 \*    ASSUME NEW S, NEW K \in Nat, NEW F \in FINSUBSET(S, K)
-\*    PROVE F \subseteq S
+\*    PROVE  F \subseteq S
 \*PROOF BY DEF Range, FINSUBSET
 
 \*LEMMA FinSubset_finite ==
 \*    ASSUME NEW S, NEW K \in Nat, NEW F \in FINSUBSET(S, K)
-\*    PROVE IsFiniteSet(F)
+\*    PROVE  IsFiniteSet(F)
 \*PROOF BY DEF FINSUBSET, IsFiniteSet, Range
 \*
 \*LEMMA IsFiniteSet_add ==
 \*    ASSUME NEW S, IsFiniteSet(S), NEW x
-\*    PROVE IsFiniteSet(S \cup {x})
+\*    PROVE  IsFiniteSet(S \cup {x})
 \*PROOF
 \*<1> PICK seq \in Seq(S) : \A s \in S : \E n \in 1..Len(seq) : seq[n] = s
 \*    BY DEF IsFiniteSet
@@ -34,17 +34,17 @@ PROOF BY DEF Range, FINSUBSET
 -----------------------------------------------------------------------------
 LEMMA TrustSafeSelfAgreement ==
     ASSUME NEW E \in TrustSafe
-    PROVE [from |-> E.from, to |-> E.from, q |-> E.q] \in TrustSafe
+    PROVE  [from |-> E.from, to |-> E.from, q |-> E.q] \in TrustSafe
 BY LearnerGraphAssumptionSymmetry, LearnerGraphAssumptionTransitivity, Zenon
 
 LEMMA EntanglementSym ==
     ASSUME NEW L1 \in Learner, NEW L2 \in Learner, <<L1, L2>> \in Ent
-    PROVE <<L2, L1>> \in Ent
+    PROVE  <<L2, L1>> \in Ent
 PROOF BY LearnerGraphAssumptionSymmetry DEF Ent
 
 LEMMA EntanglementSelf ==
     ASSUME NEW L1 \in Learner, NEW L2 \in Learner, <<L1, L2>> \in Ent
-    PROVE <<L1, L1>> \in Ent
+    PROVE  <<L1, L1>> \in Ent
 PROOF BY LearnerGraphAssumptionSymmetry,
          LearnerGraphAssumptionTransitivity, Zenon DEF Ent
 
@@ -67,8 +67,8 @@ PROOF BY EntanglementTrustLive, EntanglementSelf, Zenon
 
 LEMMA EntanglementTransitive ==
     ASSUME NEW L1 \in Learner, NEW L2 \in Learner, NEW L3 \in Learner,
-    <<L1, L2>> \in Ent, <<L2, L3>> \in Ent
-    PROVE <<L1, L3>> \in Ent
+           <<L1, L2>> \in Ent, <<L2, L3>> \in Ent
+    PROVE  <<L1, L3>> \in Ent
 PROOF BY LearnerGraphAssumptionTransitivity DEF Ent
 
 -----------------------------------------------------------------------------
@@ -92,12 +92,12 @@ PROOF BY MessageRec_def
 
 LEMMA MessageRec_eq1 ==
     ASSUME NEW n \in Nat, n # 0
-    PROVE MessageRec[n] = MessageRec1(MessageRec[n-1], n)
+    PROVE  MessageRec[n] = MessageRec1(MessageRec[n-1], n)
 PROOF BY MessageRec_def DEF MessageRec1
 
 LEMMA MessageRec_monotone_1 ==
     ASSUME NEW n \in Nat
-    PROVE MessageRec[n] \subseteq MessageRec[n+1]
+    PROVE  MessageRec[n] \subseteq MessageRec[n+1]
 PROOF BY MessageRec_eq1 DEF MessageRec1
 
 LEMMA MessageRec_monotone ==
@@ -112,12 +112,12 @@ PROOF
 
 LEMMA MessageRec_ref0 ==
     ASSUME NEW m \in MessageRec[0]
-    PROVE m.ref = {}
+    PROVE  m.ref = {}
 PROOF BY MessageRec_def DEF MessageRec0
 
 LEMMA MessageRec_ref1 ==
     ASSUME NEW n \in Nat, n # 0
-    PROVE \A m \in MessageRec[n] : m.ref \subseteq MessageRec[n-1]
+    PROVE  \A m \in MessageRec[n] : m.ref \subseteq MessageRec[n-1]
 PROOF
 <1> DEFINE P(j) == j # 0 =>
                 \A mm \in MessageRec[j] : mm.ref \subseteq MessageRec[j-1]
@@ -125,7 +125,7 @@ PROOF
 <1>0. P(0) OBVIOUS
 <1>1. ASSUME NEW m \in Nat, P(m) PROVE P(m+1)
   <2> SUFFICES ASSUME NEW mm \in MessageRec[m+1]
-               PROVE mm.ref \subseteq MessageRec[m]
+               PROVE  mm.ref \subseteq MessageRec[m]
       OBVIOUS
   <2>1. CASE m = 0
         BY <2>1, MessageRec_eq1, MessageRec_ref0, FinSubset_sub
@@ -139,12 +139,12 @@ PROOF
 
 LEMMA Message_ref ==
     ASSUME NEW m \in Message
-    PROVE m.ref \subseteq Message
+    PROVE  m.ref \subseteq Message
 PROOF BY MessageRec_ref0, MessageRec_ref1, Message_spec DEF MessageDepthRange
 
 LEMMA MessageRec_min ==
     ASSUME NEW m \in Message
-    PROVE \E n \in Nat :
+    PROVE  \E n \in Nat :
             /\ m \in MessageRec[n]
             /\ \A k \in 0 .. n - 1 : m \notin MessageRec[k]
 PROOF
@@ -159,7 +159,7 @@ PROOF
 
 LEMMA Message_ref_acyclic ==
     ASSUME NEW m \in Message
-    PROVE m \notin m.ref
+    PROVE  m \notin m.ref
 PROOF
 <1>0. PICK n \in Nat :
         /\ m \in MessageRec[n]
@@ -174,12 +174,12 @@ PROOF
 
 \*LEMMA Message_ref_acyclic_2 ==
 \*    ASSUME NEW m1 \in Message, NEW m2 \in m1.ref
-\*    PROVE m1 \notin m2.ref
+\*    PROVE  m1 \notin m2.ref
 \*PROOF
 \*<1> SUFFICES ASSUME NEW x \in Message,
 \*                    NEW y \in x.ref,
 \*                    x \in y.ref
-\*             PROVE FALSE
+\*             PROVE  FALSE
 \*    OBVIOUS
 \*<1>0. PICK n \in Nat :
 \*        /\ x \in MessageRec[n]
@@ -195,7 +195,7 @@ PROOF
 \*LEMMA XXX1 ==
 \*    ASSUME NEW M \in SUBSET Message, IsFiniteSet(M),
 \*           NEW A \in Acceptor 
-\*    PROVE [type |-> "1b", acc |-> A, ref |-> M] \in Message
+\*    PROVE  [type |-> "1b", acc |-> A, ref |-> M] \in Message
 \*PROOF
 \*<1> PICK n \in Nat : \A m \in M : m \in MessageRec[n] BY Message_finite_1
 \*<1> [type |-> "1b", acc |-> A, ref |-> M] \in MessageRec[n + 1]
@@ -248,9 +248,8 @@ DEF NatInductiveDefHypothesis, NatInductiveDefConclusion, TranBound
 
 LEMMA Tran_spec ==
     ASSUME NEW m \in Message
-    PROVE
-    /\ \A n \in Nat : TranBound[n][m] \subseteq Tran(m)
-    /\ \A r \in Tran(m) : \E n \in Nat : r \in TranBound[n][m]
+    PROVE  /\ \A n \in Nat : TranBound[n][m] \subseteq Tran(m)
+           /\ \A r \in Tran(m) : \E n \in Nat : r \in TranBound[n][m]
 PROOF BY DEF Tran, TranDepthRange, MessageDepthRange
 
 LEMMA TranBound_eq0 ==
@@ -259,7 +258,7 @@ PROOF BY TranBound_def DEF TranBound0
 
 LEMMA TranBound_eq1 ==
     ASSUME NEW n \in Nat, n # 0
-    PROVE TranBound[n] =
+    PROVE  TranBound[n] =
             [m \in Message |-> {m} \cup UNION {TranBound[n-1][r] : r \in m.ref}]
 PROOF BY TranBound_def, Zenon DEF TranBound1
 
