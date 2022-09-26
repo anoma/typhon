@@ -266,25 +266,50 @@ LEMMA Tran_refl ==
     ASSUME NEW m \in Message PROVE m \in Tran(m)
 PROOF BY TranBound_eq0 DEF Tran, TranDepthRange, MessageDepthRange
 
+LEMMA Tran_eq ==
+    ASSUME NEW m \in Message
+    PROVE  Tran(m) = {m} \cup UNION { Tran(r) : r \in m.ref }
+PROOF
+<1>1. Tran(m) \subseteq {m} \cup UNION {Tran(r) : r \in m.ref}
+  <2> SUFFICES ASSUME NEW x \in Tran(m)
+               PROVE  x \in {m} \cup UNION {Tran(r) : r \in m.ref}
+      OBVIOUS
+  <2> PICK n \in Nat : x \in TranBound[n][m]
+      BY Tran_spec
+  <2> CASE n = 0
+      BY TranBound_eq0
+  <2> CASE n # 0
+    <3> CASE x # m
+      <4> PICK r \in m.ref : x \in TranBound[n-1][r]
+          BY TranBound_eq1, Isa
+      <4> QED BY Tran_spec, MessageTypeSpec
+    <3> QED OBVIOUS
+  <2> QED OBVIOUS
+<1>2. {m} \cup UNION {Tran(r) : r \in m.ref} \subseteq Tran(m)
+  <2> SUFFICES ASSUME NEW x \in {m} \cup UNION {Tran(r) : r \in m.ref}
+               PROVE  x \in Tran(m)
+      OBVIOUS
+  <2> CASE x # m
+    <3> PICK r \in m.ref : x \in Tran(r)
+        OBVIOUS
+    <3> PICK n \in Nat : x \in TranBound[n][r]
+        BY Tran_spec, MessageTypeSpec
+    <3> (n + 1) - 1 = n OBVIOUS
+    <3> x \in TranBound[n+1][m]
+        BY TranBound_eq1, Isa
+    <3> QED BY Tran_spec
+  <2> QED BY Tran_refl
+<1> QED BY <1>1, <1>2
+
 LEMMA Tran_1a ==
     ASSUME NEW m \in Message, m.type = "1a"
-    PROVE Tran(m) = {m}
-PROOF
-<1> DEFINE P(n) == TranBound[n][m] = {m}
-<1> SUFFICES ASSUME NEW j \in Nat PROVE P(j)
-    BY DEF Tran, TranDepthRange, MessageDepthRange
-<1>0. P(0) BY TranBound_eq0
-<1>1. ASSUME NEW k \in Nat, P(k) PROVE P(k + 1)
-  <2> SUFFICES TranBound[k + 1][m] = {m} OBVIOUS
-  <2> m.ref = {} BY MessageTypeSpec
-  <2> QED BY <1>1, TranBound_eq1, Isa
-<1>2. HIDE DEF P
-<1>3. QED BY <1>0, <1>1, NatInduction, Isa
+    PROVE  Tran(m) = {m}
+PROOF BY Tran_eq, MessageTypeSpec
 
 LEMMA TranBound_Message ==
     ASSUME NEW m1 \in Message,
            NEW n \in Nat
-    PROVE TranBound[n][m1] \in SUBSET Message
+    PROVE  TranBound[n][m1] \in SUBSET Message
 PROOF
 <1> DEFINE P(j) == \A x \in Message : TranBound[j][x] \in SUBSET Message
 <1> SUFFICES ASSUME NEW j \in Nat PROVE P(j) BY DEF Tran
@@ -303,12 +328,12 @@ PROOF
 
 LEMMA Tran_Message ==
     ASSUME NEW m1 \in Message
-    PROVE Tran(m1) \in SUBSET Message
+    PROVE  Tran(m1) \in SUBSET Message
 PROOF BY Tran_spec, TranBound_Message
 
 LEMMA TranBound_monotone_1 ==
     ASSUME NEW n \in Nat, NEW m \in Message
-    PROVE TranBound[n][m] \subseteq TranBound[n+1][m]
+    PROVE  TranBound[n][m] \subseteq TranBound[n+1][m]
 PROOF
 <1> DEFINE P(j) == \A mm \in Message :
                     TranBound[j][mm] \subseteq TranBound[j+1][mm]
