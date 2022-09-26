@@ -1,23 +1,24 @@
 ---------------------------- MODULE Doris -----------------------------------
+(* NOTES / TODOs *)
+\* - check that correct validators increment their local round number ASAP
+
 (***************************************************************************)
-(* Doris is DAG mempool that is similar to the Narwhal mempool with Tusk   *)
-(* as consensus.  The latter was proposed by Danezis, Kokoris Kogias,      *)
-(* Sonnino, and Spiegelman in their                                        *)
+(* Doris is a DAG mempool similar to the Narwhal mempool with Tusk playing *)
+(* the role of consensus as proposed by Danezis, Kokoris Kogias, Sonnino,  *)
+(* and Spiegelman in their                                                 *)
 (* `^\href{https://arxiv.org/abs/2105.11827}{paper.}^' Further inspiration *)
-(* is taken from `^\href{https://arxiv.org/abs/2102.08325}{DAG-rider,}^' a *)
-(* precursor to Narwhal.                                                   *)
-(*                                                                         *)
-(* We shall refer to these papers as [N&T] and [DAG-R], respectively.      *)
+(* is taken from `^\href{https://arxiv.org/abs/2102.08325}{DAG-rider,}^',  *)
+(* a precursor to Narwhal.                                                 *)
+(* (We shall refer to these papers as [N&T] and [DAG-R], respectively.)    *)
 (*                                                                         *)
 (* The following differences deserve mention.                              *)
 (*                                                                         *)
-(* In Narwhal, [c]lients send transactions to worker machines at all       *)
-(* validators.  [N&T].  This would lead possibly lead to duplicate         *)
+(* ① In Narwhal, [c]lients send transactions to worker machines at all     *)
+(* validators.  [N&T].  This would lead possibly to duplicate              *)
 (* transactions in batches.  "A load balancer ensures transactions data    *)
 (* are received by all workers at a similar rate" [N&T].                   *)
 (*                                                                         *)
-(* Finally, we define *hashes* of batches and *digests* of blocks; in this *)
-(* way, we get a short term for each of these two entities.                *)
+(* ② We use some minimal amout of weak links (see [DAG-R]).                *)
 (***************************************************************************)
 
 EXTENDS 
@@ -25,11 +26,15 @@ EXTENDS
   ,
   FiniteSets
   ,
+  SubSingletons
+  ,
   Functions 
   ,
   Quorums
   ,
   WorkersOfPrimaries
+  , 
+  Variants
         \*,NaturalsInduction
         \*,WellFoundedInduction
 
@@ -43,92 +48,104 @@ EXTENDS
 (***************************************************************************)
 
 (***************************************************************************)
-(* We define the data structures for blocks, and their components, such as *)
-(* certificates, acknowledgements, and block digests as used in Narwhal    *)
+(* We give encodings for blocks and their components, such as *)
+(* certificates, block digests, and the like, as used in Narwhal    *)
 (* [N&T] and DAG-rider [DAG-R].  We work directly with batches, such that  *)
 (* processing individual transactions can be seen as a refinement.         *)
 (***************************************************************************)
 
-(***************************************************************************)
-(* "On signatures":                                                        *)
-(*                                                                         *)
-(* The effect of signatures will be modelled via a set of constraints on   *)
-(* the messages that Byzantine validators can send, s.t. they cannot       *)
-(* impersonate other (non-byzantine) validators.                           *)
-(***************************************************************************)
-
-\* The set of batches
+\* "Batch", the set of batches: elements have type "BATCH" (uninterpreted).
 
 CONSTANT
   \* @type: Set(BATCH);
   Batch
 
 \* Assume there are some batches (for the purpose of liveness)
-ASSUME Batch # {}
+ASSUME ExistenceOfBatches ==
+  Batch # {}
 
 \* The following seems odd if you identify types and sets 
-\* of valid batches. So, BATCH is more general than just batches
+\* of valid batches. So, BATCH is more general than just the batch elements
 CONSTANT
   \* @type: BATCH;
   noBatch
 
-ASSUME noBatchAssumption == noBatch \notin Batch
+ASSUME noBatchAssumption == 
+  noBatch \notin Batch
 
 (***************************************************************************)
-(* For the purposes of formal verification, hash functions need to be      *)
-(* treated in a peculiar manner, for the simple reason that hash           *)
+(* We emulate hash functions on batches by a simple "wrapping" operation.  *)
+(* This is for the simple reason that hash                                 *)
 (* collisions are not strictly impossible.                                 *)
 (***************************************************************************)
        
-\* The set of hashes of any possible batch is the range of "hash".
+\* "BatchHash": the set of hashes of any possible batch 
 
-\* @typeAlias: batchHash = { batch : BATCH };
+(*
+--- batchHash ---
+- batch: the hashed Batch
+@typeAlias: batchHash = {
+    batch : BATCH 
+};
+*)
+
+
 \* @type: Set($batchHash);
 BatchHash == [ batch : Batch ]
 
-\* The following fct. "hash" is convenient to model hash functions.
+\* The operator "hash" emulates hash functions.
 
-\* @type: BATCH -> $batchHash;
-hash[b \in Batch ] == [batch |-> b] 
+\* @type: BATCH => $batchHash;
+hash(b) == [batch |-> b] 
 
-\* LEMMA hash \in Bijection(Batch, BatchHash) \* NTH
+\* LEMMA hash \in Bijection(Batch, BatchHash) \* obvious, NTH
 
 -----------------------------------------------------------------------------
 (***************************************************************************)
 (*                       NEW DATA STRUCTURES                               *)
 (***************************************************************************)
 
-
 (*
 Block digests serve to identify blocks
-without including the whole block information. 
-They can be thought of as pointers to blocks.
-In the TLA-spec, "BlockDigest" will encode this idea, 
-exploithing the fact, that we have a message set
+without including the whole block information, 
+emulating perfect hashing. 
+"BlockDigest" is the encoding of such block digests, 
+exploithing the fact that we have a message set
 of all messages that have been sent by any validator;
-the type alias is `blockDigest`. 
+the type alias is "$blockDigest". 
 
 IMPORTANT
 
-- This is an encoding for ideal hashes (if correct).
-- For correctness, we have to ensure that, indeed, BlockDigest(b)
-  * either identifies a unique block or
-  * none (of interest, as not sent by any Byzantine validatar). 
-
-
-The generation/extraction of blockdigest will be much later,
-after the details about the sent messages. 
+- "BlockDigest"-ing encodes ideal hashes (if correct).
+- For correctness, we have to ensure that, indeed, 
+  "digest(b)" identifies the block $b$.
 *)
 
-\* @typeAlias: blockDigest = {
-\*   creator: BYZ_VAL 
-\*   , 
-\*   rnd:     Int
-\*   , 
-\*   nonce:   Int    
-\*};
+(*
+--- blockDigest ---
+- creator: the creator of the “digested block”
 
-(* BlockDigest is a first approximation of *)
+- rnd: the round of the “digested block”
+
+- nonce: numbering the proposed blocks of malicious validators
+
+@typeAlias: blockDigest = {
+   creator: BYZ_VAL
+   , 
+   rnd:     Int
+   , 
+   nonce:   Int    
+};
+===
+*)
+
+\* @type: Set(Int);
+Nonce == Nat
+
+\* @type: Int;
+THENONCE == 0 \* fixme later by calculating / keeping track of nonces   
+
+(* BlockDigestType is a first over-approximation of "BlockDigest". *)
 \* @type: Set($blockDigest);
 BlockDigestType == [
     \* the creator of a block
@@ -137,11 +154,13 @@ BlockDigestType == [
     \* the round number of the block
     rnd:     Nat
     ,               
-    \* a nonce, to keep track of spurious blocks beyond the first
-    nonce:   Nat    
+    \* a nonce, keeping track of spurious blocks beyond the first / zeroth
+    nonce:   Nat
 ]
 
--------------------------------------------------------------------------- 
+
+
+-----------------------------------------------------------------------------
 
 (***************************************************************************)
 (* "If a block is valid, the other validators store it and acknowledge it  *)
@@ -149,15 +168,17 @@ BlockDigestType == [
 (* identity_." [N&T]                                                       *)
 (***************************************************************************)
 
+
 (*
 In Doris, we deviate from the above/ [N&T].
 
 - batch hashes are not acknowledged indivitually, but, instead
-- batch hashes are acknowledged together with a whole block (header)
+- batch hashes are acknowledged jointly, being only part of a block (header)
 *)
 
 (***************************************************************************)
-(* In most cases, the signature will not be the creator's, but it could be.*)
+(* In most cases, the signature of a block acknowledgement will *)
+(* be from a different validator, i.e., not the creator's. *)
 (*                                                                         *)
 (* We define the set "Ack" as the set of all block acknowledgements,   *)
 (* which are in particular signed by validators.  A correct validator has  *)
@@ -165,16 +186,23 @@ In Doris, we deviate from the above/ [N&T].
 (* retrieval (until garbage collection / execution).                      *)
 (***************************************************************************)
 
-\* "ack", the type of block acknowledgements 
-\* @typeAlias: ack = {
-\*    digest : $blockDigest,
-\*    sig : BYZ_VAL
-\* };
+(* 
+--- ack ---
+- digest: the digest of the acknowledged block
 
+- sig: the signing validator
+===
+@typeAlias: ack = {
+    digest : $blockDigest,
+    sig :    BYZ_VAL
+};
+*)
+
+\* "AckType" is an over-approximation of the set of all block acks.
 \* @type: Set($ack);
 AckType == [
   digest : BlockDigestType, \* the digest of the acknowledged block
-  sig :    ByzValidator \* the the acknowledging signature
+  sig :    ByzValidator \* the signing validator
 ]
 
 -----------------------------------------------------------------------------
@@ -188,22 +216,39 @@ AckType == [
 (* and make explicit that they talk about the same block digest.           *)
 (***************************************************************************)
 
-\* the "Type" of ack quorums
-\* @type: Set(BYZ_VAL -> $blockDigest);
-AckQuorumType == 
-  UNION {[Q -> BlockDigestType] : Q \in ByzQuorum \cup {{}} } 
+(*
+--- digestFamily ---
 
-\* LEMMA \A ax \in AckQuorumType : IsInjective(ax) \* NTH
+“just” an (injective) function from validators to block digests; 
+every element of the domain can be taken to be a signer (if needed)
+
+===
+@typeAlias: digestFamily = 
+  BYZ_VAL -> $blockDigest
+;
+*)
+\* @type: Set($digestFamily);
+AckQuorumType == 
+  UNION {Injection(Q,BlockDigestType) : Q \in ByzQuorum \cup {{}} } 
+
+\* @type: $digestFamily;
+emptyQuorum == CHOOSE f \in Injection({},BlockDigestType) : TRUE
+
+\* @type: $digestFamily;
+emptyLinks == emptyQuorum
 
 (***************************************************************************)
-(* An AckQuorums are certificates of availability (CoA) for a block.  We thus*)
+(* AckQuorums are certificates of availability (CoA) for a block.  We thus *)
 (* define an alias and provide commodity functions for reading the fields  *)
 (* of the contained acknowledgments, which must all agree on the digest,   *)
-(* round, and creator.                                                      *)
+(* round, and creator.                                                     *)
 (***************************************************************************)
 
-Certificate == AckQuorumType
-\* CoA == CertificateOfAvailability
+\* @type: Set($digestFamily);
+CertificateOption == AckQuorumType
+
+\* @type: Set($digestFamily);
+Certificate == CertificateOption \ Injection({},BlockDigestType)
 
 (***************************************************************************)
 (* According to [N&T], a valid block must                                  *)
@@ -212,7 +257,7 @@ Certificate == AckQuorumType
 (*                                                                         *)
 (* 2.  be at the local round r of the ByzValidator checking it;            *)
 (*                                                                         *)
-(* 3.  be at round 0 (genesis), or contain certificates for                *)
+(* 3.  be at round 1 (genesis), or contain certificates for                *)
 (*     at least 2f + 1 blocks of round r-1;                                *)
 (*                                                                         *)
 (* 4.  be the first one received from the creator for round r .            *)
@@ -221,52 +266,75 @@ Certificate == AckQuorumType
 (* [DAG-R].   (coming soon ™) *)
 (***************************************************************************)
 
+CONSTANT
+  \* the maximal number of batches in a block
+  \* @type: Int;
+  BatchMax 
+
+\* ASSUME BatchMax == 1  \* if in doubt
+
+\* @type: Set(Set($batchHash));
+BatchMaxBoundedBatchSubsets == 
+  IF BatchMax < 0 
+  THEN {}
+  ELSE {{}} \cup { Range(f) : f \in [ 1..BatchMax -> BatchHash ] }
 
 
-\* @type: Set($batchHash);
-SomeHx == BatchHash
+\* @type: Set(Set($batchHash));
+SomeHxs == BatchMaxBoundedBatchSubsets
 
-\* @typeAlias: block = {
-\*    creator : BYZ_VAL,            
-\*    rnd :     Int,                     
-\*    bhxs :    $batchHash,                  
-\*    cq :      BYZ_VAL -> $blockDigest,
-\*    wl :      BYZ_VAL -> $blockDigest 
-\* };
+(*
+--- block ---
 
+- creator : the block's creator
+
+- rnd     : the round in which the block is proposed
+
+- bhxs    : the set of batch hashes in the block
+
+- cq      : the certificate quroum    
+
+- wl      : the weak links
+===
+
+@typeAlias: block = {
+    creator : BYZ_VAL,            
+    rnd :     Int,                     
+    bhxs :    Set($batchHash),                  
+    cq :      $digestFamily,
+    wl :      $digestFamily
+};
+*)
 
 \* @type: Set($block);
 BlockType == [ 
   creator : ByzValidator, \* the block proposer \& signer
   rnd :     Nat, \* the round of the block proposal
-  bhxs :    SomeHx, \* the batch hashes of the block
-  cq :      Certificate, \* a CoA-quorum 
+  bhxs :    SomeHxs, \* the batch hashes of the block
+  cq :      CertificateOption, \* a CoA (unless genesis block)
   wl :      [{} -> BlockDigestType] \* weak links (coming soon ™)
 ]
 
-====    ← “Progress Bar END”
+\* @type: $block => $blockDigest;
+digest(block) == 
+  LET
+    \* @type: $block;
+    b == block
+    \* @type: BYZ_VAL;
+    c == b.creator
+    \* @type: Int;
+    i == b.rnd
+    \* @type: Int;
+    n == THENONCE
+  IN
+    [creator |-> c, rnd |-> i, nonce |-> n]
 
-
-BlockStructure ==
-   { b \in BlockStructureType :
-      /\ b.creator = b.sig \* on redundancy: cf. note on signatures
-      /\ \A l \in b.wl : getRnd(l) < b.rnd-1 \* weak (!) links 
-      /\ \/ /\ b.rnd = 0 \* either round zero and
-            /\ b.cq = noCert \* empty domain allowed
-         \/ /\ b.rnd > 0 \* or round non-zero and
-            /\ b.cq # noCert \* a proper certificate
-            /\ \A Q \in DOMAIN b.cq : getRnd(b.cq[Q]) = (b.rnd - 1)
-    }
-
-ASSUMPTION BSA == (Block = BlockStructure)
-
-\* end of "DATA STRUCTURES" 
+\* end of "DATA STRUCTURES"
 -----------------------------------------------------------------------------
 
 (* ------------------------------------------------------------------------*)
 (*                        MESSAGE STRUCTURE                                *)
 (* ----------------------------------------------------------------------- *)
-
 
 (***************************************************************************)
 (* Following                                                               *)
@@ -274,82 +342,92 @@ ASSUMPTION BSA == (Block = BlockStructure)
 (* we keep all (broadcast) messages in a single set.  There are the        *)
 (* following types of message.                                             *)
 (*                                                                         *)
-(* - "batch" broadcast a batch, **from** a worker (to workers of the same  *)
+(* - "Batch" broadcast a batch, **from** a worker (to workers of the same  *)
 (*   index).                                                               *)
 (*                                                                         *)
-(* - "batch-ack" acknowledge a batch (by a worker)                         *)
+(* - "Block" a block creator broadcasts a new block (header)               *)
 (*                                                                         *)
-(* - "block" a block creator broadcasts a new block                        *)
+(* - "Ack" acknowledgment *by* a Validator, having block availble          *)
 (*                                                                         *)
-(* - "block-ack" acknowledgment *by* a Validator, storing a received block *)
-(*                                                                         *)
-(* - "cert" broadcasting a certificate from a validator                    *)
+(* - "Cert" broadcasting a (block) certificate (by a creator)              *)
 (*                                                                         *)
 (* We call a "mirror worker" a worker of the same index at a different     *)
-(* validator.  We assume that clients take care of resubmission of         *)
-(* orphaned transactions.  We assume that clients send a transaction/batch *)
+(* validator.  We assume that clients send a transaction/batch             *)
 (* only to one validator at a time, and only if the transaction gets       *)
-(* orphaned, resubmission is expected.  This assumes that the probability  *)
-(* of orphaned transactions is extremely low.  Correct validators only     *)
-(* make blocks with batches arriving there in the first place (and not     *)
-(* broadcast by workers).                                                  *)
+(* orphaned, inclusion via a weak link is a possibility; *)
+(* we "abuse" weak links for an additional link to the last proposed block.*)
+(*  *)
+(* Correct validators only     *)
+(* make blocks with batches arriving at their workers in the first place.  *)
 (*                                                                         *)
-(* We abstract away all worker-primary communication "inside" validators.  *)
-(* Validators should actually use remote direct memory access.  Further    *)
+(* We abstract away all worker-primary communication "inside" validators;  *)
+(* we have remote direct memory access (RDMA) in mind. *)
+(* Further    *)
 (* refinement could be applied if a message passing architecture was       *)
 (* desired.                                                                *)
 (***************************************************************************)
 
-\* broadcast a fresh "batch" from a "worker" (to mirror workes)
-BatchMessage == [type : {"batch"}, batch : Batch, from : Worker]
+VARIABLE
+  (*
+   --- msg ---
+   
+   - Batch: broadcast a batch 
 
-\* acknowledge a received "batch" (of mirror workes)
-BatchAckMessage == [type : {"batch-ack"}, hx : BatchHash, sig : Worker]
+     - bactch: the batch being broadcast
 
-\* creator produces a block and broadcasts it 
-BlockMessage == [type : {"block"}, block: Block, creator : ByzValidator, nonce: Nat]
+     - from: the sending working
+  
+   «auto-complete plz»
+  
+   ===
+   @typeAlias:msg = 
+     Batch(     {batch : BATCH, from : $worker}                     )|
+     Block(     {block: $block, creator : BYZ_VAL, nonce: Int}      )| 
+     Ack(       {ack : $ack, by : BYZ_VAL}                          )| 
+     Cert(      {digest : $blockDigest, creator : BYZ_VAL} )|
+     Commit(    {digest : $blockDigest }                                 )|
+     Executed(  {digest : $blockDigest }                                 )|
+     Abort(NIL) ; 
+  *)
+  \* @type: Set($msg);
+  msgs
 
+\* Batch():
+\* broadcast a fresh "batch" from a "worker" (to mirror workers)
+\* @type: (BATCH, $worker) => $msg;
+batchMsg(b, w) == 
+  Variant("Batch", [ batch |-> b, from |-> w])
+
+\* Block():
+\* creator produces a block and broadcasts it
+\* @type: ($block, BYZ_VAL, Int) => $msg;
+blockMsg(b, c, n) == 
+  Variant("Block", [block |-> b, creator |-> c, nonce |-> n])
+
+\* Ack():
 \* commmitment "by" a validator to have stored a block 
-BlockAckMessage == [type : {"block-ack"}, ack : Ack, by : ByzValidator]
+\* @type: ($ack, BYZ_VAL) => $msg;
+ackMsg(a, v) == 
+  Variant("Ack", [ack |-> a, by |-> v])
 
 \* creator aggregates quorum of acks into a certificate and broadcasts it
-CertMessage == [type : {"cert"}, cert : Certificate, creator : ByzValidator]
+\* @type: ($blockDigest, BYZ_VAL) => $msg;
+certMsg(d, c) == 
+  Variant("Cert", [digest |-> d, creator |-> c]) 
 
-\* a commit message commits a leader block, sent by consensus layer
-CommitMessage == [type : {"commit"}, b : Block]
+\* Commit():
+\* a commit message commits a leader block (sent by the consensus layer)
+\* @type: ($blockDigest) => $msg;
+commitMsg(d) ==
+  Variant("Commit", [digest |-> d])
 
-\* All messages that can be send between workers/primaries/validators ..
-\* .. and the consensus engine
-Message ==
-    \* broadcast a fresh "batch" from a "worker" (to mirror workes)
-    BatchMessage
-    \cup
-    \* acknowledge a received "batch" (of mirror workes)
-    BatchAckMessage 
-    \cup
-    \* creator produces a block and broadcasts it 
-    BlockMessage 
-    \cup
-    \* commmitment "by" a validator to have stored a block 
-    BlockAckMessage
-    \cup
-    \* creator aggregates acks into a cert and broadcasts it
-    CertMessage
-    \* a commit message commits a leader block, sent by consensus layer
-    \cup
-    CommitMessage
-    
-    
-\* The set of all messages that are sent by workers and primaries
-VARIABLE msgs
-
-\* The rough type of msgs
-msgsTypeOK == msgs \in SUBSET Message 
-
-msgsINIT == msgs = {}
+\* the initial setting for the set of messages
+msgsINIT ==
+  msgs = {}
 
 \* end of "MESSAGE STRUCTURE"
 
+    
 -----------------------------------------------------------------------------
 
 (*-------------------------------------------------------------------------*)
@@ -359,74 +437,71 @@ msgsINIT == msgs = {}
 (***************************************************************************)
 (* The local state of validators and workers at validators is              *)
 (*                                                                         *)
-(* 1. a local round number (corresponding a layer of DAG mempool);         *)
+(* ① a local round number (corresponding a layer of DAG mempool);         *)
 (*                                                                         *)
-(* 2. a worker specific pool of received client batches;                   *)
+(* ② a worker specific pool of received client batches;                   *)
 (*                                                                         *)
-(* 3. a pool of batch hashes to be included in the next block;             *)
+(* ③ a pool of batch hashes to be included in the next block;             *)
 (*                                                                         *)
-(* 4. a local storage for (hashes of) batches;                             *)
+(* ④ a local storage for (hashes of) batches;                             *)
 (*                                                                         *)
-(* 5. a local storage for blocks.                                          *)
+(* ⑤ a local storage for (digests of) block headers                        *)
 (***************************************************************************)
 
 
-\* Each ByzValidator has a local round number (initially 0) 
-VARIABLE rndOf
+\* Each ByzValidator has a local round number (initially 1), cf. ①
+VARIABLE
+  \* @type: BYZ_VAL -> Int;
+  rndOf 
 
-\* The rough type for rndOf
-rndOfTypeOK == rndOf \in [ByzValidator -> Nat]
+\* "assert" INIT => \A v \in ByzValidator : rndOf[v] = 1
+rndOfINIT ==   
+   \A v \in ByzValidator : rndOf[v] = 1
 
-\* "assert" INIT => \A v \in ByzValidator : rndOf[v] = 0
-rndOfINIT ==      \A v \in ByzValidator : rndOf[v] = 0
-
-
-\* Each Worker has a local pool of unprocessed batches (initially {})
-VARIABLE batchPool
-
-\* The rough type for batchPool
-batchPoolTypeOK == batchPool \in [Worker -> SUBSET Batch]
+\* Workers' local pools of batched requests (initially {}), cf. ②
+VARIABLE
+  \* @type: $worker -> Set(BATCH);
+  batchPool 
 
 \* "assert" INIT => \A w \in Worker : batchPool[w] = {}
-batchPoolINIT == \A w \in Worker : batchPool[w] = {}
+batchPoolINIT == 
+  \A w \in Worker : batchPool[w] = {}
 
-
-
-\* Primaries have pools of hashes for the next block (initially {}) 
-VARIABLE nextHx
-
-\* The rough type of nextHx
-nextHxTypeOK == nextHx \in [Primary -> SomeHx]
+\* Primaries' pools of hashes for the next block (initially {}), cf. ③
+VARIABLE
+  \* @type: BYZ_VAL -> Set($batchHash);
+  nextHx
 
 \* "assert" INIT => \A p \in Primary : nextHx[p] = {}
-nextHxINIT == \A p \in Primary : nextHx[p] = {}
+nextHxINIT == 
+  \A p \in Primary : nextHx[p] = {}
 
-
-\* Each ByzValidator has storage for batch hashes (initially {})
-VARIABLE storedHx
-
-\* The rough type of storedHx
-storedHxTypeOK == storedHx \in [ByzValidator -> SUBSET BatchHash]
+\* Primaries' stored batch hashes for availability (initially {}), cf. ④
+VARIABLE
+  \* @type: BYZ_VAL -> Set($batchHash);
+  storedHx
 
 \* "assert" INIT => \A v \in ByzValidator : storedHx[v] = {}
-storedHxINIT == \A v \in ByzValidator : storedHx[v] = {}
+storedHxINIT == 
+  \A v \in ByzValidator : storedHx[v] = {}
 
-
-\* Each ByzValidator has storage for blocks (initially {}) 
-VARIABLE storedBlx
-\* The rough type of storedBlx
-storedBlxTypeOK == storedBlx \in [ByzValidator -> SUBSET Block]
+\* Each ByzValidator has storage for blocks (initially {}), cf. ⑤ 
+VARIABLE
+  \* @type: BYZ_VAL -> Set(<<$block,Bool>>);
+  storedBlx
 
 \* "assert" INIT => \A v \in ByzValidator : storedBlx[v] = {}
-storedBlxINIT == \A v \in ByzValidator : storedBlx[v] = {}
+storedBlxINIT == 
+  \A v \in ByzValidator : storedBlx[v] = {}
 
 \* The combined INIT-predicate concerning the local state
+\* @type: Bool;
 LocalStateINIT ==
-  /\ rndOfINIT \* 1.
-  /\ batchPoolINIT \* 2. 
-  /\ nextHxINIT \* 3. 
-  /\ storedHxINIT \* 4. 
-  /\ storedBlxINIT  \* 5. 
+  /\ rndOfINIT \* ①
+  /\ batchPoolINIT \* ②
+  /\ nextHxINIT \* ③ 
+  /\ storedHxINIT \* ④ 
+  /\ storedBlxINIT  \* ⑤ 
 
 \* end of "LOCAL STATE"
 
@@ -436,9 +511,100 @@ vars == <<msgs, rndOf, batchPool, nextHx, storedHx, storedBlx>>
   (*************************************************************************)
   (* It is convenient to have a shorthand for all variables in a spec.     *)
   (*************************************************************************)
+
+allBUTmsgsNbatchPoolNnextHxNstoredHx == 
+  <<rndOf, storedBlx>>
+
+allBUTbatchPoolNnextHx ==
+  <<msgs, rndOf, storedHx, storedBlx>>
+
+allBUTmsgsNnextHx ==  
+  <<rndOf, batchPool, storedHx, storedBlx>>
+
+allBUTstoredHx == 
+  <<msgs, rndOf, batchPool, nextHx, storedBlx>>
+
+allBUTmsgsNstoredBlx == 
+  <<rndOf, batchPool, nextHx, storedHx>>    
+
+allBUTrndOf == 
+  <<msgs, batchPool, nextHx, storedHx, storedBlx>>
+
+\* @type: Int;
+maxRound == 
+  CHOOSE n \in Range(rndOf) : n+1 \notin Range(rndOf)
+
+\* @type: Set($blockDigest);
+BlockDigest == 
+  { d \in BlockDigestType : 
+            /\ d.rnd <= maxRound+1
+            /\ TRUE
+  }
+
+\* @type: Set($block);
+Block ==
+    { b \in BlockType : 
+            /\ b.rnd <= maxRound+1
+            /\ TRUE
+    }
+
+\* @type: (BYZ_VAL, Int) => Set($block);
+proposedBlocksByValidatorInRound(validator, r) == 
+  LET
+    c == validator
+  IN
+  { b \in Block : 
+      /\ b.rnd = r
+      /\ \E n \in Nonce : 
+            LET
+              \* @type: $msg;
+              m == Variant("Block", [block |-> b, creator |-> c, nonce |-> n])
+            IN
+              m \in msgs
+  }
+  
+\* @type: (BYZ_VAL) => Set($block);
+proposedBlocksByValidator(validator) == 
+  LET
+    c == validator
+  IN
+  { b \in Block : 
+       \E n \in Nonce : 
+          LET
+            \* @type: $msg;
+            m == Variant("Block", [block |-> b, creator |-> c, nonce |-> n])
+          IN
+            m \in msgs
+  }
+
+\* @type: Set($block);
+proposedBlocks == 
+  UNION { proposedBlocksByValidator(c) : c \in ByzValidator } 
+
+\* @type: (Int) => Set($block);
+proposedBlocksInRound(r) == 
+   { b \in proposedBlocks : b.rnd = r }
+
+\* @type: Set($msg);
+allAckMsgs ==
+  { m \in msgs : VariantTag(m) = "Ack" }
+
+\* @type: ($blockDigest) => Set($ack);
+acksOfDigest(dgst) == 
+  LET
+    \* the digest of interest
+    \* @type: $blockDigest;
+    d == dgst
+  IN LET
+    \* extract all acks
+    allAcks ==
+      { VariantGetUnsafe("Ack", m).ack : m \in allAckMsgs}
+  IN
+    \* the set of 
+    {a \in allAcks : a.digest = d}
+
+    
 -----------------------------------------------------------------------------
-
-
 (***************************************************************************)
 (*                             ACTIONS                                     *)
 (***************************************************************************)
@@ -447,59 +613,46 @@ vars == <<msgs, rndOf, batchPool, nextHx, storedHx, storedBlx>>
 (***************************************************************************)
 (* We will specify the following actions.                                  *)
 (*                                                                         *)
-(* - [Batch arrival (no message, combined with 'BatchBC')]:                *)
+(* - [NOT Batch arrival (no message, combined with 'BatchBC')]:            *)
 (*                                                                         *)
-(*   A new **batch** btch arrives at a **worker** wrkr and is included     *)
+(*   A new **batch** arrives at a **worker** and is included               *)
 (*   into the worker's batchPool. The arriving batch might already be      *)
-(*   "known" and/or been submitted to other workers, .e.g., if clients     *)
-(*   "misbehave". (Recall that we assume that clients submit their         *)
-(*   (batches of) transactions to only one worker.)  Resubmission of an    *)
-(*   orphaned batch is a case, which we do not put particular attention    *)
-(*   to (yet). We postulate that at most one "copy" of a batch will be     *)
-(*   included within a block. We combine batch arrival with the next type  *)
-(*   of action (for the sake of simplicity).                               *)
+(*   "known" and/or been submitted to other workers, e.g., if clients      *)
+(*   "misbehave". (Recall that, ideally, clients submit their         *)
+(*   transactions to only one worker.) *)
+(*   We combine batch arrival with broadCasting a batch. *)
+(*   (The action of batch arrival is strictly local to the worker.)        *)
 (*                                                                         *)
-(* - Batch broadcast 'BatchBC' (message "batch"):                          *)
+(* - Batch broadcast "BatchBC" (message "Batch"):                          *)
 (*                                                                         *)
-(*   A worker 2. broadcasts the                                            *)
-(*   batch; then it has to wait for acknowledgements.                      *)
+(*   A worker broadcasts the                                               *)
+(*   batch, stores it, and forwards it to its primary for block inclusion. *)
 (*                                                                         *)
-(* - Batch receive, store, hash, ack  'BatchAck' (message "batch-ack"):    *)
+(* - Batch receive, store, hash "StoreBatch" (NO message ):    *)
 (*                                                                         *)
 (*   Reception of a batch, storing and hashing such that later blocks can  *)
-(*   be validated and acknowledgements the primary. Finally, a             *)
-(*   "batch-ack" for the received batch is sent.                           *)
+(*   be validated and acknowledged by the primary.                         *)
 (*                                                                         *)
-(* - Batch ready for block inclusion 'BatchReady' (internal to validator)  *)
-(*                                                                         *)
-(*   A worker collects acks of a batch, removes it from its "queue", and   *)
-(*   puts the batch hash in the primary's pool for the next block.         *)
-(*                                                                         *)
-(*   "[A] worker [...] creates a batch of transactions, and sends it to the*)
-(* [mirror] worker node of each of the other validators; once an           *)
-(* [ack]nowledgment has been received by a quorum of these, the            *)
-(* cryptographic hash of the batch is shared with the primary of the       *)
-(* validator for inclusion in a block." [N&T]                              *)
-(*                                                                         *)
-(* - Block production and broadcast 'BlockBC' (message "block"):           *)
+(* - Block production and broadcast "BlockBC" (message "Block"):           *)
 (*                                                                         *)
 (*   A primary builds a block from enough certificates of availability     *)
 (*   and batch hashes provided by its workers and broadcasts the           *)
 (*   block. "One primary integrates references to [batches] in Mempool     *)
 (*   primary blocks."  [N&T]                                               *)
 (*                                                                         *)
-(* - Block acknowledgement 'BlockAck' (message "block-ack")                  *)
+(* - Block acknowledgement "Ack" (message "Ack")                           *)
 (*                                                                         *)
-(*   Receive a block, check its validity, store it, acknowledge it.        *)
+(*   Receive a block, check its validity, store it, Ack()acknowledge it.   *)
 (*                                                                         *)
-(* - Certificate broadcats 'CertBC' (message "cert")                       *)
+(* - Certificate broadcats "CertBC" (message "Cert")                       *)
 (*                                                                         *)
-(*   Take enough acknowledgements of a proposed block, aggregate into a    *)
-(*   ceritificat, and broadcast the certificate.                           *)
+(*   Take an acknowledgement quorum of a proposed block, aggregate it     *)
+(*   into a ceritificate, and broadcast the certificate.                   *)
 (*                                                                         *)
-(* - Advancing the local round 'AdvanceRound' (no message)                 *)
+(* - Advancing the local round 'AdvanceRound' (NO message)                 *)
 (*                                                                         *)
-(*   A validator receives enough certificates to move to the next round.   *)
+(*   A validator moves to the next round,  *)
+(*   after receiving a quorum of block certificates. *)
 (***************************************************************************)
 
 
@@ -511,96 +664,316 @@ vars == <<msgs, rndOf, batchPool, nextHx, storedHx, storedBlx>>
 (* taken from `^\href{https://tinyurl.com/2dyuzs6y}{Paxos.tla}^'           *)
 (***************************************************************************)
 
-\* sending a message will only be used as "part of" a "full" action 
-\* ... and thus no UNCHANGED 
-Send(m) == msgs' = msgs \cup {m}
+\* SUB-ACTION "Send":
+\*   sending a message will only be used as "part of" a "full" action
+\* ... and thus no UNCHANGED
+\* 
+\* ¡msgs
+\* @type: ($msg) => Bool; 
+Send(message) == 
+  LET
+    \* type: $msg;
+    m == message
+  IN
+  msgs' = msgs \cup {m} 
 
-\* ACT "BatchBC", broadcasting a new batch 'b' arriving at a worker 'w'
-BatchBC(b, w) ==
-  \* "trivial" precondition (checking the typing)
+\* ACTION "BatchBC":
+\*   broadcasting a new batch, triggerd by “incoming” request(s)
+\*   and putting it in the hash storage and primary's pool of next hashes
+\* 
+\* ¡msgs, ¡batchPool, ¡nextHx, ¡storedHx
+\* @type: (BATCH, $worker) => Bool; 
+BatchBC(batch, worker) ==
+  LET
+    \* @type: BATCH;
+    b == batch 
+    \* @type: $worker;
+    w == worker
+    \* @type: BYZ_VAL;
+    p == worker.val
+  IN
+  \* "trivial" pre-condition (checking the typing)
   /\ b \in Batch
   /\ w \in Worker
-  \* postcondition: add the batch the the batch pool of w
-  /\ batchPool' = [batchPool EXCEPT ![w] = @ \cup {b}]
-  \* broadcast the batch {changes the variable set of messages 'msgs'}
-  /\ Send([type |-> "batch", batch |-> b, from |-> w])               
-  /\ UNCHANGED <<rndOf, nextHx, storedHx, storedBlx>>  
+  \* post-condition: add the batch the the batch pool of w
+  /\ batchPool' = \* ¡batchPool
+       [batchPool EXCEPT ![w] = @ \cup {b}] 
+  /\ nextHx' = \* ¡nextHx
+       [nextHx EXCEPT ![p] = @ \cup {hash(b)}] 
+  /\ storedHx' = \* ¡storedHx
+       [storedHx EXCEPT ![p] = @ \cup {hash(b)}] 
+  \* broadcast the batch 
+  /\ Send(batchMsg(b,w)) \* ¡msgs
+  /\ UNCHANGED allBUTmsgsNbatchPoolNnextHxNstoredHx
 
-\* ACT "BatchAck", receiving and acknowledging a batch
-BatchAck(w) == 
-  /\ \E m \in msgs : \E h \in BatchHash :
-        \* precondition
-        /\ m.type = "batch" \* somebody sent a "batch" message ..
-        /\ h = hash[m.batch] \* .. whose batch hash we call h, s.t., ..
-        /\ h \notin storedHx[w.val] \* .. the batch is not stored (yet)
-        \* postcondition
-        \* store batch
-        /\ storedHx' = [storedHx EXCEPT ![w] = @ \cup {h}]  
-        \* send ack
-        /\ Send([type |-> "batch-ack", hx |-> h, sig |-> w]) 
-  /\ UNCHANGED <<rndOf, batchPool, nextHx, storedBlx>>
-
-\* ACT "BatchReady" a batch is ready for block inclusion
-BatchReady(w) == 
+\* ACTION "StoreBatch": 
+\*   store a received Batch 
+\*
+\* ¡storedHx, 
+\* @type: (BATCH, $worker) => Bool;
+StoreBatch(batch, worker) ==
+  LET
+    \* @type: BATCH;
+    b == batch 
+    \* @type: $worker;
+    w == worker
+    \* @type: BYZ_VAL;
+    p == worker.val
+  IN
+  \* "typing"
+  /\ b \in Batch
   /\ w \in Worker
-  /\ \E b \in Batch : \E Q \in ByzQuorum : \E f \in [Q -> BatchAckMessage] :
-     \* precondition
-     \* the chosen quorum consists of signerns of the batch 'b'
-     /\ \A q \in Q : 
-        /\ f[q].sig = q \* thus injective
-        /\ f[q].hx = hash[b]
-     \* the batch is in the pool of worker w 
-     /\ b \in batchPool[w] \* check that I am actually responsible
-     \* postcondition
-     \* add hash to primary's set of next hashes
-     /\ nextHx' = [nextHx EXCEPT ![w.val] = @ \cup {hash[b]}]
-     \* worker 'w' *transfers* the batch (hash) to the primary
-     \* .. preventing the "same" batch to be included in multiple blocks
-     /\ batchPool' = [batchPool EXCEPT ![w] = @ \ { b } ] 
-  /\ UNCHANGED <<msgs, rndOf, storedHx, storedBlx>>
+  \* pre-condition:
+  \* some other worker has sent this batch
+  /\ \E ww \in Worker \ {w}: batchMsg(b,ww) \in msgs
+  \* post-condition: add the batch hash to the set of known hashes
+  /\ storedHx' = [storedHx EXCEPT ![p] = @ \cup {hash(b)}]
+  \* we elide the details of storing the actual batch for availability
+  /\ UNCHANGED allBUTstoredHx \* end of action StoreBatch
 
-\* A validator produces a block and broadcasts it
-GenesisBlockBC(v) ==
-  \* typing precondition
-  /\ v \in ByzValidator
-  \* precondition
-  /\ rndOf[v] = 0 \* at local round 0
+\* @type: (BYZ_VAL, Int) => Set($block);
+currentBlocksProduced(creator, nonce) == 
+  LET
+    \* @type: BYZ_VAL;
+    c == creator
+    \* @type: Int;
+    n == nonce
+    \* @type: Set($msg);
+    allBroadcastMessages == 
+      { m \in msgs : VariantTag(m) = "Block" } 
+  IN LET
+    \* @type: Set({block: $block, creator : BYZ_VAL, nonce: Int});
+    data == 
+      { VariantGetUnsafe("Block", m) : m \in allBroadcastMessages } 
+  IN LET
+    \* @type: Set({block: $block, creator : BYZ_VAL, nonce: Int});
+    filteredData == 
+      { x \in data : /\ x.creator = c
+                     /\ x.nonce = n
+      }
+  IN { x.block : x \in filteredData }
+
+\* "fetchBlock" yields a block (or **should** raise an error)---
+\* based on the messages sent (i.e., present in the variable "msg")
+\* @type: $blockDigest => $block;
+fetchBlock(dgst) == 
+  LET
+    \* @type: Set($block);
+    allPossibleBlocks == currentBlocksProduced(dgst.creator, dgst.nonce)
+  IN LET
+    \* @type: Set($block);
+    candidates == {c \in allPossibleBlocks : c.rnd = dgst.rnd}
+  IN
+    extract(candidates)
+
+\* ACTION GenesisBlockBC [instance of BlockBC]:
+\*  a validator produces a genesis block and broadcasts it
+\* @typing: BYZ_VAL => Bool;
+GenesisBlockBC(validator) ==
+  LET
+    \* @type: BYZ_VAL;
+    v == validator
+  IN
+  \* pre-condition
+  /\ rndOf[v] = 1 \* validator has local round 1
   \* 
-  /\ \E b \in Block : \* "construct" a block of the desired shape
+  /\ \E b \in BlockType : \* "construct" a block of the desired shape
      /\ b.creator = v
-     /\ b.rnd = 0
-     /\ b.bhxs \subseteq nextHx[v]
-     /\ (v \in Validator => b.bhxs = nextHx[v]) 
-     /\ b.cq = noCert
-     /\ b.wl = noLinks
-     \* postcondition
+     /\ b.rnd = 1
+     /\ b.bhxs = nextHx[v] 
+     /\ b.cq = emptyQuorum
+     /\ b.wl = emptyLinks
+     \* post-condition
      \* send the block
-     /\ Send([type |-> "block", block |-> b, creator |-> v])
+     /\ Send(blockMsg(b, v, THENONCE)) \* ¡msgs
      \* empty v's nextHx (for validators)
-     /\ (v \in Validator => nextHx' = [nextHx EXCEPT ![v] = {} ])
-     \* Byzantine validators might drop some hashes, typically none 
-     /\ \E X \in SUBSET nextHx[v] : 
-          nextHx' = [nextHx EXCEPT ![v] = @ \ X ]
-  /\ UNCHANGED <<rndOf, batchPool, storedHx, storedBlx>>
+     /\ nextHx' = \* ¡nextHx
+          [nextHx EXCEPT ![v] = {}] 
+  /\ UNCHANGED allBUTmsgsNnextHx \* end of action "GenesisBlockBC"
 
-\* A certificate c : Q -> Ack is _justified_ if all "block-ack"s were sent
-IsJustifiedCert(c) ==
-  /\ c \in Certificate  \* aka AckQuorum
-  /\ \A a \in Range(c) : \E m \in Message :
-     /\ m.type = "block-ack" \*  block-ack 
-     /\ m.ack = a \* the ack was sent
-\* LEMMA "if block-ack sent, everything else necessary was sent" NTH!
+
+\* @type: ($block, BYZ_VAL) => Bool;
+validBlock(block, validator) == 
+  LET 
+    \* the block in question
+    \* @type: $block;
+    b == block
+    \* the validator checking the validity
+    \* @type: BYZ_VAL;
+    v == validator 
+  IN
+     \* the round must be a positive natural number
+  /\ b.rnd > 0 \*
+     \* batch hashes stored (always needed)
+  /\ b.bhxs \subseteq storedHx[v]
+     \* if block is at genesis, 
+  /\ b.rnd = 1 => \* then …
+          \* no back links
+       /\ DOMAIN b.cq = {} 
+          \* no weak links
+       /\ DOMAIN b.wl = {} 
+     \* if non-genesis bloc, 
+  /\ b.rnd > 1 => \* then
+       /\ TRUE \* FIXME 
+       /\ TRUE \* FIXME 
+
+AVL == FALSE
+COA == TRUE
+
+\* ACTION Ack:
+\*   Receive a block, check its validity, store it, Ack()acknowledge it.
+\*
+\* ¡msgs, ¡storedBlx
+\* @type: (BYZ_VAL, $block) => Bool;
+Ack(validator, block) == 
+  LET
+    \* @type: BYZ_VAL;
+    v == validator
+    \* @type: $block; 
+    b == block 
+  IN LET
+    \* @type: $blockDigest;
+    d == digest(b)
+  IN LET
+    \* @type: $ack;
+    a == [digest |-> d, sig |-> v]
+  IN
+  \* typing of v (for TLC)
+  /\ v \in ByzValidator
+  \* pre-condition:
+     \* check that block b was proposed
+  /\ b \in proposedBlocks 
+     \* check that b is valid (according to v)
+  /\ validBlock(b, v) \* 
+     \* check that b has neither available (nor certified)
+  /\ << b, AVL >> \notin storedBlx[v]
+  /\ << b, COA >> \notin storedBlx[v]  
+  \* post-condition:
+     \* send the acknowledgement 
+  /\ Send(ackMsg(a, v)) \* ¡msgs
+     \* store the block as "available" (but not certified)
+  /\ storedBlx' = \* ¡storedBlx
+       [storedBlx EXCEPT ![v] = @ \cup {<<b, AVL>>}] 
+  /\ UNCHANGED allBUTmsgsNstoredBlx
+
+\* ACTION CertBC:
+\*   broadcast a certificate of availability of (the digest of) a block 
+\* @type: ($blockDigest) => Bool;
+CertBC(dgst) ==
+  LET
+    \* the block digest to be certified
+    \* @type: $blockDigest;
+    d == dgst
+  IN
+  \* typing 
+  /\ dgst \in BlockDigest
+  \* pre-condition
+  /\ \E Q \in ByzQuorum : 
+        LET
+          theAcks == 
+            {a \in acksOfDigest(d) : a.sig \in Q }
+        IN
+        /\ Q \subseteq { a.sig : a \in theAcks }
+     \* post-condition
+        /\ \* send the certificate
+           LET
+             \* @type: BYZ_VAL;
+             theCreator == d.creator
+           IN Send(certMsg(d, theCreator)) \* ¡msgs
+           \* update *all* storages, s.t., the block is certified
+        /\ LET 
+             b == fetchBlock(d)
+           IN storedBlx' = \* ¡storedBlx
+                [v \in ByzValidator |-> storedBlx[v] \cup {<< b, COA >>}] 
+  /\ UNCHANGED allBUTmsgsNstoredBlx
+
+\* @type: (BYZ_VAL, Int) => Set($block);
+eligibleBlocks(v, r) == 
+      { b \in Block : 
+          /\ b.rnd = r - 1
+          /\ << b, COA >> \in storedBlx[v]
+      }
+
+
+\* ACTION AfterGenesisBlockBC [instance of BlockBC]:
+\*  a validator produces a block, after genesis, and broadcasts it
+\* @typing: BYZ_VAL => Bool;
+AfterGenesisBlockBC(validator) ==
+  LET
+    \* @type: BYZ_VAL;
+    v == validator   
+    r == rndOf[v]
+  IN LET
+    \* @type: Set(BYZ_VAL);
+    certifiedProposers == 
+      { b.creator : b \in eligibleBlocks(v,r) }
+  IN
+  \* pre-condition
+     \* validator has advanced to a non-genesis round
+  /\ rndOf[v] > 1 
+     \* no block proposed yet
+  /\ proposedBlocksByValidatorInRound(v, rndOf[v]) = {}
+     \* there exists a quorum of certified block in the previous round
+  /\ \E Q \in ByzQuorum \cap SUBSET certifiedProposers : 
+       LET 
+         \* @type: Set($block);
+         relevantBlocksByQ == 
+           { b \in eligibleBlocks(v,r) : b.creator \in Q }
+       IN LET
+         \* @type: $block;
+         theBlock == [
+             creator |-> v, 
+             rnd |-> rndOf[v],
+             bhxs |-> nextHx[v],
+             cq |-> [q \in Q |-> 
+                       digest(CHOOSE b \in eligibleBlocks(v,r) : b.creator = q)
+                    ], 
+             wl |-> emptyLinks
+           ]
+       IN 
+       \* post-condition
+           \* send the block
+         /\ Send(blockMsg(theBlock, v, THENONCE)) \* ¡msgs
+         \* empty v's nextHx (for validators)
+         /\ nextHx' = \* ¡nextHx
+              [nextHx EXCEPT ![v] = {}] 
+  /\ UNCHANGED allBUTmsgsNnextHx \* end of action "GenesisBlockBC"
+
+BlockBC(validator) == 
+  \/ GenesisBlockBC(validator)
+  \/ AfterGenesisBlockBC(validator)
+    
+AdvanceRound(validator) == 
+  LET
+    X == { b.creator :  b \in eligibleBlocks(validator, rndOf[validator]+1) }
+  IN 
+  \* pre-condition:
+      \* enough block available
+  /\ \E Q \in ByzQuorum \cap SUBSET X : TRUE
+  /\ rndOf' = [rndOf EXCEPT ![validator] = @ + 1]
+  /\ UNCHANGED allBUTrndOf
+
+====
+\* ≡≡≡≡≡≡≡ ← progress bar    
+--------------------------------------------------------------------------------
 
 \* what's a proper quorum of certificates in (local) round r?
 \* - must be at round r-1
 \* - all certificates justified
-IsProperCertQuorumAt(cq, r) == 
+\* @type: ($digestFamily, Int) => Bool;
+IsProperCertQuorumAtRound(certificateQuorum, round) == 
+  LET
+    \* @type: $digestFamily;
+    cq == certificateQuorum
+    \* @type: Int;
+    r == round
+  IN
   \* the round is the previous round
-  /\ \A v \in DOMAIN cq :
+  /\ \A v \in DOMAIN cq : 
       /\ getRnd(cq[v]) = r - 1
       /\ IsJustifiedCert(cq[v])
 
-
+====
 \* what's a proper collection of weak links
 AreProperWeakLinks(wl, r) == 
   /\ wl \in WeakLinks
@@ -609,9 +982,9 @@ AreProperWeakLinks(wl, r) ==
 
 GeneralBlockBC(v) ==
   /\ v \in ByzValidator
-  \* precondition
-  /\ rndOf[v] > 0 \* at local round > 0
-  \* postcondition
+  \* pre-condition
+  /\ rndOf[v] > 1 \* at local round > 1
+  \* post-condition
   /\ \E cs \in CertQuorum : \E ws \in WeakLinks : \E b \in Block : 
      \* "construct" proper cert quorum
      /\ IsProperCertQuorumAt(cs, rndOf[v])
@@ -649,7 +1022,7 @@ HasBlockHashesStored(block, val) ==
 BlockAck(v) ==
     /\ v \in ByzValidator
     /\ \E b \in Block : \E w \in ByzValidator : 
-       \* precondition
+       \* pre-condition
        \* v doesn't know the block yet
        /\ b \notin storedBlx[v] 
        \* block was proposed
@@ -668,16 +1041,16 @@ BlockAck(v) ==
          /\ a.sig = v
          \* .. to send
          /\ Send([type |-> "block-ack", ack |-> a, by |-> v])
-    /\ UNCHANGED <<msgs, batchPool, nextHx, storedHx, storedBlx>>
+    /\ UNCHANGED <<msgs, batchPool, nextHx, storedHx, storedBlx>> 
 
 
 \* ACT 'CertBC' Broadcast a Certificate
 CertBC(v) ==
   /\ v \in ByzValidator
   /\ \E c \in Certificate : 
-     \* precondition/test
+     \* pre-condition/test
      /\ IsJustifiedCert(c)      
-     \* postcondition/effect (based on witness for \E c : ...)
+     \* post-condition/effect (based on witness for \E c : ...)
      /\ Send([type |-> "cert", cert |-> c, creator |-> v])
   /\ UNCHANGED <<rndOf, batchPool, nextHx, storedHx, storedBlx>>
 
@@ -694,9 +1067,9 @@ CertQuorumAdvancesValRnd(c, v) ==
 
 \* ACT 'AdvanceRound'
 AdvanceRound(v) ==
-  \* precondition: existence of enough "cert" messages 
+  \* pre-condition: existence of enough "cert" messages 
   /\ \E c \in CertQuorum : CertQuorumAdvancesValRnd(c, v)
-  \* postcondition 
+  \* post-condition 
   /\ rndOf' = [rndOf EXCEPT ![v] = @ + 1]
   /\ UNCHANGED <<msgs, batchPool, nextHx, storedHx, storedBlx>>
 
@@ -810,7 +1183,7 @@ WaveLengthTimesNat == { n \in Nat : \E i \in Nat : n = WaveLength * i }
 CommitBlock(b) == 
   \* type check
   /\ b \in Block
-  \* precondition(s)
+  \* pre-condition(s)
   /\ b.rnd \in WaveLengthTimesNat
   \* not yet committed any block at the round
   /\ ~\E m \in msgs : m.type = "commit" /\ m.block.rnd = b.rnd
@@ -818,6 +1191,9 @@ CommitBlock(b) ==
   /\ Send([type |-> "commit", block |-> b])
   /\ UNCHANGED <<rndOf, batchPool, nextHx, storedHx, storedBlx>>
 
+
+\* ACTION "Ack"
+\*   store a block and send "Ack" message (to creator)
 -----------------------------------------------------------------------------
 
 (***************************************************************************)
@@ -870,3 +1246,19 @@ IsCommitted(b) ==
 (***************************************************************************)
 =============================================================================
 
+(* 
+    "Block" is the set of all possible blocks,
+    relative to the current system state. 
+*)
+\* @type: Set($block);
+Block == 
+  { b \in BlockType : 
+        \* either a genesis block
+        /\ b.rnd = 1 => DOMAIN b.cq = {}                                  
+        \* or a positive round number
+        /\ b.rnd > 1 => /\ DOMAIN b.cq \in ByzQuorum                
+                        /\ TRUE \* lots of other things            
+  }    
+
+
+====
