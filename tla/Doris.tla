@@ -1,6 +1,5 @@
 ---------------------------- MODULE Doris -----------------------------------
-(* NOTES / TODOs *)
-\* - check that correct validators increment their local round number ASAP
+
 
 (***************************************************************************)
 (* Doris is a DAG mempool similar to the Narwhal mempool with Tusk playing *)
@@ -589,16 +588,17 @@ proposedBlocksInRound(r) ==
 allAckMsgs ==
   { m \in msgs : VariantTag(m) = "Ack" }
 
+\* @type: Set($ack);
+allAcks ==
+  { VariantGetUnsafe("Ack", m).ack : m \in allAckMsgs}    
+
+
 \* @type: ($blockDigest) => Set($ack);
 acksOfDigest(dgst) == 
   LET
     \* the digest of interest
     \* @type: $blockDigest;
     d == dgst
-  IN LET
-    \* extract all acks
-    allAcks ==
-      { VariantGetUnsafe("Ack", m).ack : m \in allAckMsgs}
   IN
     \* the set of 
     {a \in allAcks : a.digest = d}
@@ -792,6 +792,13 @@ GenesisBlockBC(validator) ==
   /\ UNCHANGED allBUTmsgsNnextHx \* end of action "GenesisBlockBC"
 
 
+\* predicate for checking the storage
+\* @type: ($block, BYZ_VAL) => Bool;
+HasBlockHashesStored(block, val) ==
+ \* we know all batches
+ \A h \in block.bhxs : h \in storedHx[val]
+    
+
 \* @type: ($block, BYZ_VAL) => Bool;
 validBlock(block, validator) == 
   LET 
@@ -814,7 +821,7 @@ validBlock(block, validator) ==
        /\ DOMAIN b.wl = {} 
      \* if non-genesis bloc, 
   /\ b.rnd > 1 => \* then
-       /\ TRUE \* FIXME 
+       /\ HasBlockHashesStored(b, v)
        /\ TRUE \* FIXME 
 
 AVL == FALSE
@@ -888,7 +895,7 @@ CertBC(dgst) ==
   /\ UNCHANGED allBUTmsgsNstoredBlx
 
 \* @type: (BYZ_VAL, Int) => Set($block);
-eligibleBlocks(v, r) == 
+preceedingBlocks(v, r) == 
       { b \in Block : 
           /\ b.rnd = r - 1
           /\ << b, COA >> \in storedBlx[v]
@@ -906,8 +913,11 @@ AfterGenesisBlockBC(validator) ==
   IN LET
     \* @type: Set(BYZ_VAL);
     certifiedProposers == 
-      { b.creator : b \in eligibleBlocks(v,r) }
+      { b.creator : b \in preceedingBlocks(v,r) }
   IN
+  \* type check:
+     \* it's a validator
+  /\ v \in ByzValidator
   \* pre-condition
      \* validator has advanced to a non-genesis round
   /\ rndOf[v] > 1 
@@ -918,7 +928,7 @@ AfterGenesisBlockBC(validator) ==
        LET 
          \* @type: Set($block);
          relevantBlocksByQ == 
-           { b \in eligibleBlocks(v,r) : b.creator \in Q }
+           { b \in preceedingBlocks(v,r) : b.creator \in Q }
        IN LET
          \* @type: $block;
          theBlock == [
@@ -926,7 +936,7 @@ AfterGenesisBlockBC(validator) ==
              rnd |-> rndOf[v],
              bhxs |-> nextHx[v],
              cq |-> [q \in Q |-> 
-                       digest(CHOOSE b \in eligibleBlocks(v,r) : b.creator = q)
+                       digest(CHOOSE b \in preceedingBlocks(v,r) : b.creator = q)
                     ], 
              wl |-> emptyLinks
            ]
@@ -943,19 +953,81 @@ BlockBC(validator) ==
   \/ GenesisBlockBC(validator)
   \/ AfterGenesisBlockBC(validator)
     
+\* AdvanceRound:
+\*   correct validators can increment their local round number 
+\*   as soon as they have a quorum of CoA for blocks of the previous round 
+\* @type: (BYZ_VAL) => Bool;
 AdvanceRound(validator) == 
   LET
-    X == { b.creator :  b \in eligibleBlocks(validator, rndOf[validator]+1) }
+    X == 
+      {b.creator : b \in preceedingBlocks(validator, rndOf[validator]+1)}
   IN 
   \* pre-condition:
       \* enough block available
   /\ \E Q \in ByzQuorum \cap SUBSET X : TRUE
+  \* post-condition
   /\ rndOf' = [rndOf EXCEPT ![validator] = @ + 1]
   /\ UNCHANGED allBUTrndOf
 
-====
-\* ≡≡≡≡≡≡≡ ← progress bar    
---------------------------------------------------------------------------------
+-----------------------------------------------------------------------------
+(***************************************************************************)
+(*                          DAG STRUCTURE                                  *)
+(***************************************************************************)
+
+(* We define several auxiliary predicates .                                *)
+(*                                                                         *)
+(* - 'linksTo',                                                            *)
+(*   the relation of direct links in the mempool DAG                       *)
+(*                                                                         *)
+(* - 'IsCertifiedBlock',                                                   *)
+(*   the predicate for checking if a block is certified                    *)
+(*                                                                         *)
+(* - 'CertifiedBlocks',                                                    *)
+(*   the set of all blocks that are certified via 'IsCertifiedBlock'       *)
+(*                                                                         *)
+(***************************************************************************)
+
+\* the relation of direct links between blocks 
+\* @type: ($block, $block) => Bool;
+linksTo(b, y) ==
+  \* type checks
+  /\ b \in Block
+  /\ y \in Block
+  \* the certificate list of block b contains digest of y
+  /\ \E c \in Range(b.cq) : 
+     LET 
+       \* @type: $block;
+       blockOfC == fetchBlock(c)
+     IN 
+       blockOfC = y
+
+
+\* checking whether a digest is supported via messages
+\* @type: ($blockDigest) => Bool;
+IsSupportedDigest(dgst) == 
+  \E v \in ByzValidator : 
+        \* the digest was sent by v in a certMessage and …
+     /\ certMsg(dgst, v) \in msgs 
+        \* …, in turn, the certMessage was justified
+     /\ LET
+          relevantAcks == { a \in allAcks : a.digest = dgst }
+        IN LET
+          allSupporters == { a.sig : a \in relevantAcks }
+        IN 
+          \E X \in ByzQuorum \cap SUBSET allSupporters : TRUE
+
+\* predicate for block certification
+\* i.e., based msgs, there is a justified "Cert"-message 
+\* @type: ($block) => Bool;
+IsCertifiedBlock(b) ==
+  \* type check
+  /\ b \in Block
+  \* check the digest
+  /\ IsSupportedDigest(digest(b))
+
+\* the set of all blocks that are certified via 'IsCertifiedBlock'
+\* @type: Set($block);
+CertifiedBlocks == { b \in Block : IsCertifiedBlock(b) }
 
 \* what's a proper quorum of certificates in (local) round r?
 \* - must be at round r-1
@@ -968,56 +1040,15 @@ IsProperCertQuorumAtRound(certificateQuorum, round) ==
     \* @type: Int;
     r == round
   IN
-  \* the round is the previous round
+     \* we actually have a quorum (as domain)
+  /\ (DOMAIN cq) \in ByzQuorum
+     \* the round is the previous round
   /\ \A v \in DOMAIN cq : 
-      /\ getRnd(cq[v]) = r - 1
-      /\ IsJustifiedCert(cq[v])
+      /\ cq[v].rnd = r - 1
+      /\ IsSupportedDigest(cq[v])
 
 ====
-\* what's a proper collection of weak links
-AreProperWeakLinks(wl, r) == 
-  /\ wl \in WeakLinks
-  \* the round is smaller than the previous round
-  /\ \A l \in wl : getRnd(l) < r - 1
-
-GeneralBlockBC(v) ==
-  /\ v \in ByzValidator
-  \* pre-condition
-  /\ rndOf[v] > 1 \* at local round > 1
-  \* post-condition
-  /\ \E cs \in CertQuorum : \E ws \in WeakLinks : \E b \in Block : 
-     \* "construct" proper cert quorum
-     /\ IsProperCertQuorumAt(cs, rndOf[v])
-     \* "construct" proper links
-     /\ AreProperWeakLinks(ws, rndOf[v])
-     \* "construct" a block of the desired shape, with next batches
-     /\ b.creator = v
-     /\ b.rnd = rndOf[v]
-     /\ b.bhxs = nextHx[v]
-     /\ b.cq = cs
-     /\ b.wl = ws
-     \* send the block
-     /\ Send([type |-> "block", block |-> b, creator |-> v])
-     \* empty nextHx
-     /\ nextHx' = [nextHx EXCEPT ![v] = {}]
-  /\ UNCHANGED <<rndOf, batchPool, storedHx, storedBlx>>
-  \* TODO: adapt to byzantine validatrs
-
-\* ACT 'BlockBC': procudtion of a block and broad cast
-BlockBC(v) ==
-  /\ v \in ByzValidator
-  /\ (GeneralBlockBC(v) \/ GenesisBlockBC(v))
-  /\ (v \in Validator => ~\E m \in msgs :             
-                            /\ m.type = "block"       
-                            /\ m.creator = v          
-                            /\ m.block.rnd = rndOf[v]
-     )\* Lemma: always (~GeneralBlockBC(v) \/ ~GenesisBlockBC(v)) : NTH
-
-\* predicate for checking the storage
-HasBlockHashesStored(block, val) ==
- \* we know all batches
- \A h \in block.bhxs : h \in storedHx[val]
-
+    
 \* ACT 'BlockAck' validator accepting and storing a block, followed by ack
 BlockAck(v) ==
     /\ v \in ByzValidator
@@ -1073,78 +1104,6 @@ AdvanceRound(v) ==
   /\ rndOf' = [rndOf EXCEPT ![v] = @ + 1]
   /\ UNCHANGED <<msgs, batchPool, nextHx, storedHx, storedBlx>>
 
------------------------------------------------------------------------------
-(***************************************************************************)
-(*                          DAG STRUCTURE                                  *)
-(***************************************************************************)
-
-(* We define several auxiliary predicates .                                *)
-(*                                                                         *)
-(* - 'linksTo',                                                            *)
-(*   the relation of direct links in the mempool DAG                       *)
-(*                                                                         *)
-(* - 'isCauseOf',                                                          *)
-(*   the transitive closure of the (opposite of) 'liksTo'-relation         *)
-(*                                                                         *)
-(* - 'CausalHistory',                                                      *)
-(*   the set of blocks that are causes of a block                          *)
-(*                                                                         *)
-(* - 'IsCertified',                                                        *)
-(*   the predicate for checking if a block is certified                    *)
-(*                                                                         *)
-(* - 'CertifiedBlocks',                                                    *)
-(*   the set of all blocks that are certified via 'IsCertified'            *)
-(*                                                                         *)
-(***************************************************************************)
-
-
-\* the relation of direct links in the mempool DAG b ~> y
-linksTo(b, y) ==
-  \* type checks
-  /\ b \in Block
-  /\ y \in Block
-  \* the certificate list of block b contains digest of y
-  /\ \E c \in Range(b.cq) : getDigest(c) = digest[y]
-
-\* predicate for block certification via 'IsJustifiedCert' (based on msgs)
-IsCertified(b) ==
-  \* type check
-  /\ b \in Block
-  \* there is some certificate
-  /\  \E c \in Certificate : 
-     \* that was actually sent 
-     /\ IsJustifiedCert(c) 
-     \* and witnesses that b is available
-     /\ getDigest(c) = digest[b]
-
-\* the set of all blocks that are certified via 'IsCertified'
-CertifiedBlocks == { b \in Block : IsCertified(b) }
-
-
-\* the transitive closure of the (opposite of) 'liksTo'-relation
-isCauseOf(x, y) == 
-  \* a "recursive" causality test, only local for the moment
-  LET isCauseTest[n \in Nat] == 
-    [ c \in Block |->
-      [ b \in Block |-> 
-        CASE n = 0 -> FALSE
-          [] n = 1 -> linksTo(b,c)
-          [] OTHER -> \E z \in Block : 
-                         /\ linksTo(b, z) 
-                         /\ isCauseTest[n-1][c][z]
-      ]
-    ]
-  IN 
-    \* type checks
-    /\ x \in Block
-    /\ y \in Block
-    \* existence of a link chain
-    /\ \E n \in Nat : isCauseTest[n][x][y]
-
-\* the set of blocks that are causes of a block
-CausalHistory(b) == { x \in Block : isCauseOf(x,b) }
-
------------------------------------------------------------------------------
 
 (***************************************************************************)
 (*                      CONSENSUS ABSTRACTION                              *)
