@@ -366,7 +366,7 @@ PROOF
 
 LEMMA Message_ref_TranBound1 == \* TODO remove
     ASSUME NEW m1 \in Message
-    PROVE m1.ref \in SUBSET TranBound[1][m1]
+    PROVE  m1.ref \in SUBSET TranBound[1][m1]
 PROOF
 <1> SUFFICES ASSUME NEW x \in m1.ref PROVE x \in TranBound[1][m1]
     OBVIOUS
@@ -391,7 +391,7 @@ PROOF
 <1>3. ASSUME NEW n \in Nat, P(n) PROVE P(n+1)
   <2>1. SUFFICES ASSUME NEW k \in Nat, NEW x \in Message,
                             NEW y \in TranBound[n + 1][x], NEW z \in TranBound[k][y]
-                 PROVE z \in TranBound[n + 1 + k][x]
+                 PROVE  z \in TranBound[n + 1 + k][x]
         OBVIOUS
   <2>2. CASE y = x BY <2>2, TranBound_monotone
   <2>3. CASE y \in UNION {TranBound[n][r] : r \in x.ref}
@@ -414,13 +414,13 @@ PROOF
 
 LEMMA Message_ref_Tran ==
     ASSUME NEW m1 \in Message, NEW m2 \in m1.ref
-    PROVE m2 \in Tran(m1)
+    PROVE  m2 \in Tran(m1)
 PROOF BY Message_ref_TranBound1, Zenon
       DEF Tran, TranDepthRange, MessageDepthRange
 
 LEMMA MessageRec0_Tran ==
     ASSUME NEW m1 \in MessageRec[0], NEW m2 \in Tran(m1)
-    PROVE m1 = m2
+    PROVE  m1 = m2
 PROOF
 <1> m1 \in Message BY Message_spec DEF MessageDepthRange
 <1> PICK k \in Nat : m2 \in TranBound[k][m1] BY Tran_spec
@@ -434,7 +434,7 @@ PROOF
 
 LEMMA MessageRec_Tran_bound ==
     ASSUME NEW n \in Nat, NEW m1 \in MessageRec[n], NEW m2 \in Tran(m1)
-    PROVE m2 \in MessageRec[n]
+    PROVE  m2 \in MessageRec[n]
 PROOF
 <1> DEFINE P(l) == \A k \in Nat :
                    \A x \in MessageRec[k] :
@@ -447,7 +447,7 @@ PROOF
   <2> SUFFICES ASSUME NEW k \in Nat,
                       NEW x \in MessageRec[k],
                       NEW y \in TranBound[m + 1][x]
-               PROVE y \in MessageRec[k]
+               PROVE  y \in MessageRec[k]
       OBVIOUS
   <2> SUFFICES ASSUME k # 0 PROVE y \in MessageRec[k]
       BY MessageRec0_Tran DEF Tran, TranDepthRange, MessageDepthRange
@@ -503,13 +503,13 @@ PROOF
 
 LEMMA Tran_ref_acyclic ==
     ASSUME NEW m \in Message, NEW r \in m.ref
-    PROVE m \notin Tran(r)
+    PROVE  m \notin Tran(r)
 PROOF
 <1> r \in Message BY Message_ref
 <1> SUFFICES ASSUME NEW n \in Nat,
                     NEW x \in Message,
                     NEW y \in x.ref, x \in Tran(y)
-             PROVE x \in MessageRec[n] => FALSE
+             PROVE  x \in MessageRec[n] => FALSE
     BY DEF Message, MessageDepthRange
 <1>0. PICK k \in Nat : /\ x \in MessageRec[k]
                        /\ \A k1 \in 0 .. k - 1 : x \notin MessageRec[k1]
@@ -524,7 +524,7 @@ PROOF
 LEMMA Tran_acyclic ==
     ASSUME NEW m1 \in Message, NEW m2 \in Tran(m1),
            m1 \in Tran(m2)
-    PROVE m1 = m2
+    PROVE  m1 = m2
 PROOF
 <1> PICK n \in Nat : m2 \in TranBound[n][m1] BY Tran_spec
 <1> SUFFICES ASSUME n # 0 PROVE m1 = m2 BY TranBound_eq0
@@ -540,58 +540,48 @@ PROOF
 -----------------------------------------------------------------------------
 LEMMA CaughtMsgSpec ==
     ASSUME NEW M \in Message
-    PROVE /\ CaughtMsg(M) \in SUBSET Message
-          /\ \A X \in CaughtMsg(M) : X.type # "1a"
+    PROVE  /\ CaughtMsg(M) \in SUBSET Message
+           /\ \A X \in CaughtMsg(M) : X.type # "1a"
 BY Tran_Message DEF CaughtMsg
 
 -----------------------------------------------------------------------------
-Msg1aInv ==
-    \A m1, m2 \in msgs :
-        m1.type = "1a" /\ m2.type = "1a" /\ m1.bal = m2.bal => m1 = m2
+(* Facts about Get1a, B and V relations *)
 
-\*Msg2aInv(m) ==
-\*    /\ [lr |-> m.lr, bal |-> m.bal, val |-> m.val] \in votesSent[m.acc]
-\*    /\ \E Q \in ByzQuorum :
-\*        /\ [lr |-> m.lr, q |-> Q] \in TrustLive
-\*        /\ \A ba \in Q :
-\*            \E m2av \in received[m.acc] :
-\*                /\ m2av.type = "2av"
-\*                /\ m2av.lr = m.lr
-\*                /\ m2av.acc = ba
-\*                /\ m2av.bal = m.bal
-\*                /\ m2av.val = m.val
-
------------------------------------------------------------------------------
 LEMMA Get1a_TypeOK ==
     ASSUME NEW m \in Message
-    PROVE /\ Get1a(m) \subseteq Message
-          /\ \A x \in Get1a(m) : x.bal \in Ballot
+    PROVE  /\ Get1a(m) \subseteq Message
+           /\ \A x \in Get1a(m) : x.bal \in Ballot
 PROOF BY Tran_Message, MessageTypeSpec DEF Get1a
 
 LEMMA Get1a_correct ==
     ASSUME NEW m \in Message,
            NEW x \in Get1a(m), NEW y \in Get1a(m)
-    PROVE x.bal = y.bal
+    PROVE  x.bal = y.bal
 PROOF BY Tran_Message, MessageTypeSpec DEF Get1a, Ballot
 
 LEMMA B_func ==
     ASSUME NEW m \in Message,
            NEW b1 \in Ballot, B(m, b1),
            NEW b2 \in Ballot, B(m, b2)
-    PROVE b1 = b2
+    PROVE  b1 = b2
 PROOF BY DEF B, Get1a, Ballot
 
 LEMMA B_def ==
     ASSUME NEW m \in Message,
            NEW x \in Get1a(m)
-    PROVE \E b \in Ballot : B(m, b)
+    PROVE  \E b \in Ballot : B(m, b)
 PROOF BY Get1a_correct, Get1a_TypeOK DEF B
+
+LEMMA B_1a ==
+    ASSUME NEW m \in Message, m.type = "1a"
+    PROVE  B(m, m.bal)
+PROOF BY MessageTypeSpec, Tran_1a DEF B, Get1a, Ballot
 
 LEMMA V_func ==
     ASSUME NEW m \in Message,
            NEW v1 \in Value, V(m, v1),
            NEW v2 \in Value, V(m, v2)
-    PROVE v1 = v2
+    PROVE  v1 = v2
 PROOF BY Get1a_correct DEF V
 
 \*LEMMA V_def_1a ==
@@ -618,6 +608,70 @@ PROOF BY Get1a_TypeOK DEF V, B
 \*    ASSUME NEW m \in Message
 \*    PROVE q(m) \in ByzQuorum
 \*PROOF BY DEF q, ByzQuorum
+
+LEMMA TranBallot ==
+    ASSUME NEW m1 \in Message, NEW m2 \in Tran(m1),
+           NEW b1 \in Ballot, NEW b2 \in Ballot,
+           B(m1, b1), B(m2, b2)
+    PROVE  b2 <= b1
+PROOF BY Tran_trans DEF B, Get1a
+
+-----------------------------------------------------------------------------
+\* Check equivalence of two well-formedness conditions
+
+LEMMA WellFormedCondition1 ==
+    ASSUME NEW m \in Message, m.type = "1b",
+           \A y \in Tran(m) :
+            m # y /\ SameBallot(m, y) => y.type = "1a"
+    PROVE  \A y \in Tran(m) :
+            m # y /\ SameBallot(m, y) => y \in Get1a(m)
+PROOF
+<1> SUFFICES ASSUME NEW y \in Tran(m), m # y, SameBallot(m, y)
+             PROVE  y \in Get1a(m)
+    OBVIOUS
+<1> y.type = "1a" OBVIOUS
+<1> y \in Message BY Tran_Message
+<1> y.bal \in Ballot BY MessageTypeSpec
+<1> B(y, y.bal) BY B_1a
+<1> SUFFICES ASSUME NEW z \in Tran(m), z.type = "1a"
+             PROVE  z.bal =< y.bal
+    BY DEF Get1a
+<1> z \in Message BY Tran_Message
+<1> z.bal \in Ballot BY MessageTypeSpec
+<1> B(z, z.bal) BY B_1a
+<1> QED BY TranBallot DEF SameBallot
+
+\* Equivalence of two well-formedness conditions
+LEMMA WellFormedConditionEquiv ==
+    ASSUME NEW m \in Message, m.type = "1b"
+    PROVE  (\A y \in Tran(m) :
+            m # y /\ SameBallot(m, y) => y \in Get1a(m))
+           <=>
+           (\A y \in Tran(m) :
+            m # y /\ SameBallot(m, y) => y.type = "1a")
+PROOF BY WellFormedCondition1 DEF Get1a
+
+LEMMA WellFormedCondition2 ==
+    ASSUME NEW m \in Message, m.type = "1b",
+           \A y \in Tran(m) :
+            m # y /\ SameBallot(m, y) => y.type = "1a"
+    PROVE  \A y \in Tran(m) :
+            m # y /\ y.type # "1a" =>
+            \A bm, by \in Ballot :
+                B(m, bm) /\ B(y, by) => by # bm
+PROOF BY Tran_Message, B_func DEF SameBallot
+
+LEMMA WellFormedCondition3 ==
+    ASSUME NEW m \in Message, m.type = "1b",
+           \A y \in Tran(m) :
+            m # y /\ y.type # "1a" =>
+            \A bm, by \in Ballot :
+                B(m, bm) /\ B(y, by) => by # bm
+    PROVE  \A y \in Tran(m) :
+            m # y /\ y.type # "1a" =>
+            \A bm, by \in Ballot :
+                B(m, bm) /\ B(y, by) => by < bm
+PROOF BY TranBallot DEF Ballot
 
 -----------------------------------------------------------------------------
 \* vars == << msgs, known_msgs, recent_msgs, 2a_lrn_loop, processed_lrns, decision >>
