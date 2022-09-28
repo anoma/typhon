@@ -485,9 +485,15 @@ storedHxINIT ==
   \A v \in ByzValidator : storedHx[v] = {}
 
 \* Each ByzValidator has storage for blocks (initially {}), cf. ⑤ 
+\* with the following two different stages of knowing a block
+AVL == FALSE 
+COA == TRUE
 VARIABLE
-  \* @type: BYZ_VAL -> Set(<<$block,Bool>>);
+  \* @type: BYZ_VAL -> Set(<<$block, Bool>>);
   storedBlx
+
+
+    
 
 \* "assert" INIT => \A v \in ByzValidator : storedBlx[v] = {}
 storedBlxINIT == 
@@ -511,6 +517,9 @@ vars == <<msgs, rndOf, batchPool, nextHx, storedHx, storedBlx>>
   (* It is convenient to have a shorthand for all variables in a spec.     *)
   (*************************************************************************)
 
+allBUTmsgs == 
+  <<rndOf, batchPool, nextHx, storedHx, storedBlx>>
+    
 allBUTmsgsNbatchPoolNnextHxNstoredHx == 
   <<rndOf, storedBlx>>
 
@@ -544,7 +553,8 @@ BlockDigest ==
 Block ==
     { b \in BlockType : 
             /\ b.rnd <= maxRound+1
-            /\ TRUE
+            /\ \E n \in Nonce : 
+                    blockMsg(b, b.creator, n) \in msgs
     }
 
 \* @type: (BYZ_VAL, Int) => Set($block);
@@ -792,12 +802,28 @@ GenesisBlockBC(validator) ==
   /\ UNCHANGED allBUTmsgsNnextHx \* end of action "GenesisBlockBC"
 
 
-\* predicate for checking the storage
+\* predicate for checking the storage of hashes at a validator
 \* @type: ($block, BYZ_VAL) => Bool;
-HasBlockHashesStored(block, val) ==
+hasBlockHashesStored(block, val) ==
  \* we know all batches
  \A h \in block.bhxs : h \in storedHx[val]
-    
+
+\* predicate for checking the storage of blocks of digests
+\* @type: ($digestFamily, BYZ_VAL) => Bool;
+checkCertificatesOfAvailability(certificate, validator) ==
+  LET
+    \* @type: $digestFamily;
+    c == certificate
+    \* @type: BYZ_VAL;
+    v == validator
+  IN  
+  \A d \in Range(c) : 
+       LET
+         \* @type: $block;
+         b == fetchBlock(d)
+       IN  
+         \* block is known certified 
+         << b, COA >> \in storedBlx[v]  
 
 \* @type: ($block, BYZ_VAL) => Bool;
 validBlock(block, validator) == 
@@ -812,20 +838,11 @@ validBlock(block, validator) ==
      \* the round must be a positive natural number
   /\ b.rnd > 0 \*
      \* batch hashes stored (always needed)
-  /\ b.bhxs \subseteq storedHx[v]
-     \* if block is at genesis, 
-  /\ b.rnd = 1 => \* then …
-          \* no back links
-       /\ DOMAIN b.cq = {} 
-          \* no weak links
-       /\ DOMAIN b.wl = {} 
-     \* if non-genesis bloc, 
-  /\ b.rnd > 1 => \* then
-       /\ HasBlockHashesStored(b, v)
-       /\ TRUE \* FIXME 
+  /\ hasBlockHashesStored(b, v)
+     \* and block references stored
+  /\ checkCertificatesOfAvailability(b.cq, v)
+  /\ DOMAIN b.wl = {} 
 
-AVL == FALSE
-COA == TRUE
 
 \* ACTION Ack:
 \*   Receive a block, check its validity, store it, Ack()acknowledge it.
@@ -880,7 +897,7 @@ CertBC(dgst) ==
           theAcks == 
             {a \in acksOfDigest(d) : a.sig \in Q }
         IN
-        /\ Q \subseteq { a.sig : a \in theAcks }
+        /\ Q = { a.sig : a \in theAcks }
      \* post-condition
         /\ \* send the certificate
            LET
@@ -959,6 +976,7 @@ BlockBC(validator) ==
 \* @type: (BYZ_VAL) => Bool;
 AdvanceRound(validator) == 
   LET
+    \* @type: Set(BYZ_VAL);
     X == 
       {b.creator : b \in preceedingBlocks(validator, rndOf[validator]+1)}
   IN 
@@ -1002,9 +1020,9 @@ linksTo(b, y) ==
        blockOfC = y
 
 
-\* checking whether a digest is supported via messages
+\* checking whether a digest is justified via messages
 \* @type: ($blockDigest) => Bool;
-IsSupportedDigest(dgst) == 
+IsJustifiedDigest(dgst) == 
   \E v \in ByzValidator : 
         \* the digest was sent by v in a certMessage and …
      /\ certMsg(dgst, v) \in msgs 
@@ -1023,7 +1041,7 @@ IsCertifiedBlock(b) ==
   \* type check
   /\ b \in Block
   \* check the digest
-  /\ IsSupportedDigest(digest(b))
+  /\ IsJustifiedDigest(digest(b))
 
 \* the set of all blocks that are certified via 'IsCertifiedBlock'
 \* @type: Set($block);
@@ -1045,64 +1063,8 @@ IsProperCertQuorumAtRound(certificateQuorum, round) ==
      \* the round is the previous round
   /\ \A v \in DOMAIN cq : 
       /\ cq[v].rnd = r - 1
-      /\ IsSupportedDigest(cq[v])
+      /\ IsJustifiedDigest(cq[v])
 
-====
-    
-\* ACT 'BlockAck' validator accepting and storing a block, followed by ack
-BlockAck(v) ==
-    /\ v \in ByzValidator
-    /\ \E b \in Block : \E w \in ByzValidator : 
-       \* pre-condition
-       \* v doesn't know the block yet
-       /\ b \notin storedBlx[v] 
-       \* block was proposed
-       /\ [type |-> "block", block |-> b, creator |-> w] \in msgs
-       \* all hashes are present (for correct validators ONLY) 
-       /\ (v \in Validator => 
-            HasBlockHashesStored(b, v))
-       \* store the block for (for correct validators ONLY) 
-       /\ (v \in Validator =>
-            storedBlx' = [storedBlx EXCEPT ![v] = @ \cup {b}])
-       \* construct ack .. 
-       /\ \E a \in Ack : 
-         /\ a.digest = digest[b]
-         /\ a.creator = b.creator
-         /\ a.rnd = b.rnd
-         /\ a.sig = v
-         \* .. to send
-         /\ Send([type |-> "block-ack", ack |-> a, by |-> v])
-    /\ UNCHANGED <<msgs, batchPool, nextHx, storedHx, storedBlx>> 
-
-
-\* ACT 'CertBC' Broadcast a Certificate
-CertBC(v) ==
-  /\ v \in ByzValidator
-  /\ \E c \in Certificate : 
-     \* pre-condition/test
-     /\ IsJustifiedCert(c)      
-     \* post-condition/effect (based on witness for \E c : ...)
-     /\ Send([type |-> "cert", cert |-> c, creator |-> v])
-  /\ UNCHANGED <<rndOf, batchPool, nextHx, storedHx, storedBlx>>
-
-
-\* Can cert. quorum c trigger validator v to increment the local round?
-CertQuorumAdvancesValRnd(c, v) ==
-  /\ c \in CertQuorum \* in particular, c : Q -> Certificate, injective
-  /\ v \in ByzValidator \* the validator that might increment
-  /\ \A w \in DOMAIN c : \E m \in msgs : 
-     /\ m.type = "cert"
-     /\ m.creator = w
-     /\ m.cert = c[w]
-     /\ getRnd(c[w]) = rndOf[v]
-
-\* ACT 'AdvanceRound'
-AdvanceRound(v) ==
-  \* pre-condition: existence of enough "cert" messages 
-  /\ \E c \in CertQuorum : CertQuorumAdvancesValRnd(c, v)
-  \* post-condition 
-  /\ rndOf' = [rndOf EXCEPT ![v] = @ + 1]
-  /\ UNCHANGED <<msgs, batchPool, nextHx, storedHx, storedBlx>>
 
 
 (***************************************************************************)
@@ -1117,42 +1079,47 @@ AdvanceRound(v) ==
 (***************************************************************************)
 
 \* predicate that checks if a block counts as commitable
+\* @type: ($block) => Bool;
 hasSupport(b) == 
-  \* type check 
+     \* type check 
   /\ b \in Block
-  /\ \E W \in WeakQuorum : \E f \in Injection(W, CertifiedBlocks) :
-       \A w \in W : linksTo(f[w], b) 
+     \* 
+  /\ \E W \in WeakQuorum : 
+       \A w \in W : 
+            \E y \in Block :
+                 /\ y.creator = w
+                 /\ << y, COA >> \in storedBlx[w]
+                 /\ linksTo(y, b)                  
 
 
 \* the constant number of rounds between each leader block commitment
-CONSTANT WaveLength ASSUME WaveLengthAssumption ==
+CONSTANT
+  \* @type: Int;
+  WaveLength
+
+ASSUME WaveLengthAssumption ==
   /\ WaveLength \in Nat
   /\ WaveLength >= 1
 
 WaveLengthTimesNat == { n \in Nat : \E i \in Nat : n = WaveLength * i }
   
-\*ASSUME ChoiceOfLeaderBlocks ==
-\*  \* a choice of leader blocks: at round n, block created by LB[n]
-\*  /\ LeaderBlock \in [WaveLengthTimesNat -> ByzValidator]
-\*  \* and this choice is (weakly) fair
-\*  /\ \A n \in WaveLengthTimesNat : \A v \in ByzValidator :
-\*        \E m \in WaveLengthTimesNat : m > n /\ LeaderBlock[m] = v 
-
-
 CommitBlock(b) == 
   \* type check
   /\ b \in Block
   \* pre-condition(s)
+     \* proper round number
   /\ b.rnd \in WaveLengthTimesNat
-  \* not yet committed any block at the round
-  /\ ~\E m \in msgs : m.type = "commit" /\ m.block.rnd = b.rnd
+     \* not yet committed any block at the round
+  
+  /\ ~\E y \in Block: 
+           /\ commitMsg(digest(y)) \in msgs 
+           /\ y.rnd = b.rnd                     
   \* enough support
-  /\ Send([type |-> "commit", block |-> b])
-  /\ UNCHANGED <<rndOf, batchPool, nextHx, storedHx, storedBlx>>
+  /\ hasSupport(b)
+  /\ Send(commitMsg(digest(b)))
+  /\ UNCHANGED allBUTmsgs
 
 
-\* ACTION "Ack"
-\*   store a block and send "Ack" message (to creator)
 -----------------------------------------------------------------------------
 
 (***************************************************************************)
@@ -1173,23 +1140,26 @@ CommitBlock(b) ==
 (*      its creator).                                                      *)
 (***************************************************************************)
 
-
 \* checks whether a leader block is a leader block
+\* @type: ($block) => Bool;
 IsCommitingLeaderBlock(b) == 
   \* type check
   /\ b \in Block
   \* commit message was sent (by consensus layer)
-  /\ [type |-> "commit", block |-> b] \in msgs \* ChoiceOfLeaderBlocks[b.rnd] = b.creator
-  
+  /\ commitMsg(digest(b)) \in msgs 
 
+
+
+(*    
 \* checking if a block is commited
 IsCommitted(b) ==
   /\ b \in Block
   /\ \/ IsCommitingLeaderBlock(b)
      \/ \E z \in Block : 
         /\ IsCommitingLeaderBlock(z)
-        /\ b \in CausalHistory(z)
+        /\ b \in {} \* CausalHistory(z)
 
+*)
 -----------------------------------------------------------------------------
 
 (***************************************************************************)
@@ -1203,21 +1173,6 @@ IsCommitted(b) ==
 (* _commiting leader block_ of a block b is the leader block with the      *)
 (* least round number whose causal history contains the block b. *)
 (***************************************************************************)
-=============================================================================
 
-(* 
-    "Block" is the set of all possible blocks,
-    relative to the current system state. 
-*)
-\* @type: Set($block);
-Block == 
-  { b \in BlockType : 
-        \* either a genesis block
-        /\ b.rnd = 1 => DOMAIN b.cq = {}                                  
-        \* or a positive round number
-        /\ b.rnd > 1 => /\ DOMAIN b.cq \in ByzQuorum                
-                        /\ TRUE \* lots of other things            
-  }    
-
-
+\* coming soon ™
 ====
