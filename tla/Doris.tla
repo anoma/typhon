@@ -214,12 +214,9 @@ AckType == [
 -----------------------------------------------------------------------------
 
 (***************************************************************************)
-(* "Once the creator gets 2f + 1 distinct acknowledgments for a block, it  *)
+(* “Once the creator gets 2f + 1 distinct acknowledgments for a block, it  *)
 (* combines them into a certificate of block availability, that includes   *)
-(* the block digest, current round, and creator identity." [N&T]           *)
-(*                                                                         *)
-(* We separate out the presence of >= "2f + 1 distinct acknowledgments"    *)
-(* and make explicit that they talk about the same block digest.           *)
+(* the block digest, current round, and creator identity.” [N&T]           *)
 (***************************************************************************)
 
 (* The type of weak links and certificate quorums $digestFamily
@@ -237,10 +234,13 @@ AckType == [
 \*
 \* @type: Set($digestFamily);
 AckQuorumType == 
-  \* proper ack quorum
-  (UNION {Injection(Q,BlockDigestType) : Q \in ByzQuorum})
-  \* and the empty ack (e.g., for genesis block)
-    \cup {Injection({}, BlockDigestType)}
+  UNION (
+     \* proper ack quorum
+     {Injection(Q,BlockDigestType) : Q \in ByzQuorum} 
+     \cup
+     \* and the empty ack (e.g., for genesis block)
+     {Injection({}, BlockDigestType)}
+  )
 
 \* "emptyQuorum":
 \*   the empty quroum (e.g., for the genesis block)
@@ -381,11 +381,12 @@ digest(block) ==
 (* We call a "mirror worker" a worker of the same index at a different     *)
 (* validator.  We assume that clients send a transaction/batch             *)
 (* only to one validator at a time, and only if the transaction gets       *)
-(* orphaned, inclusion via a weak link is a possibility; *)
-(* we "abuse" weak links for an additional link to the last proposed block.*)
+(* orphaned, inclusion via a weak link is a desired possibility; *)
+(* thus, we "abuse" weak links for an additional link to the last proposed block.*)
 (*  *)
-(* Correct validators only     *)
-(* make blocks with batches arriving at their workers in the first place.  *)
+(* Correct validators     *)
+(* make blocks of batches arriving at their workers,   *)
+(* to be broadcast to other workers. *)
 (*                                                                         *)
 (* We abstract away all worker-primary communication "inside" validators;  *)
 (* we have remote direct memory access (RDMA) in mind. *)
@@ -395,16 +396,43 @@ digest(block) ==
 (***************************************************************************)
 
 VARIABLE
-  (*
+  (* type alias for messages $msg
    --- msg ---
    
    - Batch: broadcast a batch 
 
-     - bactch: the batch being broadcast
+     - batch: the batch being broadcast
 
      - from: the sending working
   
-   «auto-complete plz»
+   - Block: broadcast a block
+
+     - block: the block being broadcast
+
+     - creator: the creator (and sender) of the block
+
+     - nonce: (Byzantine validators only)
+
+
+   - Ack: acknowledgment of block (including the batches)
+    
+     - ack: the actual acknowledgment information
+
+     - by: the signer (and sender)
+
+   - Cert: the certificate of availability (broadcast by block creator)
+
+     - digest: the digest of the certified block
+
+     - creator: the block creator (and sender)
+
+   - Commit: message "from" the consensus layer
+
+     - digest: the digest of the commited leader block
+
+   - Executed: (coming soon ™ -- execution layer singal)  
+
+   - Abort(NIL): (reserved, no use yet) 
   
    ===
    @typeAlias:msg = 
@@ -420,40 +448,47 @@ VARIABLE
   msgs
 
 \* Batch():
-\* broadcast a fresh "batch" from a "worker" (to mirror workers)
+\*   broadcast a fresh "batch" from a "worker" (to mirror workers)
+\*
 \* @type: (BATCH, $worker) => $msg;
 batchMsg(b, w) == 
   Variant("Batch", [ batch |-> b, from |-> w])
 
 \* Block():
-\* creator produces a block and broadcasts it
+\*   creator produces a block and broadcasts it
+\* 
 \* @type: ($block, BYZ_VAL, Int) => $msg;
 blockMsg(b, c, n) == 
   Variant("Block", [block |-> b, creator |-> c, nonce |-> n])
 
 \* Ack():
-\* commmitment "by" a validator to have stored a block 
+\*   commmitment "by" a validator to have stored a block 
+\* 
 \* @type: ($ack, BYZ_VAL) => $msg;
 ackMsg(a, v) == 
   Variant("Ack", [ack |-> a, by |-> v])
 
-\* creator aggregates quorum of acks into a certificate and broadcasts it
+\* Cert():
+\*   creator aggregates quorum of acks into a certificate 
+\*   and broadcasts it
+\* 
 \* @type: ($blockDigest, BYZ_VAL) => $msg;
 certMsg(d, c) == 
   Variant("Cert", [digest |-> d, creator |-> c]) 
 
 \* Commit():
-\* a commit message commits a leader block (sent by the consensus layer)
+\*   a commit message commits a leader block (sent by the consensus layer)
+\*  
 \* @type: ($blockDigest) => $msg;
 commitMsg(d) ==
   Variant("Commit", [digest |-> d])
 
+-----------------------------------------------------------------------------    
 \* the initial setting for the set of messages
 msgsINIT ==
   msgs = {}
 
 \* end of "MESSAGE STRUCTURE"
-
     
 -----------------------------------------------------------------------------
 
@@ -520,9 +555,6 @@ VARIABLE
   \* @type: BYZ_VAL -> Set(<<$block, Bool>>);
   storedBlx
 
-
-    
-
 \* "assert" INIT => \A v \in ByzValidator : storedBlx[v] = {}
 storedBlxINIT == 
   \A v \in ByzValidator : storedBlx[v] = {}
@@ -566,17 +598,16 @@ allBUTmsgsNstoredBlx ==
 allBUTrndOf == 
   <<msgs, batchPool, nextHx, storedHx, storedBlx>>
 
+\* "maxRound":
+\*   gives the (current) maximal round of any validator
+\* 
 \* @type: Int;
 maxRound == 
   CHOOSE n \in Range(rndOf) : n+1 \notin Range(rndOf)
 
-\* @type: Set($blockDigest);
-BlockDigest == 
-  { d \in BlockDigestType : 
-            /\ d.rnd <= maxRound+1
-            /\ TRUE
-  }
-
+\* "Block":
+\*   a smaller set than BlockType of currently relevant blocks
+\*  
 \* @type: Set($block);
 Block ==
     { b \in BlockType : 
@@ -585,6 +616,16 @@ Block ==
                     blockMsg(b, b.creator, n) \in msgs
     }
 
+\* "BlockDigest":
+\*   the set of block digests based on Block
+\* 
+\* @type: Set($blockDigest);
+BlockDigest == 
+  {digest(b) :  b \in Block}
+
+\* "proposedBlocksByValidatorInRound":
+\*   the set of blocks proposed by a validator in a given round
+\*   
 \* @type: (BYZ_VAL, Int) => Set($block);
 proposedBlocksByValidatorInRound(validator, r) == 
   LET
@@ -595,11 +636,14 @@ proposedBlocksByValidatorInRound(validator, r) ==
       /\ \E n \in Nonce : 
             LET
               \* @type: $msg;
-              m == Variant("Block", [block |-> b, creator |-> c, nonce |-> n])
+              m == blockMsg(b, c, n)
             IN
               m \in msgs
   }
   
+\* "proposedBlocksByValidator":
+\*   the set of blocks proposed by a validtor
+\*  
 \* @type: (BYZ_VAL) => Set($block);
 proposedBlocksByValidator(validator) == 
   LET
@@ -614,23 +658,37 @@ proposedBlocksByValidator(validator) ==
             m \in msgs
   }
 
+\* "proposedBlocks":
+\*   the set of all currently proposed blocks
+\*  
 \* @type: Set($block);
 proposedBlocks == 
   UNION { proposedBlocksByValidator(c) : c \in ByzValidator } 
 
+\* "proposedBlocksInRound":
+\*   the set of all blocks that were proposed for a given round
+\* 
 \* @type: (Int) => Set($block);
 proposedBlocksInRound(r) == 
    { b \in proposedBlocks : b.rnd = r }
 
+\* "allAckMsgs":
+\*   the set of all "Ack"-messages sent so far
+\* 
 \* @type: Set($msg);
 allAckMsgs ==
   { m \in msgs : VariantTag(m) = "Ack" }
 
+\* "allAcks":
+\*   the set of all acknowledgments sent (via "Ack"-messages)
+\* 
 \* @type: Set($ack);
 allAcks ==
   { VariantGetUnsafe("Ack", m).ack : m \in allAckMsgs}    
 
-
+\* "acksOfDigest":
+\*   the set of all acks for a given digest
+\* 
 \* @type: ($blockDigest) => Set($ack);
 acksOfDigest(dgst) == 
   LET
@@ -641,7 +699,6 @@ acksOfDigest(dgst) ==
     \* the set of 
     {a \in allAcks : a.digest = d}
 
-    
 -----------------------------------------------------------------------------
 (***************************************************************************)
 (*                             ACTIONS                                     *)
@@ -803,6 +860,7 @@ fetchBlock(dgst) ==
     candidates == {c \in allPossibleBlocks : c.rnd = dgst.rnd}
   IN
     extract(candidates)
+
 
 \* ACTION GenesisBlockBC [instance of BlockBC]:
 \*  a validator produces a genesis block and broadcasts it
