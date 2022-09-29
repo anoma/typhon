@@ -129,22 +129,9 @@ TranBound[n \in Nat] ==
     ELSE TranBound1(TranBound[n-1], n)
 
 \* Countable transitive references
-\*TranDepthRange == Nat
 TranDepthRange == MessageDepthRange
 
 Tran(m) == UNION {TranBound[n][m] : n \in TranDepthRange}
-
------------------------------------------------------------------------------
-\* We assume that each 1a-message has a unique value and ballot number,
-\* which could be accomplished by incorporating a hash of the value and the
-\* sender signature information in the ballot number.
-\*ASSUME 1aAssumption ==
-\*    \A m1, m2 \in Message :
-\*        m1.type = "1a" /\ m2.type = "1a" /\ m1.bal = m2.bal =>
-\*        m1 = m2
-
------------------------------------------------------------------------------
-\*None == CHOOSE v : v \notin Value /\ v \notin Message
 
 -----------------------------------------------------------------------------
 (* Algorithm specification *)
@@ -237,13 +224,9 @@ q(x) ==
 
 WellFormed(m) ==
     /\ m \in Message
-    /\ \E b \in Ballot : B(m, b) \* TODO
+    /\ \E b \in Ballot : B(m, b) \* TODO prove it
     /\ m.type = "1b" =>
-        \* TODO remove \E r1a part
-\*        /\ \E r1a \in m.ref :
-\*            /\ r1a.type = "1a"
-\*            /\ \A r \in m.ref : r.type = "1a" => r = r1a
-        /\ \A y \in Tran(m) :
+        \A y \in Tran(m) :
             m # y /\ SameBallot(m, y) => y.type = "1a"
     /\ m.type = "2a" =>
         /\ [lr |-> m.lrn, q |-> q(m)] \in TrustLive
@@ -441,5 +424,5 @@ THEOREM SafetyResult == Spec => []Safety
 
 =============================================================================
 \* Modification History
-\* Last modified Fri Sep 23 12:09:47 CEST 2022 by aleph
+\* Last modified Thu Sep 29 14:45:15 CEST 2022 by aleph
 \* Created Mon Jul 25 14:24:03 CEST 2022 by aleph
