@@ -604,11 +604,6 @@ PROOF BY Get1a_TypeOK DEF V, B
 \*    PROVE V(m1, v) <=> V(m2, v)
 \*PROOF BY Get1a_correct, Zenon DEF B, V
 
-\*LEMMA q_ByzQuorum ==
-\*    ASSUME NEW m \in Message
-\*    PROVE q(m) \in ByzQuorum
-\*PROOF BY DEF q, ByzQuorum
-
 LEMMA TranBallot ==
     ASSUME NEW m1 \in Message, NEW m2 \in Tran(m1),
            NEW b1 \in Ballot, NEW b2 \in Ballot,
@@ -786,17 +781,6 @@ PROOF
 <1>8. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, <1>7
           DEF Next, AcceptorProcessAction, Process1bLearnerLoop
 
-\* TODO remove
-\*LEMMA B_monotone ==
-\*    ASSUME NEW m \in Message, NEW b \in Ballot, B(m, b)
-\*    PROVE B(m, b)'
-\*OBVIOUS
-
-\*LEMMA V_monotone ==
-\*    ASSUME NEW m \in Message, NEW v \in Value, V(m, v), BVal' = BVal
-\*    PROVE V(m, v)'
-\*PROOF BY DEF V
-
 LEMMA WellFormed_monotone ==
     ASSUME NEW m \in Message, WellFormed(m), BVal' = BVal
     PROVE WellFormed(m)'
@@ -896,8 +880,6 @@ PROOF
 <1>1. CASE ProposerSendAction
   <2> PICK bal \in Ballot, val \in Value : Send1a(bal, val)
       BY <1>1 DEF ProposerSendAction
-\*  <2> VV \in decision[L, BB]
-\*      BY DEF Send1a
   <2> QED BY Known2aMonotone DEF Send1a
 <1>2. CASE \E a \in SafeAcceptor : \E m \in msgs : Process1a(a, m)
   <2> PICK acc \in SafeAcceptor, m1a \in msgs : Process1a(acc, m1a)
@@ -923,13 +905,6 @@ PROOF
         /\ UNCHANGED << msgs, known_msgs, recent_msgs, 2a_lrn_loop, processed_lrns, BVal >>
       BY <1>7, Zenon DEF LearnerDecide
   <2>0. QED BY Known2aMonotone DEF TypeOK
-\*  <2>1. CASE VV \in decision[L, BB]
-\*        BY <2>1, Known2aMonotone \*DEF LearnerAction, LearnerRecv, LearnerDecide
-\*  <2>2. CASE VV \notin decision[L, BB]
-\*    <3> L = lrn /\ BB = bal /\ VV = val
-\*        BY <2>2 DEF TypeOK
-\*    <3> QED
-\*  <2> QED BY Known2aMonotone
 <1>8. CASE FakeAcceptorAction
       BY <1>8, Known2aMonotone DEF FakeAcceptorAction, FakeSend
 <1>9. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, <1>7, <1>8
@@ -1155,23 +1130,6 @@ PROOF
       BY <1>8 DEF FakeAcceptorAction, FakeSend, Send
 <1>9. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, <1>7, <1>8
           DEF Next, AcceptorProcessAction, Process1bLearnerLoop, LearnerAction
-
-
-\* TODO clean
-\*LEMMA UniqueMessageLearned ==
-\*    TypeOK /\ Next =>
-\*    \A AL \in SafeAcceptor \cup Learner :
-\*    \A m1 \in known_msgs[AL]' : \A m2 \in known_msgs[AL]' :
-\*        m1 \notin known_msgs[AL] /\ m2 \notin known_msgs[AL] =>
-\*        m1 = m2
-
-\*KnownMsgsSpec ==
-\*    \A AL \in SafeAcceptor \cup Learner :
-\*        /\ known_msgs[AL] \in SUBSET msgs
-\*        /\ \A M \in known_msgs[AL] :
-\*            /\ Proper(AL, M)
-\*            /\ WellFormed(M)
-\*            /\ Tran(M) \in SUBSET known_msgs[AL]
 
 LEMMA KnownMsgsSpecInvariant ==
     TypeOK /\ Next /\ KnownMsgsSpec => KnownMsgsSpec'
@@ -1737,8 +1695,7 @@ PROOF
 <1>9. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, <1>7, <1>8
           DEF Next, AcceptorProcessAction, Process1bLearnerLoop, LearnerAction
 
-
 =============================================================================
 \* Modification History
-\* Last modified Thu Sep 29 14:34:21 CEST 2022 by aleph
+\* Last modified Thu Sep 29 14:43:41 CEST 2022 by aleph
 \* Created Thu Aug 25 10:12:00 CEST 2022 by aleph
