@@ -945,7 +945,7 @@ PROOF
 <1> TypeOK' BY TypeOKInvariant
 <1> SUFFICES ASSUME NEW A \in SafeAcceptor,
                     NEW mm \in SentBy(A)'
-             PROVE \E m0 \in recent_msgs[A]' :
+             PROVE  \E m0 \in recent_msgs[A]' :
                         \A m1 \in SentBy(A)' : m1 \in Tran(m0)
     BY DEF RecentMsgsSafeAcceptorSpec
 <1> A \in Acceptor BY DEF Acceptor
@@ -1003,7 +1003,7 @@ PROOF
             BY CVC4 DEF TypeOK
         <5> WITNESS new1b \in recent_msgs[A]'
         <5> SUFFICES ASSUME NEW m1 \in SentBy(A)'
-                     PROVE m1 \in Tran(new1b)
+                     PROVE  m1 \in Tran(new1b)
             OBVIOUS
         <5> m0 \in Tran(new1b) BY Message_ref_Tran
         <5> HIDE DEF new1b
@@ -1082,7 +1082,7 @@ PROOF
       <4> WITNESS new2a \in recent_msgs[A]'
       <4> CASE SentBy(A) # {}
         <5> SUFFICES ASSUME NEW m1 \in SentBy(A)
-                     PROVE m1 \in Tran(new2a)
+                     PROVE  m1 \in Tran(new2a)
             OBVIOUS
         <5> PICK m0 \in recent_msgs[A] :
                     \A m \in SentBy(A) : m \in Tran(m0)
@@ -1116,28 +1116,213 @@ PROOF
 <1>8. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, <1>7
            DEF Next, AcceptorProcessAction, Process1bLearnerLoop
 
-\* TODO
 LEMMA UniqueMessageSent ==
     TypeOK /\ Next =>
     \A m1 \in msgs' : \A m2 \in msgs' :
         m1 \notin msgs /\ m2 \notin msgs =>
         m1 = m2
+PROOF
+<1> SUFFICES ASSUME TypeOK, Next,
+                    NEW M1 \in msgs', NEW M2 \in msgs',
+                    M1 \notin msgs, M2 \notin msgs
+             PROVE  M1 = M2
+    OBVIOUS
+<1> TypeOK' BY TypeOKInvariant
+<1>1. CASE ProposerSendAction
+  <2> PICK bal \in Ballot, val \in Value : Send1a(bal, val)
+      BY <1>1 DEF ProposerSendAction
+  <2> QED BY Zenon DEF Send1a, Send
+<1>2. CASE \E a \in SafeAcceptor : \E m \in msgs : Process1a(a, m)
+  <2> PICK acc \in SafeAcceptor, m1a \in msgs : Process1a(acc, m1a)
+      BY <1>2
+  <2> QED BY Isa DEF Process1a, Send
+<1>3. CASE \E a \in SafeAcceptor : \E m \in msgs : Process1b(a, m)
+  <2> PICK acc \in SafeAcceptor, msg \in msgs : Process1b(acc, msg)
+      BY <1>3
+  <2> QED BY DEF Process1b
+<1>4. CASE \E a \in SafeAcceptor : \E l \in Learner : Process1bLearnerLoopStep(a, l)
+  <2> PICK acc \in SafeAcceptor, lrn \in Learner : Process1bLearnerLoopStep(acc, lrn)
+      BY <1>4
+  <2> QED BY DEF Process1bLearnerLoopStep, Send
+<1>5. CASE \E a \in SafeAcceptor : Process1bLearnerLoopDone(a)
+      BY <1>5 DEF Process1bLearnerLoopDone
+<1>6. CASE \E lrn \in Learner : LearnerRecv(lrn)
+      BY <1>6 DEF LearnerRecv
+<1>7. CASE \E lrn \in Learner : \E bal \in Ballot : \E val \in Value :
+            LearnerDecide(lrn, bal, val)
+      BY <1>7 DEF LearnerDecide
+<1>8. CASE FakeAcceptorAction
+      BY <1>8 DEF FakeAcceptorAction, FakeSend, Send
+<1>9. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, <1>7, <1>8
+          DEF Next, AcceptorProcessAction, Process1bLearnerLoop, LearnerAction
 
-\* TODO check if used
-LEMMA UniqueMessageLearned ==
-    TypeOK /\ Next =>
-    \A AL \in SafeAcceptor \cup Learner :
-    \A m1 \in known_msgs[AL]' : \A m2 \in known_msgs[AL]' :
-        m1 \notin known_msgs[AL] /\ m2 \notin known_msgs[AL] =>
-        m1 = m2
 
-\* TODO
-LEMMA BValSpecInvariant ==
-    TypeOK /\ Next /\ BValSpec => BValSpec'
+\* TODO clean
+\*LEMMA UniqueMessageLearned ==
+\*    TypeOK /\ Next =>
+\*    \A AL \in SafeAcceptor \cup Learner :
+\*    \A m1 \in known_msgs[AL]' : \A m2 \in known_msgs[AL]' :
+\*        m1 \notin known_msgs[AL] /\ m2 \notin known_msgs[AL] =>
+\*        m1 = m2
 
-\* TODO
-LEMMA KnownMsgSpecInvariant ==
-    TypeOK /\ Next /\ KnownMsgSpec => KnownMsgSpec'
+\*KnownMsgsSpec ==
+\*    \A AL \in SafeAcceptor \cup Learner :
+\*        /\ known_msgs[AL] \in SUBSET msgs
+\*        /\ \A M \in known_msgs[AL] :
+\*            /\ Proper(AL, M)
+\*            /\ WellFormed(M)
+\*            /\ Tran(M) \in SUBSET known_msgs[AL]
+
+LEMMA KnownMsgsSpecInvariant ==
+    TypeOK /\ Next /\ KnownMsgsSpec => KnownMsgsSpec'
+PROOF
+<1> SUFFICES ASSUME TypeOK, Next, KnownMsgsSpec
+             PROVE  KnownMsgsSpec'
+    OBVIOUS
+<1> TypeOK' BY TypeOKInvariant
+<1> SUFFICES ASSUME NEW AL \in SafeAcceptor \cup Learner,
+                    NEW M \in known_msgs[AL]'
+             PROVE  /\ known_msgs[AL]' \in SUBSET msgs'
+                    /\ Proper(AL, M)'
+                    /\ WellFormed(M)'
+                    /\ Tran(M) \in SUBSET known_msgs[AL]'
+                    /\ \E b \in Ballot : B(M, b)
+    BY DEF KnownMsgsSpec
+<1> USE DEF KnownMsgsSpec
+<1>1. CASE ProposerSendAction
+  <2> PICK bal \in Ballot, val \in Value : Send1a(bal, val)
+      BY <1>1 DEF ProposerSendAction
+  <2> USE DEF Send1a
+  <2> known_msgs[AL]' \in SUBSET msgs'
+      BY DEF Send
+  <2> Proper(AL, M)'
+      BY DEF Proper
+  <2> WellFormed(M)'
+      BY WellFormed_monotone DEF Send, TypeOK
+  <2> Tran(M) \in SUBSET known_msgs[AL]'
+      OBVIOUS
+  <2> \E b \in Ballot : B(M, b)
+      OBVIOUS
+  <2> QED OBVIOUS
+<1>2. CASE \E a \in SafeAcceptor : \E m \in msgs : Process1a(a, m)
+  <2> PICK acc \in SafeAcceptor, m1a \in msgs : Process1a(acc, m1a)
+      BY <1>2
+  <2> USE DEF Process1a
+  <2> known_msgs[AL]' \in SUBSET msgs'
+      BY DEF Send, Recv
+  <2> Proper(AL, M)'
+      BY DEF Proper, Recv
+  <2> WellFormed(M)'
+      BY WellFormed_monotone DEF Recv, TypeOK
+  <2> Tran(M) \in SUBSET known_msgs[AL]'
+      BY Tran_1a DEF Recv, TypeOK
+  <2> \E b \in Ballot : B(M, b)
+    <3> CASE M \notin known_msgs[AL]
+      <4> M = m1a BY DEF Recv
+      <4> QED BY B_1a, MessageTypeSpec DEF Recv, TypeOK
+    <3> QED OBVIOUS
+  <2> QED OBVIOUS
+<1>3. CASE \E a \in SafeAcceptor : \E m \in msgs : Process1b(a, m)
+  <2> PICK acc \in SafeAcceptor, msg \in msgs : Process1b(acc, msg)
+      BY <1>3
+  <2> USE DEF Process1b
+  <2> known_msgs[AL]' \in SUBSET msgs'
+      BY DEF Send, Recv
+  <2> Proper(AL, M)'
+      BY DEF Proper, Recv
+  <2> WellFormed(M)'
+      BY WellFormed_monotone DEF Recv, TypeOK
+  <2> Tran(M) \in SUBSET known_msgs[AL]'
+    <3> CASE M \notin known_msgs[AL]
+      <4> M = msg BY DEF Recv
+      <4> AL = acc BY DEF Recv
+      <4> QED BY Tran_eq DEF Recv, Proper, TypeOK
+    <3> QED BY DEF Recv
+  <2> \E b \in Ballot : B(M, b)
+      BY DEF WellFormed
+  <2> QED OBVIOUS
+<1>4. CASE \E a \in SafeAcceptor : \E l \in Learner : Process1bLearnerLoopStep(a, l)
+  <2> PICK acc \in SafeAcceptor, lrn \in Learner : Process1bLearnerLoopStep(acc, lrn)
+      BY <1>4
+  <2> USE DEF Process1bLearnerLoopStep
+  <2> known_msgs[AL]' \in SUBSET msgs'
+      BY DEF Send
+  <2> Proper(AL, M)'
+      BY DEF Proper
+  <2> WellFormed(M)'
+      BY WellFormed_monotone DEF TypeOK
+  <2> Tran(M) \in SUBSET known_msgs[AL]'
+      OBVIOUS
+  <2> \E b \in Ballot : B(M, b)
+      BY DEF WellFormed
+  <2> QED OBVIOUS
+<1>5. CASE \E a \in SafeAcceptor : Process1bLearnerLoopDone(a)
+  <2> PICK acc \in SafeAcceptor : Process1bLearnerLoopDone(acc)
+      BY <1>5
+  <2> USE DEF Process1bLearnerLoopDone
+  <2> known_msgs[AL]' \in SUBSET msgs'
+      OBVIOUS
+  <2> Proper(AL, M)'
+      BY DEF Proper
+  <2> WellFormed(M)'
+      BY WellFormed_monotone DEF TypeOK
+  <2> Tran(M) \in SUBSET known_msgs[AL]'
+      OBVIOUS
+  <2> \E b \in Ballot : B(M, b)
+      BY DEF WellFormed
+  <2> QED OBVIOUS
+<1>6. CASE \E lrn \in Learner : LearnerRecv(lrn)
+  <2> PICK lrn \in Learner : LearnerRecv(lrn)
+      BY <1>6
+  <2> USE DEF LearnerRecv
+  <2> known_msgs[AL]' \in SUBSET msgs'
+      BY DEF Recv
+  <2> Proper(AL, M)'
+      BY DEF Proper, Recv
+  <2> WellFormed(M)'
+      BY WellFormed_monotone DEF TypeOK, Recv
+  <2> Tran(M) \in SUBSET known_msgs[AL]'
+    <3> CASE M \notin known_msgs[AL]
+      <4> QED BY Tran_eq DEF Recv, Proper, TypeOK
+    <3> QED BY DEF Recv
+  <2> \E b \in Ballot : B(M, b)
+      BY DEF WellFormed
+  <2> QED OBVIOUS
+<1>7. CASE \E lrn \in Learner : \E bal \in Ballot : \E val \in Value :
+            LearnerDecide(lrn, bal, val)
+  <2> PICK lrn \in Learner, bal \in Ballot, val \in Value :
+            LearnerDecide(lrn, bal, val)
+      BY <1>7
+  <2> USE DEF LearnerDecide
+  <2> known_msgs[AL]' \in SUBSET msgs'
+      OBVIOUS
+  <2> Proper(AL, M)'
+      BY DEF Proper
+  <2> WellFormed(M)'
+      BY WellFormed_monotone DEF TypeOK
+  <2> Tran(M) \in SUBSET known_msgs[AL]'
+      OBVIOUS
+  <2> \E b \in Ballot : B(M, b)
+      BY DEF WellFormed
+  <2> QED OBVIOUS
+<1>8. CASE \E a \in FakeAcceptor : FakeSend(a)
+  <2> PICK acc \in FakeAcceptor : FakeSend(acc)
+      BY <1>8
+  <2> USE DEF FakeSend
+  <2> known_msgs[AL]' \in SUBSET msgs'
+      BY DEF Send
+  <2> Proper(AL, M)'
+      BY DEF Proper
+  <2> WellFormed(M)'
+      BY WellFormed_monotone DEF TypeOK
+  <2> Tran(M) \in SUBSET known_msgs[AL]'
+      OBVIOUS
+  <2> \E b \in Ballot : B(M, b)
+      OBVIOUS
+  <2> QED OBVIOUS
+<1>9. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, <1>7, <1>8
+          DEF Next, AcceptorProcessAction, Process1bLearnerLoop,
+              LearnerAction, FakeAcceptorAction
 
 LEMMA MsgsSafeAcceptorSpecInvariant ==
     TypeOK /\ Next /\ RecentMsgsSafeAcceptorSpec /\
@@ -1206,28 +1391,28 @@ PROOF
           DEF Next, AcceptorProcessAction, Process1bLearnerLoop
 
 LEMMA MsgsSafeAcceptorSpecImpliesCaughtSpec ==
-    ASSUME TypeOK, KnownMsgSpec, MsgsSafeAcceptorSpec
+    ASSUME TypeOK, KnownMsgsSpec, MsgsSafeAcceptorSpec
     PROVE  CaughtSpec
 PROOF BY MessageTypeSpec
-      DEF MsgsSafeAcceptorSpec, CaughtSpec, Caught, CaughtMsg, KnownMsgSpec, TypeOK
+      DEF MsgsSafeAcceptorSpec, CaughtSpec, Caught, CaughtMsg, KnownMsgsSpec, TypeOK
 
 LEMMA QuorumIntersection ==
     ASSUME TypeOK,
            NEW a \in Learner, NEW b \in Learner,
            NEW M \in Message,
            NEW Qa \in SUBSET Message, NEW Qb \in SUBSET Message,
+           NEW S \in ByzQuorum,
            [lr |-> a, q |-> { mm.acc : mm \in Qa }] \in TrustLive,
            [lr |-> b, q |-> { mm.acc : mm \in Qb }] \in TrustLive,
-           b \in Con(a, M)
-    PROVE  \E p \in Acceptor, ma \in Qa, mb \in Qb :
+           ConByQuorum(a, b, M, S)
+    PROVE  \E p \in S, ma \in Qa, mb \in Qb :
             /\ p \notin Caught(M)
             /\ ma.acc = p
             /\ mb.acc = p
 PROOF
-<1> PICK S \in ByzQuorum :
-            /\ [from |-> a, to |-> b, q |-> S] \in TrustSafe
-            /\ S \cap Caught(M) = {}
-    BY Zenon DEF Con
+<1> /\ [from |-> a, to |-> b, q |-> S] \in TrustSafe
+    /\ S \cap Caught(M) = {}
+    BY DEF ConByQuorum
 <1> PICK acc \in S : /\ acc \in { mm.acc : mm \in Qa }
                      /\ acc \in { mm.acc : mm \in Qb }
     BY TrustLiveAssumption, LearnerGraphAssumptionValidity, Zenon
@@ -1239,37 +1424,10 @@ LEMMA EntConnected ==
            <<a, b>> \in Ent,
            NEW AL \in SafeAcceptor \cup Learner,
            NEW m \in known_msgs[AL]
-    PROVE b \in Con(a, m)
-PROOF BY BQAssumption DEF Con, Ent, CaughtSpec
+    PROVE  ConByQuorum(a, b, m, SafeAcceptor)
+PROOF BY BQAssumption DEF ConByQuorum, Ent, CaughtSpec
 
-\*Con(a, x) ==
-\*    { b \in Learner :
-\*        \E S \in ByzQuorum :
-\*            /\ [from |-> a, to |-> b, q |-> S] \in TrustSafe
-\*            /\ S \cap Caught(x) = {} }
-
-\*CaughtSpec ==
-\*    \A AL \in SafeAcceptor \cup Learner :
-\*        \A M \in known_msgs[AL] :
-\*            Caught(M) \cap SafeAcceptor = {}
-
-
-\* TODO
-LEMMA DecisionSpecInvariant ==
-    TypeOK /\ Next /\ DecisionSpec => DecisionSpec'
-
-\*HeterogeneousSpec ==
-\*    \A a, b \in Learner :
-\*    \A Va, Vb \in Value :
-\*    \A Ba \in Ballot :
-\*        ChosenIn(a, Ba, Va) =>
-\*        \A w \in known_msgs[b] :
-\*           w.type = "2a" /\
-\*           w.lrn = b /\
-\*           (\A Bb \in Ballot : B(w, Bb) => Ba < Bb) /\
-\*           V(w, Vb) =>
-\*           Va = Vb
-
+-----------------------------------------------------------------------------
 HeterogeneousSpec(bal) ==
     \A L0, L1, L2 \in Learner :
         <<L1, L2>> \in Ent =>
@@ -1284,14 +1442,7 @@ HeterogeneousSpec(bal) ==
                 V(M, V2) =>
                 V1 = V2
 
-\* TODO
-LEMMA XXX ==
-    ASSUME Next, NEW m \in Message, NEW v \in Value
-    PROVE V(m, v) <=> V(m, v)'
-
-LEMMA YYY ==
-    ASSUME Next, NEW m \in Message, NEW v \in Value, V(m, v)'
-    PROVE V(m, v)
+-----------------------------------------------------------------------------
 
 THEOREM GeneralBallotInduction ==
     ASSUME NEW P(_),
@@ -1304,13 +1455,13 @@ PROOF
 <1> QED OBVIOUS
 
 LEMMA HeterogeneousLemma ==
-    TypeOK /\ BValSpec /\ KnownMsgSpec /\ CaughtSpec =>
+    TypeOK /\ KnownMsgsSpec /\ CaughtSpec /\ MsgsSafeAcceptorSpec =>
     \A bal \in Ballot : HeterogeneousSpec(bal)
 PROOF
-<1> ASSUME TypeOK, BValSpec, KnownMsgSpec, CaughtSpec,
+<1> ASSUME TypeOK, KnownMsgsSpec, CaughtSpec, MsgsSafeAcceptorSpec,
            NEW bal \in Ballot,
            (\A b \in Ballot : b < bal => HeterogeneousSpec(b))
-    PROVE HeterogeneousSpec(bal)
+    PROVE  HeterogeneousSpec(bal)
   <2> SUFFICES ASSUME NEW L0 \in Learner,
                       NEW L1 \in Learner, NEW L2 \in Learner,
                       NEW V1 \in Value, NEW V2 \in Value,
@@ -1326,7 +1477,7 @@ PROOF
                PROVE  V1 = V2
       BY DEF HeterogeneousSpec
   <2>1. M \in msgs /\ Proper(L0, M) /\ WellFormed(M)
-      BY DEF KnownMsgSpec
+      BY DEF KnownMsgsSpec
   <2> M \in Message
       BY <2>1 DEF TypeOK
   <2>3. [lr |-> L2, q |-> q(M)] \in TrustLive
@@ -1341,53 +1492,66 @@ PROOF
       BY DEF q
   <2> [lr |-> L2, q |-> { mm.acc : mm \in Q2 }] \in TrustLive
       BY <2>5, <2>3
-  <2> L1 \in Con(L2, M)
+  <2> ConByQuorum(L2, L1, M, SafeAcceptor)
       BY EntConnected, EntanglementSym, Zenon
-  <2>8. PICK Q1 \in SUBSET { x \in known_msgs[L1] :
-                            /\ x.type = "2a"
-                            /\ x.lrn = L1
-                            /\ B(x, B1)
-                            /\ V(x, V1) } :
-            [lr |-> L1, q |-> { mm.acc : mm \in Q1 }] \in TrustLive
+  <2> ConByQuorum(L1, L2, M, SafeAcceptor)
+      BY EntConnected, Zenon
+  <2>8. PICK Q1 \in SUBSET Known2a(L1, B1, V1) :
+                [lr |-> L1, q |-> { mm.acc : mm \in Q1 }] \in TrustLive
       BY Zenon DEF ChosenIn
+  <2> Q1 \in SUBSET msgs
+      BY DEF Known2a, KnownMsgsSpec
   <2> Q1 \in SUBSET Message
-      BY DEF KnownMsgSpec, TypeOK
+      BY DEF TypeOK
   <2> [lr |-> L1, q |-> { mm.acc : mm \in Q1 }] \in TrustLive
       BY <2>8
-  <2> PICK p \in Acceptor, m1b \in Q2, m2a \in Q1 :
+  <2> PICK p \in SafeAcceptor, m1b \in Q2, m2a \in Q1 :
             /\ p \notin Caught(M)
             /\ m1b.acc = p
             /\ m2a.acc = p
     <3> HIDE DEF Q2
-    <3> QED BY QuorumIntersection, Isa
+    <3> QED BY QuorumIntersection, BQAssumption, Isa
   <2> m2a.type = "2a"
-      BY <2>8
+      BY <2>8 DEF Known2a
   <2> m2a.lrn = L1
-      BY <2>8
+      BY <2>8 DEF Known2a
+  <2> m2a \in msgs
+      OBVIOUS
   <2> B(m2a, B1)
-      BY <2>8
+      BY <2>8 DEF Known2a
   <2> V(m2a, V1)
-      BY <2>8
+      BY <2>8 DEF Known2a
+  <2> m1b.type = "1b"
+      OBVIOUS
   <2> m1b \in known_msgs[L0]
-      BY DEF KnownMsgSpec
+      BY DEF KnownMsgsSpec
+  <2> m1b \in msgs
+      BY DEF KnownMsgsSpec
+  <2> WellFormed(m1b)
+      BY DEF KnownMsgsSpec
   <2> B(m1b, bal)
       OBVIOUS
   <2> Fresh(L2, m1b) BY DEF q
-  \* TODO
   <2>13. \A r \in Tran(m1b) :
-            r.type = "2a" =>
+            r # m1b /\ r.type # "1a" =>
             \A b1, b2 \in Ballot : B(r, b1) /\ B(m1b, b2) => b1 < b2
-  \* TODO
+    <3> QED BY WellFormedCondition2, WellFormedCondition3 DEF WellFormed
   <2>14. m2a \in Tran(m1b)
+    <3> ASSUME m1b \in Tran(m2a) PROVE FALSE
+        BY TranBallot DEF Ballot
+    <3> QED BY DEF MsgsSafeAcceptorSpec
   <2>15. CASE ~Buried(m2a, m1b)
     <3> L1 \in Con(L2, m1b)
-        BY EntConnected, EntanglementSym, Zenon
+        BY EntConnected, EntanglementSym, BQAssumption DEF Con
     <3> m2a \in Con2as(L2, m1b)
         BY <2>14, <2>15 DEF Con2as
+    <3> \A v \in Value : V(m2a, v) <=> V(m1b, v)
+        BY DEF Fresh
     <3> V(m1b, V1)
         BY DEF Fresh
-    \* TODO
-    <3> QED
+    <3> V(m1b, V2)
+        BY V_def, V_func DEF TypeOK
+    <3> QED BY V_func
   <2>16. CASE Buried(m2a, m1b)
     <3> DEFINE Q == { m \in Tran(m1b) :
                         \E z \in Tran(m) :
@@ -1402,7 +1566,7 @@ PROOF
     <3> { m.acc : m \in Q } \in ByzQuorum
         BY TrustLiveAssumption, Zenon
     <3>3. PICK m0 \in { m.acc : m \in Q } : TRUE
-        BY EntaglementTrustLiveNonEmpty
+        BY EntaglementTrustLiveNonEmpty, Zenon
     <3> PICK r \in Tran(m1b) :
             /\ r.type = "2a"
             /\ r.lrn = L1
@@ -1414,13 +1578,13 @@ PROOF
     <3> <<L1, L1>> \in Ent
         BY EntanglementSelf
     <3> r \in known_msgs[L0]
-        BY DEF KnownMsgSpec
+        BY DEF KnownMsgsSpec
     <3> r \in Message
         BY DEF TypeOK
-    \* TODO formulate a respective known_msg invariant
     <3> PICK br \in Ballot : B(r, br)
+        BY DEF KnownMsgsSpec
     <3> PICK vr \in Value : V(r, vr)
-        BY V_def DEF BValSpec
+        BY V_def DEF TypeOK
     <3> B1 < br
         OBVIOUS
     <3> V1 # vr
@@ -1428,90 +1592,6 @@ PROOF
     <3> br < bal
         BY <2>13
     <3> QED BY DEF HeterogeneousSpec
-
-\* 2a-message is _buried_ if there exists a quorum of acceptors that have seen
-\* 2a-messages with different values, the same learner, and higher ballot
-\* numbers.
-\*Buried(x, y) ==
-\*    LET Q == { m \in Tran(y) :
-\*                \E z \in Tran(m) :
-\*                    /\ z.type = "2a"
-\*                    /\ z.lrn = x.lrn
-\*                    /\ \A bx, bz \in Ballot :
-\*                        B(x, bx) /\ B(z, bz) => bx < bz
-\*                    /\ \A vx, vz \in Value :
-\*                        V(x, vx) /\ V(z, vz) => vx # vz }
-\*    IN [lr |-> x.lrn, q |-> { m.acc : m \in Q }] \in TrustLive
-
-\* 2a-message is _buried_ if there exists a quorum of acceptors that have seen
-\* 2a-messages with different values, the same learner, and higher ballot
-\* numbers.
-\*Buried(x, y) ==
-\*    LET Q == { m \in Tran(y) :
-\*                \E z \in Tran(m) :
-\*                    /\ z.type = "2a"
-\*                    /\ z.lrn = x.lrn
-\*                    /\ \A bx, bz \in Ballot :
-\*                        B(x, bx) /\ B(z, bz) => bx < bz
-\*                    /\ \A vx, vz \in Value :
-\*                        V(x, vx) /\ V(z, vz) => vx # vz }
-\*    IN [lr |-> x.lrn, q |-> { m.acc : m \in Q }] \in TrustLive
-
-\*Fresh(l, x) == \* x : 1b
-\*    \A m \in Con2as(l, x) : \A v \in Value : V(x, v) <=> V(m, v)
-
-\*Con(a, x) ==
-\*    { b \in Learner :
-\*        \E S \in ByzQuorum :
-\*            /\ [from |-> a, to |-> b, q |-> S] \in TrustSafe
-\*            /\ S \cap Caught(x) = {} }
-
-\* Connected 2a messages
-\*Con2as(l, x) ==
-\*    { m \in Tran(x) :
-\*        /\ m.type = "2a"
-\*        /\ m.acc = x.acc
-\*        /\ ~Buried(m, x)
-\*        /\ m.lrn \in Con(l, x) }
-
-\*WellFormed(m) ==
-\*    /\ m \in Message
-\*    /\ m.type = "1b" =>
-\*        /\ \E r1a \in m.ref :
-\*            /\ r1a.type = "1a"
-\*            /\ \A r \in m.ref : r.type = "1a" => r = r1a
-\*        /\ \A y \in Tran(m) :
-\*            m # y /\ SameBallot(m, y) => y \in Get1a(m)
-\*    /\ m.type = "2a" =>
-\*        /\ [lr |-> m.lrn, q |-> q(m)] \in TrustLive
-\*        \* /\ m.acc \in q(m)
-
-\*q(x) ==
-\*    LET Q == { m \in Tran(x) :
-\*                /\ m.type = "1b"
-\*                /\ Fresh(x.lrn, m)
-\*                /\ \A b \in Ballot : B(m, b) <=> B(x, b) }
-\*    IN { m.acc : m \in Q } 
-
-\*ChosenIn(l, b, v) ==
-\*    \E S \in SUBSET { x \in known_msgs[l] :
-\*                            /\ x.type = "2a"
-\*                            /\ x.lrn = l
-\*                            /\ B(x, b)
-\*                            /\ V(x, v) } :
-\*        [lr |-> l, q |-> { m.acc : m \in S }] \in TrustLive  
-\*LEMMA QuorumIntersection ==
-\*    ASSUME TypeOK,
-\*           NEW a \in Learner, NEW b \in Learner,
-\*           NEW M \in Message,
-\*           NEW Qa \in SUBSET Message, NEW Qb \in SUBSET Message,
-\*           { mm.acc : mm \in Qa } \in ByzQuorum,
-\*           { mm.acc : mm \in Qb } \in ByzQuorum,
-\*           [lr |-> a, q |-> { mm.acc : mm \in Qa }] \in TrustLive,
-\*           [lr |-> b, q |-> { mm.acc : mm \in Qb }] \in TrustLive,
-\*           b \in Con(a, M)
-\*    PROVE \E p \in Acceptor, ma \in Qa, mb \in Qb :
-\*            ma.acc = p /\ mb.acc = p
   <2>17. QED BY <2>15, <2>16
 <1> QED BY GeneralBallotInduction, IsaM("blast")
 
@@ -1524,18 +1604,14 @@ LEMMA ChosenSafeCaseEq ==
            ChosenIn(L1, BB, V1), ChosenIn(L2, BB, V2)
     PROVE V1 = V2
 PROOF
-<1> PICK S1 \in SUBSET { x \in known_msgs[L1] :
-                            /\ B(x, BB)
-                            /\ V(x, V1) } :
-            [lr |-> L1, q |-> { m.acc : m \in S1 }] \in TrustLive
+<1> PICK S1 \in SUBSET Known2a(L1, BB, V1) :
+        [lr |-> L1, q |-> { m.acc : m \in S1 }] \in TrustLive
     BY DEF ChosenIn, Zenon
 <1> DEFINE Q1 == { m.acc : m \in S1 }
 <1> Q1 \in ByzQuorum
     BY TrustLiveAssumption, Zenon
-<1> PICK S2 \in SUBSET { x \in known_msgs[L2] :
-                            /\ B(x, BB)
-                            /\ V(x, V2) } :
-         [lr |-> L2, q |-> { m.acc : m \in S2 }] \in TrustLive
+<1> PICK S2 \in SUBSET Known2a(L2, BB, V2) :
+        [lr |-> L2, q |-> { m.acc : m \in S2 }] \in TrustLive
     BY DEF ChosenIn, Zenon
 <1> DEFINE Q2 == { m.acc : m \in S2 }
 <1> Q2 \in ByzQuorum
@@ -1545,38 +1621,30 @@ PROOF
 <1>4. PICK m1 \in known_msgs[L1] :
         /\ B(m1, BB)
         /\ V(m1, V1)
-      BY DEF ChosenIn
+      BY DEF ChosenIn, Known2a
 <1>5. PICK m2 \in known_msgs[L2] :
         /\ B(m2, BB)
         /\ V(m2, V2)
-      BY DEF ChosenIn
+      BY DEF ChosenIn, Known2a
 <1>6. QED BY <1>4, <1>5, V_def, V_func DEF TypeOK
 
 LEMMA ChosenSafeCaseLt ==
     ASSUME NEW L1 \in Learner, NEW L2 \in Learner,
            NEW B1 \in Ballot, NEW B2 \in Ballot,
            NEW V1 \in Value, NEW V2 \in Value,
-           TypeOK, BValSpec, KnownMsgSpec, CaughtSpec,
+           TypeOK, KnownMsgsSpec, CaughtSpec, MsgsSafeAcceptorSpec,
            <<L1, L2>> \in Ent,
            B1 < B2,
            ChosenIn(L1, B1, V1), ChosenIn(L2, B2, V2)
     PROVE V1 = V2
 PROOF
-<1> PICK S1 \in SUBSET { x \in known_msgs[L1] :
-                            /\ x.type = "2a"
-                            /\ x.lrn = L1
-                            /\ B(x, B1)
-                            /\ V(x, V1) } :
-         [lr |-> L1, q |-> { m.acc : m \in S1 }] \in TrustLive
+<1> PICK S1 \in SUBSET Known2a(L1, B1, V1) :
+        [lr |-> L1, q |-> { m.acc : m \in S1 }] \in TrustLive
     BY Zenon DEF ChosenIn
 <1> DEFINE Q1 == { m.acc : m \in S1 }
 <1> Q1 \in ByzQuorum BY TrustLiveAssumption
-<1> PICK S2 \in SUBSET { x \in known_msgs[L2] :
-                            /\ x.type = "2a"
-                            /\ x.lrn = L2
-                            /\ B(x, B2)
-                            /\ V(x, V2) } :
-            [lr |-> L2, q |-> { m.acc : m \in S2 }] \in TrustLive
+<1> PICK S2 \in SUBSET Known2a(L2, B2, V2) :
+        [lr |-> L2, q |-> { m.acc : m \in S2 }] \in TrustLive
     BY Zenon DEF ChosenIn
 <1> DEFINE Q2 == { m.acc : m \in S2 }
 <1> Q2 \in ByzQuorum
@@ -1590,14 +1658,14 @@ PROOF
         /\ M.lrn = L2
         /\ B(M, B2)
         /\ V(M, V2)
-    OBVIOUS
+    BY DEF Known2a
 <1> QED BY HeterogeneousLemma DEF HeterogeneousSpec
 
 LEMMA ChosenSafe ==
     ASSUME NEW L1 \in Learner, NEW L2 \in Learner,
            NEW B1 \in Ballot, NEW B2 \in Ballot,
            NEW V1 \in Value, NEW V2 \in Value,
-           TypeOK, KnownMsgSpec,
+           TypeOK, KnownMsgsSpec, CaughtSpec, MsgsSafeAcceptorSpec,
            <<L1, L2>> \in Ent,
            ChosenIn(L1, B1, V1), ChosenIn(L2, B2, V2)
     PROVE V1 = V2
@@ -1609,12 +1677,12 @@ PROOF
 
 LEMMA SafetyStep ==
     TypeOK /\ Next /\
-    KnownMsgSpec /\ DecisionSpec /\
+    KnownMsgsSpec /\ CaughtSpec /\ MsgsSafeAcceptorSpec /\ DecisionSpec /\
     Safety => Safety'
 PROOF
 <1> SUFFICES
         ASSUME TypeOK, Next,
-               KnownMsgSpec, DecisionSpec,
+               KnownMsgsSpec, CaughtSpec, MsgsSafeAcceptorSpec, DecisionSpec,
                Safety,
                NEW L1 \in Learner, NEW L2 \in Learner,
                NEW B1 \in Ballot, NEW B2 \in Ballot,
@@ -1667,16 +1735,10 @@ PROOF
 <1>8. CASE FakeAcceptorAction
       BY <1>8 DEF FakeAcceptorAction, FakeSend, Safety
 <1>9. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, <1>7, <1>8
-          DEF Next, AcceptorProcessAction, Process1bLearnerLoop, LearnerAction 
+          DEF Next, AcceptorProcessAction, Process1bLearnerLoop, LearnerAction
 
------------------------------------------------------------------------------
-\*LEMMA SafetyStep ==
-\*    TypeOK /\ Next /\ MsgInv /\
-\*    DecisionSpec /\ ReceivedSpec /\ ReceivedByLearnerSpec /\
-\*    2avSentSpec1 /\ 2avSentSpec3 /\ VotesSentSpec4 /\
-\*    HeterogeneousSpec /\ Safety => Safety'
 
 =============================================================================
 \* Modification History
-\* Last modified Fri Sep 23 12:38:38 CEST 2022 by aleph
+\* Last modified Thu Sep 29 14:34:21 CEST 2022 by aleph
 \* Created Thu Aug 25 10:12:00 CEST 2022 by aleph
