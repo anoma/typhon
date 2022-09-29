@@ -383,6 +383,16 @@ Next ==
 Spec == Init /\ [][Next]_vars
 
 -----------------------------------------------------------------------------
+Safety ==
+    \A L1, L2 \in Learner: \A B1, B2 \in Ballot : \A V1, V2 \in Value :
+        <<L1, L2>> \in Ent /\
+        V1 \in decision[L1, B1] /\ V2 \in decision[L2, B2] =>
+        V1 = V2
+
+THEOREM SafetyResult == Spec => []Safety
+
+-----------------------------------------------------------------------------
+(* Sanity check propositions *)
 
 SanityCheck0 ==
     \A L \in Learner : Cardinality(known_msgs[L]) = 0
@@ -410,19 +420,7 @@ UniqueDecision ==
         V1 \in decision[L1, B1] /\ V2 \in decision[L2, B2] =>
         V1 = V2
 
------------------------------------------------------------------------------
-
-Safety ==
-    \A L1, L2 \in Learner: \A B1, B2 \in Ballot : \A V1, V2 \in Value :
-        <<L1, L2>> \in Ent /\
-        V1 \in decision[L1, B1] /\ V2 \in decision[L2, B2] =>
-        V1 = V2
-
-
-
-THEOREM SafetyResult == Spec => []Safety
-
 =============================================================================
 \* Modification History
-\* Last modified Thu Sep 29 14:45:15 CEST 2022 by aleph
+\* Last modified Thu Sep 29 14:50:20 CEST 2022 by aleph
 \* Created Mon Jul 25 14:24:03 CEST 2022 by aleph
