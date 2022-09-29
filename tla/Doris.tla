@@ -826,6 +826,9 @@ StoreBatch(batch, worker) ==
   \* we elide the details of storing the actual batch for availability
   /\ UNCHANGED allBUTstoredHx \* end of action StoreBatch
 
+\* "currentBlocksProduced":
+\*   the blocks produced by a certain validator that carry the nonce
+\* 
 \* @type: (BYZ_VAL, Int) => Set($block);
 currentBlocksProduced(creator, nonce) == 
   LET
@@ -848,8 +851,10 @@ currentBlocksProduced(creator, nonce) ==
       }
   IN { x.block : x \in filteredData }
 
-\* "fetchBlock" yields a block (or **should** raise an error)---
-\* based on the messages sent (i.e., present in the variable "msg")
+\* "fetchBlock":
+\*    yields a block (or **should** raise an error)---
+\*    based on the messages sent (i.e., present in the variable "msg")
+\* 
 \* @type: $blockDigest => $block;
 fetchBlock(dgst) == 
   LET
@@ -863,7 +868,8 @@ fetchBlock(dgst) ==
 
 
 \* ACTION GenesisBlockBC [instance of BlockBC]:
-\*  a validator produces a genesis block and broadcasts it
+\*   a validator produces a genesis block and broadcasts it
+\* 
 \* @typing: BYZ_VAL => Bool;
 GenesisBlockBC(validator) ==
   LET
@@ -887,14 +893,17 @@ GenesisBlockBC(validator) ==
           [nextHx EXCEPT ![v] = {}] 
   /\ UNCHANGED allBUTmsgsNnextHx \* end of action "GenesisBlockBC"
 
-
-\* predicate for checking the storage of hashes at a validator
+\* "hasBlockHashesStored":
+\*   predicate for checking the storage of hashes at a validator
+\*  
 \* @type: ($block, BYZ_VAL) => Bool;
 hasBlockHashesStored(block, val) ==
  \* we know all batches
  \A h \in block.bhxs : h \in storedHx[val]
 
-\* predicate for checking the storage of blocks of digests
+\* "checkCertificatesOfAvailability":
+\*   predicate for checking the storage of blocks of digests
+\* 
 \* @type: ($digestFamily, BYZ_VAL) => Bool;
 checkCertificatesOfAvailability(certificate, validator) ==
   LET
@@ -911,6 +920,10 @@ checkCertificatesOfAvailability(certificate, validator) ==
          \* block is known certified 
          << b, COA >> \in storedBlx[v]  
 
+\* "validBlock":
+\*   predicate that checks whether a correct validator should 
+\*   consider a given block to be valid
+\* 
 \* @type: ($block, BYZ_VAL) => Bool;
 validBlock(block, validator) == 
   LET 
@@ -928,7 +941,6 @@ validBlock(block, validator) ==
      \* and block references stored
   /\ checkCertificatesOfAvailability(b.cq, v)
   /\ DOMAIN b.wl = {} 
-
 
 \* ACTION Ack:
 \*   Receive a block, check its validity, store it, Ack()acknowledge it.
@@ -968,6 +980,7 @@ Ack(validator, block) ==
 
 \* ACTION CertBC:
 \*   broadcast a certificate of availability of (the digest of) a block 
+\*  
 \* @type: ($blockDigest) => Bool;
 CertBC(dgst) ==
   LET
@@ -997,6 +1010,10 @@ CertBC(dgst) ==
                 [v \in ByzValidator |-> storedBlx[v] \cup {<< b, COA >>}] 
   /\ UNCHANGED allBUTmsgsNstoredBlx
 
+\* "preceedingBlocks":
+\*   the set of blocks known to a validator in the previous round
+\*   cf. \prec / the directly covers relation 
+\* 
 \* @type: (BYZ_VAL, Int) => Set($block);
 preceedingBlocks(v, r) == 
       { b \in Block : 
@@ -1004,9 +1021,9 @@ preceedingBlocks(v, r) ==
           /\ << b, COA >> \in storedBlx[v]
       }
 
-
 \* ACTION AfterGenesisBlockBC [instance of BlockBC]:
 \*  a validator produces a block, after genesis, and broadcasts it
+\* 
 \* @typing: BYZ_VAL => Bool;
 AfterGenesisBlockBC(validator) ==
   LET
@@ -1052,6 +1069,12 @@ AfterGenesisBlockBC(validator) ==
               [nextHx EXCEPT ![v] = {}] 
   /\ UNCHANGED allBUTmsgsNnextHx \* end of action "GenesisBlockBC"
 
+\* ACTION BlockBC:
+\*   the combination of the two cases of block production, viz.
+\*   - GenesisBlockBC
+\*   - AfterGenesisBlockBC
+\*
+\* @typing: BYZ_VAL => Bool;
 BlockBC(validator) == 
   \/ GenesisBlockBC(validator)
   \/ AfterGenesisBlockBC(validator)
@@ -1059,6 +1082,7 @@ BlockBC(validator) ==
 \* AdvanceRound:
 \*   correct validators can increment their local round number 
 \*   as soon as they have a quorum of CoA for blocks of the previous round 
+\*  
 \* @type: (BYZ_VAL) => Bool;
 AdvanceRound(validator) == 
   LET
@@ -1078,20 +1102,12 @@ AdvanceRound(validator) ==
 (*                          DAG STRUCTURE                                  *)
 (***************************************************************************)
 
-(* We define several auxiliary predicates .                                *)
-(*                                                                         *)
-(* - 'linksTo',                                                            *)
-(*   the relation of direct links in the mempool DAG                       *)
-(*                                                                         *)
-(* - 'IsCertifiedBlock',                                                   *)
-(*   the predicate for checking if a block is certified                    *)
-(*                                                                         *)
-(* - 'CertifiedBlocks',                                                    *)
-(*   the set of all blocks that are certified via 'IsCertifiedBlock'       *)
-(*                                                                         *)
-(***************************************************************************)
+(* We define several auxiliary predicates and sets  *)
 
-\* the relation of direct links between blocks 
+\* "linksTo":
+\*   the relation of direct links between blocks 
+\*   (the blocks do not have to be proposed)
+\*
 \* @type: ($block, $block) => Bool;
 linksTo(b, y) ==
   \* type checks
@@ -1105,10 +1121,9 @@ linksTo(b, y) ==
      IN 
        blockOfC = y
 
-
-\* checking whether a digest is justified via messages
+\* checking whether a digest is certified via messages
 \* @type: ($blockDigest) => Bool;
-IsJustifiedDigest(dgst) == 
+IsCertifiedDigest(dgst) == 
   \E v \in ByzValidator : 
         \* the digest was sent by v in a certMessage and …
      /\ certMsg(dgst, v) \in msgs 
@@ -1127,15 +1142,17 @@ IsCertifiedBlock(b) ==
   \* type check
   /\ b \in Block
   \* check the digest
-  /\ IsJustifiedDigest(digest(b))
+  /\ IsCertifiedDigest(digest(b))
 
 \* the set of all blocks that are certified via 'IsCertifiedBlock'
 \* @type: Set($block);
 CertifiedBlocks == { b \in Block : IsCertifiedBlock(b) }
 
-\* what's a proper quorum of certificates in (local) round r?
-\* - must be at round r-1
-\* - all certificates justified
+\* "IsProperCertQuorumAtRound":
+\*    what's a proper quorum of certificates in (local) round r?
+\*    - must be at round r-1
+\*    - all certificates justified
+\*
 \* @type: ($digestFamily, Int) => Bool;
 IsProperCertQuorumAtRound(certificateQuorum, round) == 
   LET
@@ -1149,10 +1166,10 @@ IsProperCertQuorumAtRound(certificateQuorum, round) ==
      \* the round is the previous round
   /\ \A v \in DOMAIN cq : 
       /\ cq[v].rnd = r - 1
-      /\ IsJustifiedDigest(cq[v])
+      /\ IsCertifiedDigest(cq[v])
 
-
-
+-----------------------------------------------------------------------------
+    
 (***************************************************************************)
 (*                      CONSENSUS ABSTRACTION                              *)
 (***************************************************************************)
@@ -1164,7 +1181,9 @@ IsProperCertQuorumAtRound(certificateQuorum, round) ==
 (* referenced by at least a weak quorum.                                   *)
 (***************************************************************************)
 
-\* predicate that checks if a block counts as commitable
+\* hasSupport:
+\*   predicate that checks if a block is a commitable leader block
+\* 
 \* @type: ($block) => Bool;
 hasSupport(b) == 
      \* type check 
@@ -1178,8 +1197,10 @@ hasSupport(b) ==
                  /\ linksTo(y, b)                  
 
 
-\* the constant number of rounds between each leader block commitment
 CONSTANT
+  \* ̈"WaveLength":
+  \*   the constant number of rounds between each leader block commitment
+  \*
   \* @type: Int;
   WaveLength
 
@@ -1187,8 +1208,13 @@ ASSUME WaveLengthAssumption ==
   /\ WaveLength \in Nat
   /\ WaveLength >= 1
 
-WaveLengthTimesNat == { n \in Nat : \E i \in Nat : n = WaveLength * i }
-  
+WaveLengthTimesNat == 
+  { n \in Nat : \E i \in Nat : n = WaveLength * i }
+
+\* ACTION "CommitBlock":  
+\*   the action of commiting a block (by consensus)
+\* 
+\* @type: $block => Bool;
 CommitBlock(b) == 
   \* type check
   /\ b \in Block
@@ -1196,7 +1222,6 @@ CommitBlock(b) ==
      \* proper round number
   /\ b.rnd \in WaveLengthTimesNat
      \* not yet committed any block at the round
-  
   /\ ~\E y \in Block: 
            /\ commitMsg(digest(y)) \in msgs 
            /\ y.rnd = b.rnd                     
@@ -1204,7 +1229,6 @@ CommitBlock(b) ==
   /\ hasSupport(b)
   /\ Send(commitMsg(digest(b)))
   /\ UNCHANGED allBUTmsgs
-
 
 -----------------------------------------------------------------------------
 
@@ -1235,8 +1259,7 @@ IsCommitingLeaderBlock(b) ==
   /\ commitMsg(digest(b)) \in msgs 
 
 
-
-(*    
+(* (coming soon ™) 
 \* checking if a block is commited
 IsCommitted(b) ==
   /\ b \in Block
