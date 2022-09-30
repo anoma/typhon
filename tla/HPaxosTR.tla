@@ -65,9 +65,11 @@ Ent == { LL \in Learner \X Learner :
 (* Messages *)
 
 CONSTANT MaxRefCardinality
-ASSUME MaxRefCardinality \in Nat
+ASSUME MaxRefCardinalityAssumption ==
+    MaxRefCardinality \in Nat
 
-RefCardinality == Nat
+\*RefCardinality == Nat
+RefCardinality == 0..MaxRefCardinality
 
 FINSUBSET(S, R) == { Range(seq) : seq \in [R -> S] }
 \*FINSUBSET(S, K) == { Range(seq) : seq \in [1..K -> S] }
@@ -236,16 +238,11 @@ vars == << msgs, known_msgs, recent_msgs, 2a_lrn_loop, processed_lrns, decision,
 Init ==
     /\ msgs = {}
     /\ known_msgs = [x \in Acceptor \cup Learner |-> {}]
-    /\ recent_msgs = [a \in Acceptor |-> {}]
+    /\ recent_msgs = [a \in Acceptor \cup Learner |-> {}]
     /\ 2a_lrn_loop = [a \in Acceptor |-> FALSE]
     /\ processed_lrns = [a \in Acceptor |-> {}]
     /\ decision = [lb \in Learner \X Ballot |-> {}]
     /\ BVal \in [Ballot -> Value]
-\*    /\ \A acc \in SafeAcceptor : known_msgs[acc] = {}
-\*    /\ \A lrn \in Learner : known_msgs[lrn] = {}
-\*    /\ \A acc \in SafeAcceptor : recent_msgs[acc] = {}
-\*    /\ \A acc \in SafeAcceptor : 2a_lrn_loop[acc] = TRUE
-\*    /\ \A acc \in SafeAcceptor : processed_lrns[acc] = TRUE
 
 Send(m) == msgs' = msgs \cup {m}
 
