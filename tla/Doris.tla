@@ -1,25 +1,32 @@
 ---------------------------- MODULE Doris -----------------------------------
-\* ************************************************************************
-
+\* **************************************************************************
+\*
 \* Doris is a DAG mempool similar to the Narwhal mempool with Tusk
 \* playing the role of consensus as proposed by Danezis, Kokoris Kogias,
 \* Sonnino, and Spiegelman in their
-\* `^\href{https://arxiv.org/abs/2105.11827}{paper.}^'  Further
+\* `^\href{https://arxiv.org/abs/2105.11827}{paper.}^' Further
 \* inspiration is taken from
 \* `^\href{https://arxiv.org/abs/2102.08325}{DAG-rider,}^', a precursor
 \* to Narwhal.  (We shall refer to these papers as [N&T] and [DAG-R],
 \* respectively.)
-                                                                        
+\*
+\* Typically, mempool contents are ephemeral; now,
+\* with protocols like DAG-rider, we have a “logged” mempool,
+\* and client server communication. 
+\* In view of Anoma's architecture, mempools like in bitcoin thus
+\* are ephemeral mempools or “mempool gossip”, in contrast.  
+\*                                                                      
 \* The following differences between Doris [N&T]/[DAG-R] deserve mention.
+\* 
 
 \* ① In Narwhal, “[c]lients send transactions to […] all validators”
-\* [N&T, Fig. 4].  This would possibly lead to duplicate transactions in
-\* batches and high bandwidth usage/cost.  Our goal is to avoid this via
-\* a suitable protocol between clients that submit transactions and
-\* validators. 
+\*   [N&T, Fig. 4].  This can lead to duplicate transactions in batches
+\*   and high bandwidth usage/cost.  Our goal is to avoid this via a
+\*   suitable protocol between clients that submit transactions and
+\*   validators.
                                                                         
-\* ② So far we do not use weak links (see [DAG-R]). 
-\* ************************************************************************ 
+\* ② So far we do not use weak links (see [DAG-R]), but this will change.  
+\* **************************************************************************
 
 \* ‼️ Note: so far no Byzantine behavior, yet ‼️
 
@@ -37,11 +44,9 @@ EXTENDS
   WorkersOfPrimaries
   , 
   Variants
-        \*,NaturalsInduction
-        \*,WellFoundedInduction
 
-\* For the module "Functions", we rely on the \*
-\*`^\href{https://tinyurl.com/2ybvzsrc}{Community Module.}^'
+\* For the module "Functions", we rely on the 
+\* `^\href{https://tinyurl.com/2ybvzsrc}{Community Module.}^'
 
 -----------------------------------------------------------------------------
 
@@ -49,82 +54,88 @@ EXTENDS
 (*                         DATA STRUCTURES                                 *)
 (***************************************************************************)
 
-\* *************************************************************************
+
+\* **************************************************************************
 \* We give encodings for block (header)s and their components, such as
 \* certificates, block digests, and the like, as used in Narwhal [N&T]
-\* and DAG-rider [DAG-R].  We consider batches as atomic; the processing
-\* of individual transactions can be seen as a refinement.
-\* *************************************************************************
+\* and DAG-rider [DAG-R].  We consider batches to be atomic; the
+\* processing of individual transactions can be seen as a refinement.
+\* **************************************************************************
 
 CONSTANT
   \* "Batch": 
-  \*   the set of batches. Elements have type "BATCH" (uninterpreted).
+  \*   the set of batches
+  \*   Elements of "Batch" have type "BATCH", which is uninterpreted.
   \*
   \* @type: Set(BATCH);
   Batch
 
-\* Assume there is at least one batch
+\* We assume that there is at least one batch.
 ASSUME ExistenceOfBatches ==
   Batch # {}
 
 \* *************************************************************************
-\* We emulate hash functions on batches by a simple "wrapping" operation.
-\* This is for the simple reason that hash collisions are not strictly
-\* impossible.
+\* We emulate hash functions on batches by a simple “wrapping” operation,
+\* called "hash". Note that with actual crypographic hash functions, hash
+\* collisions are not strictly impossible; this would lead to issues in
+\* proofs.
 \* *************************************************************************
-       
 
-(* The type alias for batch hasehs is "$batchHash". 
+(* $batchHash: 
+     the type alias for batch hashes 
+
 --- batchHash ---
 - batch: the hashed Batch
+
 @typeAlias: batchHash = {
     batch : BATCH 
 };
 *)
 
 \* "BatchHash": 
-\*   the set of hashes of any possible batch 
+\*   the set of hashes of batches
 \* 
 \* @type: Set($batchHash);
 BatchHash == [ batch : Batch ]
 
-\* The operator "hash" models hash functions.
+\* "hash":
+\*   operator modeling hash functions
 \* 
 \* @type: (BATCH) => $batchHash;
 hash(b) == [batch |-> b] 
 
-\* LEMMA hash \in Bijection(Batch, BatchHash) \* obvious, NTH
+\* LEMMA hash \in Bijection(Batch, BatchHash) \* obvious
 
 -----------------------------------------------------------------------------
 (***************************************************************************)
-(*                       NEW DATA STRUCTURES                               *)
+(*                         DATA STRUCTURES                                 *)
 (***************************************************************************)
 
 (*
-
-Block digests serve to identify blocks without including the whole
-block information, emulating perfect hashing.  "BlockDigest" is the
-encoding of such block digests, exploithing the fact that we have a
-message set of all messages that have been sent by any validator; the
-type alias is "$blockDigest". Later, we shall define "fetchBlock",
-which retrieves the block that corresponds to a digest.
+Block digests serve to identify block (headers)s without including the
+whole block information, emulating “perfect” hashing.  "BlockDigest"
+is the encoding of the set of all such block digests; we exploit that
+the set of all messages (sent by any validator) includes all relevant
+blocks. The type alias for block digests is "$blockDigest". Later, we
+shall define "fetchBlock", which retrieves the block that corresponds
+to a digest, based on the set of sent messages.
  
-
-Please note the following. 
+Note the following! 
 
 - "BlockDigest"s are “ideal” hashes (if correct).
-- For correctness, we have to ensure that, indeed, 
-  "digest(b)" identifies the block `b`, retrievable via "fetchBlock". 
-
+- For correctness, we have to ensure that, indeed, "digest(b)"
+  identifies a unique block `b`, retrievable via "fetchBlock".
 *)
 
-(* The type alias $blockDigest 
+(* $blockDigest: 
+     type alias for block digests
+
 --- blockDigest ---
 - creator: the creator of the “digested block”
 
 - rnd: the round of the “digested block”
 
-- nonce: numbering the proposed blocks of fake validators
+- nonce: fake validators might propose several blocks per round
 
 @typeAlias: blockDigest = {
    creator: BYZ_VAL
@@ -137,17 +148,17 @@ Please note the following.
 *)
 
 \* "Nonce":
-\*   the set for nonces (numbers used once)
+\*   the set for nonces (numbers used once per round)
 \* @type: Set(Int);
 Nonce == Nat
 
 \* "THENONCE":
-\*   a placeholder (as no Byzantine behaviour, yet)
+\*   a placeholder (as no Byzantine behaviour is implemented, yet)
 \* @type: Int;
-THENONCE == 0 \* fixme later by calculating / keeping track of nonces   
+THENONCE == 0 \* coming soon ™
 
-\* "BlockDigestType"
-\*   a first over-approximation of "BlockDigest" 
+\* "BlockDigestType":
+\*   an over-approximation of "BlockDigest", the set of block digests 
 \* 
 \* @type: Set($blockDigest);
 BlockDigestType == [
@@ -173,22 +184,24 @@ BlockDigestType == [
 In Doris, we deviate from the above/[N&T].
 
 - batch hashes are not acknowledged indivitually, but, instead
-- batch hashes are acknowledged jointly, as part(s) of a block 
+- batch hashes are acknowledged jointly, as part of the “enclosing” block 
+
 *)
 
 (***************************************************************************)
 
-\* In most cases, the signature of a block acknowledgement will 
-\* be from a different validator, i.e., not the creator's. 
+\* In most cases, acknowledging signatures of a block will 
+\* be issued by validators differing from the creator.
                                                                         
 \* We define the set "Ack" as the set of all block acknowledgements,   
 \* which are in particular signed by validators.  A correct validator has  
 \* to store the block (or enough erasure coding segments) for later        
-\* retrieval (until garbage collection and/or execution).                      
+\* retrieval (until garbage collection and/or execution) and 
+\* also the referenced batches.                       
 
 (***************************************************************************)
 
-(* The type alias for block acknowledgments $ack
+(* $ack: type alias for block acknowledgments 
 --- ack ---
 - digest: the digest of the acknowledged block
 
@@ -201,7 +214,7 @@ In Doris, we deviate from the above/[N&T].
 *)
 
 \* "AckType":
-\*   an over-approximation of the set of block acks
+\*   an over-approximation of the set of block acknowledgements
 \* 
 \* @type: Set($ack);
 AckType == [
@@ -219,24 +232,28 @@ AckType == [
 (* the block digest, current round, and creator identity.” [N&T]           *)
 (***************************************************************************)
 
-(* The type of weak links and certificate quorums $digestFamily
+\* The type of such certificats are families of acks, which in turn can 
+\* be simpliefied to the acknowleged digest and the signing validator
+
+(* $digestFamily: the type of certificate quorums (and also weak links)
 --- digestFamily ---
-- “just” an (injective) function from validators to block digests 
-- every element of the domain can be taken to be a signer (convention)
+This is “just” an (injective) function from validators to block digests; 
+every element of the domain can be taken to be a signer (by convention).
 ===
 @typeAlias: digestFamily = 
   BYZ_VAL -> $blockDigest
 ;
 *)
+
 \* "AckQuorumType":
 \*   A quorum of block digests, where
-\*   q |-> d encodes the validator `q` signing the block digest `d`
+\*   q |-> d encodes that validator `q` has signed the block digest `d`
 \*
 \* @type: Set($digestFamily);
 AckQuorumType == 
   UNION (
      \* proper ack quorum
-     {Injection(Q,BlockDigestType) : Q \in ByzQuorum} 
+     {Injection(Q, BlockDigestType) : Q \in ByzQuorum} 
      \cup
      \* and the empty ack (e.g., for genesis block)
      {Injection({}, BlockDigestType)}
@@ -248,7 +265,7 @@ AckQuorumType ==
 \* @type: $digestFamily;
 emptyQuorum == 
   CHOOSE f \in Injection({},BlockDigestType) : TRUE
-\* Note that here we could also use Apalache's `Guess`
+\* Here↑, we could also use Apalache's `Guess` instead of `CHOOSE`. 
 
 \* "emptyLinks":
 \*   another name for the empty ack
@@ -258,10 +275,10 @@ emptyLinks ==
   emptyQuorum
 
 \* @type: Set($digestFamily);
-CertificateOption == AckQuorumType
+CertificateOption == AckQuorumType 
 
 \* @type: Set($digestFamily);
-Certificate == CertificateOption \ Injection({},BlockDigestType)
+Certificate == CertificateOption \ Injection({}, BlockDigestType)
 
 (***************************************************************************)
 (* According to [N&T], a valid block must                                  *)
@@ -281,7 +298,8 @@ Certificate == CertificateOption \ Injection({},BlockDigestType)
 
 CONSTANT
   \* "BatchMax":
-  \*   the maximal number of batches in a block
+  \*   the maximal number of batches in a block (for model checking)
+  \*
   \* @type: Int;
   BatchMax 
 
@@ -298,10 +316,11 @@ BatchMaxBoundedBatchSubsets ==
 
 \* "SomeHxs":
 \*   the set of possible batch hashes in a block 
+\* 
 \* @type: Set(Set($batchHash));
 SomeHxs == BatchMaxBoundedBatchSubsets
 
-(* The type alias for a block $block
+(* $block: the type alias for a block 
 --- block ---
 
 - creator : the block's creator
@@ -325,24 +344,31 @@ SomeHxs == BatchMaxBoundedBatchSubsets
 *)
 
 \* "BlockType":
-\*   a first approximation of the set of Blocks to consider
+\*   an over-approximation of the set of Blocks to consider, cf. "Block"
+\* 
 \* @type: Set($block);
 BlockType == [ 
-  creator : ByzValidator, \* the block proposer \& signer
-  rnd :     Nat, \* the round of the block proposal
-  bhxs :    SomeHxs, \* the batch hashes of the block
-  cq :      CertificateOption, \* a CoA (unless genesis block)
-  wl :      [{} -> BlockDigestType] \* weak links (coming soon ™)
+  \* the block proposer \& signer
+  creator : ByzValidator, 
+  \* the round of the block proposal
+  rnd :     Nat, 
+  \* the batch hashes of the block
+  bhxs :    SomeHxs, 
+  \* a CoA (unless genesis block)
+  cq :      CertificateOption, 
+  \* weak links (coming soon ™)
+  wl :      [{} -> BlockDigestType] 
 ]
 
 \* "digest":
-\*   the operator for constructing block digests
+\*   the operator for constructing block digests 
 \* 
 \* @type: ($block) => $blockDigest;
 digest(block) == 
   LET
     \* @type: $block;
     b == block
+  IN LET
     \* @type: BYZ_VAL;
     c == b.creator
     \* @type: Int;
@@ -350,23 +376,23 @@ digest(block) ==
     \* @type: Int;
     n == THENONCE
   IN
-    \* as we keep block proposals in the set of msgs, 
+    \* as we keep block proposals in the set of messages "msgs", 
     \* we only need to keep the following information
     [creator |-> c, rnd |-> i, nonce |-> n]
-    \* the nonce is only necessary if we know that
-    \* Byzantine validators can propose several blocks in a round
+    \* the nonce is only necessary for 
+    \* Byzantine validators to propose several blocks in a round
 
 \* end of "DATA STRUCTURES"
 -----------------------------------------------------------------------------
 
-(* ------------------------------------------------------------------------*)
+(* ----------------------------------------------------------------------- *)
 (*                        MESSAGE STRUCTURE                                *)
 (* ----------------------------------------------------------------------- *)
 
 (***************************************************************************)
 (* Following                                                               *)
 (*  `^\href{https://bit.ly/3a6ydfc}{Lamport's specification of Paxos,}^'   *)
-(* we keep all (broadcast) messages in a single set.  There are the        *)
+(* we keep all messages in a single set.  There are the                    *)
 (* following types of message.                                             *)
 (*                                                                         *)
 (* - "Batch" broadcast a batch, **from** a worker (to workers of the same  *)
