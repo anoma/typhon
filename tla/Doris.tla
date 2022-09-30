@@ -389,40 +389,38 @@ digest(block) ==
 (*                        MESSAGE STRUCTURE                                *)
 (* ----------------------------------------------------------------------- *)
 
-(***************************************************************************)
-(* Following                                                               *)
-(*  `^\href{https://bit.ly/3a6ydfc}{Lamport's specification of Paxos,}^'   *)
-(* we keep all messages in a single set.  There are the                    *)
-(* following types of message.                                             *)
-(*                                                                         *)
-(* - "Batch" broadcast a batch, **from** a worker (to workers of the same  *)
-(*   index).                                                               *)
-(*                                                                         *)
-(* - "Block" a block creator broadcasts a new block (header)               *)
-(*                                                                         *)
-(* - "Ack" acknowledgment *by* a Validator, having block availble          *)
-(*                                                                         *)
-(* - "Cert" broadcasting a (block) certificate (by a creator)              *)
-(*                                                                         *)
-(* We call a "mirror worker" a worker of the same index at a different     *)
-(* validator.  We assume that clients send a transaction/batch             *)
-(* only to one validator at a time, and only if the transaction gets       *)
-(* orphaned, inclusion via a weak link is a desired possibility; *)
-(* thus, we "abuse" weak links for an additional link to the last proposed block.*)
-(*  *)
-(* Correct validators     *)
-(* make blocks of batches arriving at their workers,   *)
-(* to be broadcast to other workers. *)
-(*                                                                         *)
-(* We abstract away all worker-primary communication "inside" validators;  *)
-(* we have remote direct memory access (RDMA) in mind. *)
-(* Further    *)
-(* refinement could be applied if a message passing architecture was       *)
-(* desired.                                                                *)
-(***************************************************************************)
+\* *************************************************************************
+\* Following 
+\* `^\href{https://bit.ly/3a6ydfc}{Lamport's specification of Paxos,}^'
+\* we keep all messages in a single set.  There are the following types
+\* of message.
+                                                                         
+\*   - "Batch" broadcast a batch, **from** a worker (to workers of the
+\*     same index).
+                                                                         
+\*   - "Block" a block creator broadcasts a new block (header)               
+                                                                         
+\*   - "Ack" acknowledgment *by* a Validator, having block availble          
+                                                                         
+\*   - "Cert" broadcasting a (block) certificate (by a creator)              
+                                                                         
+\* We call a "mirror worker" a worker of the same index at a different
+\* validator.  We assume that clients send a transaction/batch only to
+\* one validator at a time, and only if the transaction gets orphaned,
+\* inclusion via a weak link is a desired possibility; thus, we "abuse"
+\* weak links for an additional link to the last proposed block.
+  
+\* Correct validators make blocks of batches arriving at their workers,
+\* to be broadcast to other workers.
+                                                                         
+\* We abstract away all worker-primary communication "inside" validators;
+\* we have remote direct memory access (RDMA) in mind.  Further
+\* refinement could be applied if a message passing architecture was
+\* desired.
+\* *************************************************************************
 
 VARIABLE
-  (* type alias for messages $msg
+  (* $msg: type alias for the set of messages sent
    --- msg ---
    
    - Batch: broadcast a batch 
@@ -465,9 +463,9 @@ VARIABLE
      Batch(     {batch : BATCH, from : $worker}                     )|
      Block(     {block: $block, creator : BYZ_VAL, nonce: Int}      )| 
      Ack(       {ack : $ack, by : BYZ_VAL}                          )| 
-     Cert(      {digest : $blockDigest, creator : BYZ_VAL} )|
-     Commit(    {digest : $blockDigest }                                 )|
-     Executed(  {digest : $blockDigest }                                 )|
+     Cert(      {digest : $blockDigest, creator : BYZ_VAL}          )|
+     Commit(    {digest : $blockDigest }                            )|
+     Executed(  {digest : $blockDigest }                            )|
      Abort(NIL) ; 
   *)
   \* @type: Set($msg);
@@ -525,13 +523,13 @@ msgsINIT ==
 (***************************************************************************)
 (* The local state of validators and workers at validators is              *)
 (*                                                                         *)
-(* ① a local round number (corresponding a layer of DAG mempool);         *)
+(* ① a local round number (corresponding a layer of DAG mempool);          *)
 (*                                                                         *)
-(* ② a worker specific pool of received client batches;                   *)
+(* ② a worker specific pool of received client batches;                    *)
 (*                                                                         *)
-(* ③ a pool of batch hashes to be included in the next block;             *)
+(* ③ a pool of batch hashes to be included in the next block;              *)
 (*                                                                         *)
-(* ④ a local storage for (hashes of) batches;                             *)
+(* ④ a local storage for (hashes of) batches;                              *)
 (*                                                                         *)
 (* ⑤ a local storage for (digests of) block headers                        *)
 (***************************************************************************)
@@ -601,6 +599,7 @@ LocalStateINIT ==
 vars == <<msgs, rndOf, batchPool, nextHx, storedHx, storedBlx>>
   (*************************************************************************)
   (* It is convenient to have a shorthand for all variables in a spec.     *)
+  (* Moreover, we have shorthands for of the form `allBUT<x>N<y>N<z>`.     *)
   (*************************************************************************)
 
 allBUTmsgs == 
@@ -679,7 +678,7 @@ proposedBlocksByValidator(validator) ==
        \E n \in Nonce : 
           LET
             \* @type: $msg;
-            m == Variant("Block", [block |-> b, creator |-> c, nonce |-> n])
+            m == blockMsg(b, c, n)
           IN
             m \in msgs
   }
@@ -730,7 +729,6 @@ acksOfDigest(dgst) ==
 (*                             ACTIONS                                     *)
 (***************************************************************************)
 
-
 (***************************************************************************)
 (* We will specify the following actions.                                  *)
 (*                                                                         *)
@@ -739,20 +737,20 @@ acksOfDigest(dgst) ==
 (*   A new **batch** arrives at a **worker** and is included               *)
 (*   into the worker's batchPool. The arriving batch might already be      *)
 (*   "known" and/or been submitted to other workers, e.g., if clients      *)
-(*   "misbehave". (Recall that, ideally, clients submit their         *)
-(*   transactions to only one worker.) *)
-(*   We combine batch arrival with broadCasting a batch. *)
+(*   "misbehave". (Recall that, ideally, clients submit their              *)
+(*   transactions to only one worker.)                                     *)
+(*   We combine batch arrival with broadcasting a batch (cf. "BatchBC").   *)
 (*   (The action of batch arrival is strictly local to the worker.)        *)
 (*                                                                         *)
 (* - Batch broadcast "BatchBC" (message "Batch"):                          *)
 (*                                                                         *)
-(*   A worker broadcasts the                                               *)
+(*   A worker broadcasts a                                                 *)
 (*   batch, stores it, and forwards it to its primary for block inclusion. *)
 (*                                                                         *)
-(* - Batch receive, store, hash "StoreBatch" (NO message ):    *)
+(* - Batch storing "StoreBatch" (NO message ):                             *)
 (*                                                                         *)
-(*   Reception of a batch, storing and hashing such that later blocks can  *)
-(*   be validated and acknowledged by the primary.                         *)
+(*   Reception of a batch, storing and hashing such that recieved blocks   *)
+(*   can be validated and acknowledged by the primary.                     *)
 (*                                                                         *)
 (* - Block production and broadcast "BlockBC" (message "Block"):           *)
 (*                                                                         *)
@@ -763,31 +761,27 @@ acksOfDigest(dgst) ==
 (*                                                                         *)
 (* - Block acknowledgement "Ack" (message "Ack")                           *)
 (*                                                                         *)
-(*   Receive a block, check its validity, store it, Ack()acknowledge it.   *)
+(*   Receive a block, check its validity, store it, & acknowledge it.      *)
 (*                                                                         *)
 (* - Certificate broadcats "CertBC" (message "Cert")                       *)
 (*                                                                         *)
-(*   Take an acknowledgement quorum of a proposed block, aggregate it     *)
+(*   Take an acknowledgement quorum of a proposed block, aggregate it      *)
 (*   into a ceritificate, and broadcast the certificate.                   *)
 (*                                                                         *)
 (* - Advancing the local round 'AdvanceRound' (NO message)                 *)
 (*                                                                         *)
-(*   A validator moves to the next round,  *)
-(*   after receiving a quorum of block certificates. *)
+(*   A validator moves to the next round,                                  *)
+(*   after receiving a quorum of block certificates.                       *)
 (***************************************************************************)
 
 
 (***************************************************************************)
-(* We define the subactions of the next-state actions.  We begin by        *)
-(* defining an action that will be used in those subactions.  The action   *)
-(* Send(m) asserts that message m is added to the set msgs.                *)
-(*                                                                         *)
-(* taken from `^\href{https://tinyurl.com/2dyuzs6y}{Paxos.tla}^'           *)
+(* We define some subactions of the next-state actions.  The action        *)
+(* Send(m) has as effect the insertion of message m to the set msgs.       *)
 (***************************************************************************)
 
-\* SUB-ACTION "Send":
+\* SUB-ACTION (... and thus no UNCHANGED) "Send":
 \*   sending a message will only be used as "part of" a "full" action
-\* ... and thus no UNCHANGED
 \* 
 \* ¡msgs
 \* @type: ($msg) => Bool; 
@@ -811,26 +805,33 @@ BatchBC(batch, worker) ==
     \* @type: $worker;
     w == worker
     \* @type: BYZ_VAL;
-    p == worker.val
+    p == worker.val 
   IN
-  \* "trivial" pre-condition (checking the typing)
+  \* type checking
   /\ b \in Batch
   /\ w \in Worker
-  \* post-condition: add the batch the the batch pool of w
+  \* empty pre-condition
+  \* post-condition: 
+     \* add the batch `b` the the batch pool of `w`
   /\ batchPool' = \* ¡batchPool
        [batchPool EXCEPT ![w] = @ \cup {b}] 
+     \* add the hash of the batch to the primary's next hashes
   /\ nextHx' = \* ¡nextHx
        [nextHx EXCEPT ![p] = @ \cup {hash(b)}] 
+     \* also add the hash of the primary's stored hashes
   /\ storedHx' = \* ¡storedHx
        [storedHx EXCEPT ![p] = @ \cup {hash(b)}] 
-  \* broadcast the batch 
+     \* broadcast the batch 
   /\ Send(batchMsg(b,w)) \* ¡msgs
+     \* nothing else changes
   /\ UNCHANGED allBUTmsgsNbatchPoolNnextHxNstoredHx
+\* end of action "BatchBC"
+
 
 \* ACTION "StoreBatch": 
-\*   store a received Batch 
+\*   store a received Batch at the receiving worker 
 \*
-\* ¡storedHx, 
+\* ¡storedHx
 \* @type: (BATCH, $worker) => Bool;
 StoreBatch(batch, worker) ==
   LET
@@ -845,14 +846,19 @@ StoreBatch(batch, worker) ==
   /\ b \in Batch
   /\ w \in Worker
   \* pre-condition:
-  \* some other worker has sent this batch
+     \* some other worker has sent this batch
   /\ \E ww \in Worker \ {w}: batchMsg(b,ww) \in msgs
+     \* it is not stored yet
+  /\ hash(b) \notin storedHx[p] 
   \* post-condition: add the batch hash to the set of known hashes
-  /\ storedHx' = [storedHx EXCEPT ![p] = @ \cup {hash(b)}]
+     \* store the hash at the primary
+  /\ storedHx' = 
+       [storedHx EXCEPT ![p] = @ \cup {hash(b)}]
   \* we elide the details of storing the actual batch for availability
-  /\ UNCHANGED allBUTstoredHx \* end of action StoreBatch
+  /\ UNCHANGED allBUTstoredHx 
+\* end of action "StoreBatch"
 
-\* "currentBlocksProduced":
+\* "currentBlocksProduced" (auxiliary set):
 \*   the blocks produced by a certain validator that carry the nonce
 \* 
 \* @type: (BYZ_VAL, Int) => Set($block);
@@ -877,20 +883,22 @@ currentBlocksProduced(creator, nonce) ==
       }
   IN { x.block : x \in filteredData }
 
-\* "fetchBlock":
-\*    yields a block (or **should** raise an error)---
+\* "fetchBlock" (operator):
+\*    yields the block of the digest (or **should** raise an error),
 \*    based on the messages sent (i.e., present in the variable "msg")
 \* 
 \* @type: $blockDigest => $block;
 fetchBlock(dgst) == 
   LET
     \* @type: Set($block);
-    allPossibleBlocks == currentBlocksProduced(dgst.creator, dgst.nonce)
+    allPossibleBlocks ==
+      currentBlocksProduced(dgst.creator, dgst.nonce)
   IN LET
     \* @type: Set($block);
     candidates == {c \in allPossibleBlocks : c.rnd = dgst.rnd}
   IN
-    extract(candidates)
+    \* extract the unique element (or error❓cf. SubSingletons.tla)
+    extract(candidates) 
 
 
 \* ACTION GenesisBlockBC [instance of BlockBC]:
@@ -901,31 +909,34 @@ GenesisBlockBC(validator) ==
   LET
     \* @type: BYZ_VAL;
     v == validator
+    \* @type: $block;
+    b == [ creator |-> v,
+           rnd |-> 1, 
+           bhxs |-> nextHx[v],
+           cq |-> emptyQuorum,
+           wl |-> emptyLinks
+     ]
   IN
+  \* type check
+  /\ v \in ByzValidator
   \* pre-condition
   /\ rndOf[v] = 1 \* validator has local round 1
-  \* 
-  /\ \E b \in BlockType : \* "construct" a block of the desired shape
-     /\ b.creator = v
-     /\ b.rnd = 1
-     /\ b.bhxs = nextHx[v] 
-     /\ b.cq = emptyQuorum
-     /\ b.wl = emptyLinks
-     \* post-condition
+  \* post-condition
      \* send the block
-     /\ Send(blockMsg(b, v, THENONCE)) \* ¡msgs
+  /\ Send(blockMsg(b, v, THENONCE)) \* ¡msgs
      \* empty v's nextHx (for validators)
-     /\ nextHx' = \* ¡nextHx
+  /\ nextHx' = \* ¡nextHx
           [nextHx EXCEPT ![v] = {}] 
   /\ UNCHANGED allBUTmsgsNnextHx \* end of action "GenesisBlockBC"
 
-\* "hasBlockHashesStored":
+\* "hasBlockHashesStored" (auxiliary predicate):
 \*   predicate for checking the storage of hashes at a validator
 \*  
 \* @type: ($block, BYZ_VAL) => Bool;
 hasBlockHashesStored(block, val) ==
  \* we know all batches
- \A h \in block.bhxs : h \in storedHx[val]
+  block.bhxs \subseteq storedHx[val]
+
 
 \* "checkCertificatesOfAvailability":
 \*   predicate for checking the storage of blocks of digests
@@ -943,7 +954,7 @@ checkCertificatesOfAvailability(certificate, validator) ==
          \* @type: $block;
          b == fetchBlock(d)
        IN  
-         \* block is known certified 
+         \* block is known with a certificate
          << b, COA >> \in storedBlx[v]  
 
 \* "validBlock":
@@ -960,7 +971,7 @@ validBlock(block, validator) ==
     \* @type: BYZ_VAL;
     v == validator 
   IN
-     \* the round must be a positive natural number
+     \* the round must be a positive natural number 
   /\ b.rnd > 0 \*
      \* batch hashes stored (always needed)
   /\ hasBlockHashesStored(b, v)
@@ -969,7 +980,7 @@ validBlock(block, validator) ==
   /\ DOMAIN b.wl = {} 
 
 \* ACTION Ack:
-\*   Receive a block, check its validity, store it, Ack()acknowledge it.
+\*   Receive a block, check its validity, store it, acknowledge it.
 \*
 \* ¡msgs, ¡storedBlx
 \* @type: (BYZ_VAL, $block) => Bool;
@@ -993,7 +1004,7 @@ Ack(validator, block) ==
   /\ b \in proposedBlocks 
      \* check that b is valid (according to v)
   /\ validBlock(b, v) \* 
-     \* check that b has neither available (nor certified)
+     \* check that b is “new”
   /\ << b, AVL >> \notin storedBlx[v]
   /\ << b, COA >> \notin storedBlx[v]  
   \* post-condition:
@@ -1017,6 +1028,7 @@ CertBC(dgst) ==
   \* typing 
   /\ dgst \in BlockDigest
   \* pre-condition
+     \* enough ack messages sent (by a quorum)
   /\ \E Q \in ByzQuorum : 
         LET
           theAcks == 
@@ -1030,6 +1042,7 @@ CertBC(dgst) ==
              theCreator == d.creator
            IN Send(certMsg(d, theCreator)) \* ¡msgs
            \* update *all* storages, s.t., the block is certified
+           \* CHECK/FIXME should be an extra action for storing ?!
         /\ LET 
              b == fetchBlock(d)
            IN storedBlx' = \* ¡storedBlx
