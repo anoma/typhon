@@ -7,6 +7,12 @@ LEMMA FinSubset_sub ==
     PROVE  F \subseteq S
 PROOF BY DEF Range, FINSUBSET
 
+LEMMA FinSubset_sub_nontriv ==
+    ASSUME NEW S, S # {},
+           NEW R \in SUBSET Nat, R # {}, NEW F \in FINSUBSET(S, R)
+    PROVE  F # {}
+PROOF BY Zenon DEF Range, FINSUBSET
+
 \*LEMMA FinSubset_sub ==
 \*    ASSUME NEW S, NEW K \in Nat, NEW F \in FINSUBSET(S, K)
 \*    PROVE  F \subseteq S
