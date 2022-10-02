@@ -112,7 +112,22 @@ PROOF
 <1> DEFINE P(m) == \A n \in Nat : n < m => MessageRec[n] \subseteq MessageRec[m]
 <1> SUFFICES ASSUME NEW j \in Nat PROVE P(j) OBVIOUS
 <1>0. P(0) OBVIOUS
-<1>1. ASSUME NEW m \in Nat, P(m) PROVE P(m+1) BY <1>1, MessageRec_monotone_1
+<1>1. ASSUME NEW m \in Nat, P(m) PROVE P(m+1)
+      BY <1>1, MessageRec_monotone_1
+<1>2. HIDE DEF P
+<1>3. QED BY <1>0, <1>1, NatInduction, Isa
+
+LEMMA MessageRec_nontriv ==
+    \A n \in Nat : MessageRec[n] # {}
+PROOF
+<1> DEFINE P(m) == MessageRec[m] # {}
+<1> SUFFICES ASSUME NEW j \in Nat PROVE P(j) OBVIOUS
+<1>0. P(0)
+  <2> [type |-> "1a", bal |-> 0, ref |-> {}] \in MessageRec[0]
+      BY MessageRec_eq0 DEF MessageRec0, Ballot
+  <2> QED OBVIOUS
+<1>1. ASSUME NEW m \in Nat, P(m) PROVE P(m+1)
+  <2> QED BY <1>1, MessageRec_eq1 DEF MessageRec1
 <1>2. HIDE DEF P
 <1>3. QED BY <1>0, <1>1, NatInduction, Isa
 
@@ -134,14 +149,19 @@ PROOF
                PROVE  mm.ref \subseteq MessageRec[m]
       OBVIOUS
   <2>1. CASE m = 0
-        BY <2>1, MessageRec_eq1, MessageRec_ref0, FinSubset_sub
+        BY <2>1, MessageRec_eq1, MessageRec_ref0, FinSubset_sub,
+           MaxRefCardinalityAssumption
            DEF MessageRec1, RefCardinality
   <2>2. CASE m # 0
-        BY <1>1, <2>2, MessageRec_eq1, MessageRec_monotone, FinSubset_sub
+        BY <1>1, <2>2, MessageRec_eq1, MessageRec_monotone, FinSubset_sub,
+           MaxRefCardinalityAssumption
            DEF MessageRec1, RefCardinality
   <2>3. QED BY <2>1, <2>2
 <1>2. HIDE DEF P
 <1>3. QED BY <1>0, <1>1, NatInduction, Isa
+
+LEMMA Message_nontriv == Message # {}
+PROOF BY MessageRec_nontriv DEF Message, MessageDepthRange
 
 LEMMA Message_ref ==
     ASSUME NEW m \in Message
@@ -174,7 +194,8 @@ PROOF
 <1>1. CASE n = 0 BY <1>0, <1>1, MessageRec_eq0 DEF MessageRec0
 <1>2. CASE n # 0 /\ m \in m.ref
   <2>1. m.ref \in SUBSET MessageRec[n-1]
-        BY <1>0, <1>2, MessageRec_eq1, FinSubset_sub DEF MessageRec1, RefCardinality
+        BY <1>0, <1>2, MessageRec_eq1, FinSubset_sub, MaxRefCardinalityAssumption
+        DEF MessageRec1, RefCardinality
   <2>10. QED BY <2>1, <1>0, <1>2
 <1>10. QED BY <1>1, <1>2
 
