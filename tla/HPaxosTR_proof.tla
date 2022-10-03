@@ -1722,6 +1722,68 @@ PROOF
 <1>9. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, <1>7, <1>8
           DEF Next, AcceptorProcessAction, Process1bLearnerLoop, LearnerAction
 
+FullSafetyInvariant ==
+    /\ TypeOK
+    /\ KnownMsgsSpec
+    /\ RecentMsgsSafeAcceptorSpec
+    /\ MsgsSafeAcceptorSpec
+    /\ DecisionSpec
+    /\ Safety
+
+LEMMA TypeOKInit == Init => TypeOK
+PROOF BY DEF Init, TypeOK
+
+LEMMA KnownMsgsSpecInit == Init => KnownMsgsSpec
+PROOF BY DEF Init, KnownMsgsSpec, Acceptor
+
+LEMMA RecentMsgsSafeAcceptorSpecInit == Init => RecentMsgsSafeAcceptorSpec
+PROOF BY DEF Init, RecentMsgsSafeAcceptorSpec, SentBy
+
+LEMMA MsgsSafeAcceptorSpecInit == Init => MsgsSafeAcceptorSpec
+PROOF BY DEF Init, MsgsSafeAcceptorSpec
+
+LEMMA DecisionSpecInit == Init => DecisionSpec
+PROOF BY DEF Init, DecisionSpec
+
+LEMMA SafetyInit == Init => Safety
+PROOF BY DEF Init, Safety
+
+LEMMA FullSafetyInvariantInit == Init => FullSafetyInvariant
+PROOF BY TypeOKInit,
+         KnownMsgsSpecInit,
+         RecentMsgsSafeAcceptorSpecInit,
+         MsgsSafeAcceptorSpecInit,
+         DecisionSpecInit, SafetyInit
+      DEF FullSafetyInvariant
+
+LEMMA FullSafetyInvariantNext ==
+    FullSafetyInvariant /\ [Next]_vars => FullSafetyInvariant'
+PROOF
+<1> SUFFICES ASSUME FullSafetyInvariant, [Next]_vars PROVE FullSafetyInvariant' OBVIOUS
+<1>1. CASE Next
+      BY <1>1,
+         TypeOKInvariant,
+         MsgsSafeAcceptorSpecImpliesCaughtSpec,
+         KnownMsgsSpecInvariant,
+         RecentMsgsSafeAcceptorSpecInvariant,
+         MsgsSafeAcceptorSpecInvariant,
+         DecisionSpecInvariant,
+         SafetyStep
+      DEF FullSafetyInvariant
+<1>2. CASE vars = vars'
+      BY <1>2, Isa DEF vars, FullSafetyInvariant, TypeOK,
+          KnownMsgsSpec, Proper, WellFormed,
+          SameBallot, q, Fresh, V, Buried, Con2as, Con, ConByQuorum,
+          RecentMsgsSafeAcceptorSpec, SentBy,
+          MsgsSafeAcceptorSpec,
+          DecisionSpec, ChosenIn, Known2a,
+          Safety
+<1>3. QED BY <1>1, <1>2
+
+THEOREM SafetyResult == Spec => []Safety
+PROOF BY PTL, FullSafetyInvariantInit, FullSafetyInvariantNext
+      DEF Spec, FullSafetyInvariant
+
 =============================================================================
 \* Modification History
 \* Last modified Thu Sep 29 14:43:41 CEST 2022 by aleph
