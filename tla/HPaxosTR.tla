@@ -386,7 +386,7 @@ Safety ==
         V1 \in decision[L1, B1] /\ V2 \in decision[L2, B2] =>
         V1 = V2
 
-THEOREM SafetyResult == Spec => []Safety
+\*THEOREM SafetyResult == Spec => []Safety
 
 -----------------------------------------------------------------------------
 (* Sanity check propositions *)
@@ -419,5 +419,5 @@ UniqueDecision ==
 
 =============================================================================
 \* Modification History
-\* Last modified Thu Sep 29 14:50:20 CEST 2022 by aleph
+\* Last modified Tue Oct 04 15:13:46 CEST 2022 by aleph
 \* Created Mon Jul 25 14:24:03 CEST 2022 by aleph

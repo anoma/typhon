@@ -2,6 +2,11 @@
 EXTENDS HPaxosTR, Sequences, NaturalsInduction, WellFoundedInduction, TLAPS
 
 -----------------------------------------------------------------------------
+LEMMA RefCardinalitySpec ==
+    /\ RefCardinality \in SUBSET Nat
+    /\ RefCardinality # {}
+PROOF BY MaxRefCardinalityAssumption DEF RefCardinality
+
 LEMMA FinSubset_sub ==
     ASSUME NEW S, NEW R \in SUBSET Nat, NEW F \in FINSUBSET(S, R)
     PROVE  F \subseteq S
@@ -237,10 +242,12 @@ LEMMA MessageTypeSpec ==
              /\ m.ref = {}
           \/ /\ m.type = "1b"
              /\ m.acc \in Acceptor
+             /\ m.ref # {}
              /\ m.ref \in SUBSET Message
           \/ /\ m.type = "2a"
              /\ m.lrn \in Learner
              /\ m.acc \in Acceptor
+             /\ m.ref # {}
              /\ m.ref \in SUBSET Message
 PROOF
 <1> DEFINE P(n) ==
@@ -250,15 +257,44 @@ PROOF
                /\ x.ref = {}
             \/ /\ x.type = "1b"
                /\ x.acc \in Acceptor
+               /\ x.ref # {}
                /\ x.ref \in SUBSET Message
             \/ /\ x.type = "2a"
                /\ x.lrn \in Learner
                /\ x.acc \in Acceptor
+               /\ x.ref # {}
                /\ x.ref \in SUBSET Message
 <1> SUFFICES ASSUME NEW j \in Nat PROVE P(j) BY Message_spec
 <1>0. P(0) BY MessageRec_eq0 DEF MessageRec0
 <1>1. ASSUME NEW k \in Nat, P(k) PROVE P(k + 1)
-  BY <1>1, MessageRec_eq1, Message_spec, FinSubset_sub DEF MessageRec1, RefCardinality
+  <2> SUFFICES ASSUME NEW x \in MessageRec[k + 1]
+               PROVE  \/ /\ x.type = "1a"
+                         /\ x.bal \in Ballot
+                         /\ x.ref = {}
+                      \/ /\ x.type = "1b"
+                         /\ x.acc \in Acceptor
+                         /\ x.ref # {}
+                         /\ x.ref \in SUBSET Message
+                      \/ /\ x.type = "2a"
+                         /\ x.lrn \in Learner
+                         /\ x.acc \in Acceptor
+                         /\ x.ref # {}
+                         /\ x.ref \in SUBSET Message
+      OBVIOUS
+  <2>1. CASE x \in MessageRec[k]
+        BY <1>1, <2>1
+  <2>2. CASE x \in [ type : {"1b"},
+                     acc : Acceptor,
+                     ref : FINSUBSET(MessageRec[k], RefCardinality) ]
+        BY <2>2, Message_spec, MessageRec_nontriv, FinSubset_sub,
+           FinSubset_sub_nontriv, RefCardinalitySpec
+  <2>3. CASE x \in [ type : {"2a"},
+                     lrn : Learner,
+                     acc : Acceptor,
+                     ref : FINSUBSET(MessageRec[k], RefCardinality) ]
+        BY <2>3, Message_spec, MessageRec_nontriv, FinSubset_sub,
+           FinSubset_sub_nontriv, RefCardinalitySpec
+  <2> QED BY <1>1, <2>1, <2>2, <2>3, MessageRec_eq1 DEF MessageRec1
 <1>2. HIDE DEF P
 <1>3. QED BY <1>0, <1>1, NatInduction, Isa
 
