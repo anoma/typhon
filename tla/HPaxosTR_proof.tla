@@ -139,7 +139,7 @@ PROOF
 LEMMA MessageRec_ref0 ==
     ASSUME NEW m \in MessageRec[0]
     PROVE  m.ref = {}
-PROOF BY MessageRec_def DEF MessageRec0
+PROOF BY MessageRec_eq0 DEF MessageRec0
 
 LEMMA MessageRec_ref1 ==
     ASSUME NEW n \in Nat, n # 0
