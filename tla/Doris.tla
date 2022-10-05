@@ -602,6 +602,9 @@ vars == <<msgs, rndOf, batchPool, nextHx, storedHx, storedBlx>>
   (* Moreover, we have shorthands for of the form `allBUT<x>N<y>N<z>`.     *)
   (*************************************************************************)
 
+allBUTstoredBlx == 
+  <<msgs, rndOf, batchPool, nextHx, storedHx, storedBlx>>
+
 allBUTmsgs == 
   <<rndOf, batchPool, nextHx, storedHx, storedBlx>>
     
@@ -767,6 +770,10 @@ acksOfDigest(dgst) ==
 (*                                                                         *)
 (*   Take an acknowledgement quorum of a proposed block, aggregate it      *)
 (*   into a ceritificate, and broadcast the certificate.                   *)
+(*                                                                         *)
+(* - Store a block certificate "StoreBlock" (NO message)                   *)
+(*                                                                         *)
+(*   “Receive” a certificate of availability and store it.                 *)
 (*                                                                         *)
 (* - Advancing the local round 'AdvanceRound' (NO message)                 *)
 (*                                                                         *)
@@ -1041,13 +1048,30 @@ CertBC(dgst) ==
              \* @type: BYZ_VAL;
              theCreator == d.creator
            IN Send(certMsg(d, theCreator)) \* ¡msgs
-           \* update *all* storages, s.t., the block is certified
-           \* CHECK/FIXME should be an extra action for storing ?!
-        /\ LET 
-             b == fetchBlock(d)
-           IN storedBlx' = \* ¡storedBlx
-                [v \in ByzValidator |-> storedBlx[v] \cup {<< b, COA >>}] 
-  /\ UNCHANGED allBUTmsgsNstoredBlx
+  /\ UNCHANGED allBUTmsgs
+
+\* ACTION StoreBlock:
+\*   store a block whose certificate was sent around  
+\* 
+\* @type: ($block, BYZ_VAL) => Bool;
+StoreBlock(block, validator) ==
+  LET
+    \* @type: $block;
+    b == block
+    \* @type: BYZ_VAL;
+    v == validator
+  IN    
+    \* type check TLC
+    /\ b \in Block
+    /\ v \in ByzValidator
+    \* pre-condition
+       \* the valid has acknowledged and stored the block
+    /\ << b, AVL >> \in storedBlx[v]
+    \* post-condition
+       \* store also the certificate of availability of the block
+    /\ storedBlx' = \* ¡storedBlx
+         [storedBlx EXCEPT ![v] = @ \cup {<< b, COA >>}]
+    /\ UNCHANGED allBUTstoredBlx   
 
 \* "preceedingBlocks":
 \*   the set of blocks known to a validator in the previous round
