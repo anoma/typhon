@@ -1,34 +1,38 @@
 ---------------------------- MODULE Doris -----------------------------------
 \* **************************************************************************
 \*
-\* Doris is a DAG mempool similar to the Narwhal mempool with Tusk
-\* playing the role of consensus as proposed by Danezis, Kokoris Kogias,
-\* Sonnino, and Spiegelman in their
+\* Doris is a DAG mempool similar to the Narwhal mempool as proposed
+\* by Danezis, Kokoris Kogias, Sonnino, and Spiegelman in their
 \* `^\href{https://arxiv.org/abs/2105.11827}{paper.}^' Further
 \* inspiration is taken from
-\* `^\href{https://arxiv.org/abs/2102.08325}{DAG-rider,}^', a precursor
-\* to Narwhal.  (We shall refer to these papers as [N&T] and [DAG-R],
-\* respectively.)
-\*
-\* Typically, mempool contents are ephemeral; now,
-\* with protocols like DAG-rider, we have a “logged” mempool,
-\* and client server communication. 
-\* In view of Anoma's architecture, mempools like in bitcoin thus
-\* are ephemeral mempools or “mempool gossip”, in contrast.  
-\*                                                                      
+\* `^\href{https://arxiv.org/abs/2102.08325}{DAG-rider,}^', a
+\* precursor to Narwhal.  (We shall refer to these papers as [N&T] and
+\* [DAG-R], respectively.)
+\*                                                                     
 \* The following differences between Doris [N&T]/[DAG-R] deserve mention.
 \* 
-
 \* ① In Narwhal, “[c]lients send transactions to […] all validators”
-\*   [N&T, Fig. 4].  This can lead to duplicate transactions in batches
-\*   and high bandwidth usage/cost.  Our goal is to avoid this via a
-\*   suitable protocol between clients that submit transactions and
-\*   validators.
-                                                                        
-\* ② So far we do not use weak links (see [DAG-R]), but this will change.  
+\*   [N&T, Fig. 4].  This can lead to duplicate transactions in
+\*   batches and high bandwidth usage/cost.  Our vision is to avoid
+\*   this via a suitable protocol between clients that submit
+\*   transactions to (workers at) validators; e.g., servers should
+\*   respond with signed receipts (including a time stamp of the validator).
+\*                                                                        
+\* ② So far we do not use weak links (see [DAG-R]) — coming soon ™.
+\* 
+\* More generally, DAG-based consensus protocols, can be thought of as
+\* as composition of a “logged” mempool, which is the first phase of a
+\* consensus protocol, which in particular makes sure that the set of
+\* transactions of interest at a given time is known to a super
+\* majority of validators or _quorum_ in short.  Thus, only the client
+\* server communication is epemeral, with the servers having the
+\* (hugely problematic!) option of denying receipt of messages
+\* (cf. the addition of time stamped proofs of receipt). Finally, the
+\* best counterpart to bitcoint's mempool—as operated in the olden
+\* days—in Anoma's architecture is the intent gossip network. 
 \* **************************************************************************
 
-\* ‼️ Note: so far no Byzantine behavior, yet ‼️
+\* ‼️ Note: so far no Byzantine behaviour is specified, yet ‼️ 
 
 EXTENDS 
   Integers
@@ -54,18 +58,19 @@ EXTENDS
 (*                         DATA STRUCTURES                                 *)
 (***************************************************************************)
 
-
 \* **************************************************************************
-\* We give encodings for block (header)s and their components, such as
-\* certificates, block digests, and the like, as used in Narwhal [N&T]
-\* and DAG-rider [DAG-R].  We consider batches to be atomic; the
-\* processing of individual transactions can be seen as a refinement.
+\* We encode block headers and their components; for the sake of
+\* succint names, block headers are called simply blocks. The
+\* components of blocks are certificates, block digests, and the like,
+\* as used in Narwhal [N&T] and DAG-rider [DAG-R].  We consider
+\* batches to be atomic; the processing of individual transactions can
+\* be seen as a refinement.
 \* **************************************************************************
 
 CONSTANT
   \* "Batch": 
   \*   the set of batches
-  \*   Elements of "Batch" have type "BATCH", which is uninterpreted.
+  \*   Elements of "Batch" have type BATCH, which is uninterpreted.
   \*
   \* @type: Set(BATCH);
   Batch
@@ -75,10 +80,13 @@ ASSUME ExistenceOfBatches ==
   Batch # {}
 
 \* *************************************************************************
-\* We emulate hash functions on batches by a simple “wrapping” operation,
-\* called "hash". Note that with actual crypographic hash functions, hash
-\* collisions are not strictly impossible; this would lead to issues in
-\* proofs.
+\* We emulate hash functions on batches by a simple “wrapping”
+\* operation, called "hash". Note that for actual crypographic hash
+\* functions, hash collisions are in principle possible; this would
+\* lead to issues in the proofs.
+\* 
+\* Block digests are going to be modelled in yet a different way
+\* (to make model checking possible at all).
 \* *************************************************************************
 
 (* $batchHash: 
@@ -99,7 +107,7 @@ ASSUME ExistenceOfBatches ==
 BatchHash == [ batch : Batch ]
 
 \* "hash":
-\*   operator modeling hash functions
+\*   operator modeling hash functions on batches
 \* 
 \* @type: (BATCH) => $batchHash;
 hash(b) == [batch |-> b] 
@@ -1065,7 +1073,7 @@ StoreBlock(block, validator) ==
     /\ b \in Block
     /\ v \in ByzValidator
     \* pre-condition
-       \* the valid has acknowledged and stored the block
+       \* the validor has acknowledged and stored the block 
     /\ << b, AVL >> \in storedBlx[v]
     \* post-condition
        \* store also the certificate of availability of the block
@@ -1074,8 +1082,8 @@ StoreBlock(block, validator) ==
     /\ UNCHANGED allBUTstoredBlx   
 
 \* "preceedingBlocks":
-\*   the set of blocks known to a validator in the previous round
-\*   cf. \prec / the directly covers relation 
+\*   the set of blocks referencable by a validator in the previous round
+\*   cf. \prec—the directly covers relation 
 \* 
 \* @type: (BYZ_VAL, Int) => Set($block);
 preceedingBlocks(v, r) == 
@@ -1092,6 +1100,7 @@ AfterGenesisBlockBC(validator) ==
   LET
     \* @type: BYZ_VAL;
     v == validator   
+    \* @type: Int;
     r == rndOf[v]
   IN LET
     \* @type: Set(BYZ_VAL);
