@@ -32,9 +32,6 @@
 \* days—in Anoma's architecture is the intent gossip network. 
 \* **************************************************************************
 
-\* we have added crash behaviour for Byzantine nodes 
-\*    seach for `\in FakeValidator` or `\notin FakeValidator`
-
 \* ‼️ Note: so far no Byzantine behaviour is specified, yet ‼️ 
 
 EXTENDS 
@@ -840,11 +837,7 @@ BatchBC(batch, worker) ==
   /\ storedHx' = \* ¡storedHx
        [storedHx EXCEPT ![p] = @ \cup {hash(b)}] 
      \* broadcast the batch 
-  /\ (w.val \notin FakeValidator) \* (optional for fake validators)
-        => Send(batchMsg(b, w)) \* ¡msgs
-     \* fake validators may delay sending the message
-  /\ (w.val \in FakeValidator) \* (fake validators might delay)
-        => (Send(batchMsg(b, w) \/ UNCHANGED msgs)
+  /\ Send(batchMsg(b,w)) \* ¡msgs
      \* nothing else changes
   /\ UNCHANGED allBUTmsgsNbatchPoolNnextHxNstoredHx
 \* end of action "BatchBC"
