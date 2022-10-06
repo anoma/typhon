@@ -32,6 +32,9 @@
 \* days—in Anoma's architecture is the intent gossip network. 
 \* **************************************************************************
 
+\* we have added crash behaviour for Byzantine nodes 
+\*    seach for `\in FakeValidator` or `\notin FakeValidator`
+
 \* ‼️ Note: so far no Byzantine behaviour is specified, yet ‼️ 
 
 EXTENDS 
@@ -96,7 +99,7 @@ ASSUME ExistenceOfBatches ==
 - batch: the hashed Batch
 
 @typeAlias: batchHash = {
-    batch : BATCH 
+    batch : BATCH
 };
 *)
 
@@ -837,7 +840,11 @@ BatchBC(batch, worker) ==
   /\ storedHx' = \* ¡storedHx
        [storedHx EXCEPT ![p] = @ \cup {hash(b)}] 
      \* broadcast the batch 
-  /\ Send(batchMsg(b,w)) \* ¡msgs
+  /\ (w.val \notin FakeValidator) \* (optional for fake validators)
+        => Send(batchMsg(b, w)) \* ¡msgs
+     \* fake validators may delay sending the message
+  /\ (w.val \in FakeValidator) \* (fake validators might delay)
+        => (Send(batchMsg(b, w) \/ UNCHANGED msgs)
      \* nothing else changes
   /\ UNCHANGED allBUTmsgsNbatchPoolNnextHxNstoredHx
 \* end of action "BatchBC"
@@ -1266,8 +1273,7 @@ hasSupport(b) ==
             \E y \in Block :
                  /\ y.creator = w
                  /\ << y, COA >> \in storedBlx[w]
-                 /\ linksTo(y, b)                  
-
+                 /\ linksTo(y, b)
 
 CONSTANT
   \* ̈"WaveLength":
@@ -1339,7 +1345,6 @@ IsCommitted(b) ==
      \/ \E z \in Block : 
         /\ IsCommitingLeaderBlock(z)
         /\ b \in {} \* CausalHistory(z)
-
 *)
 -----------------------------------------------------------------------------
 
