@@ -168,6 +168,21 @@ PROOF
 LEMMA Message_nontriv == Message # {}
 PROOF BY MessageRec_nontriv DEF Message, MessageDepthRange
 
+LEMMA Message_1a_ref ==
+    \A m \in Message : m.type = "1a" <=> m.ref = {}
+PROOF
+<1> DEFINE P(j) == \A mm \in MessageRec[j] : mm.type = "1a" <=> mm.ref = {}
+<1> SUFFICES ASSUME NEW j \in Nat PROVE P(j) BY DEF Message, MessageDepthRange
+<1>0. P(0) BY MessageRec_eq0 DEF MessageRec0
+<1>1. ASSUME NEW m \in Nat, P(m) PROVE P(m+1)
+  <2> SUFFICES ASSUME NEW mm \in MessageRec[m+1]
+               PROVE  mm.type = "1a" <=> mm.ref = {}
+      BY DEF Message
+  <2>3. QED BY <1>1, MessageRec_eq1, MessageRec_nontriv, FinSubset_sub_nontriv,
+               RefCardinalitySpec DEF MessageRec1
+<1>2. HIDE DEF P
+<1>3. QED BY <1>0, <1>1, NatInduction, Isa
+
 LEMMA Message_ref ==
     ASSUME NEW m \in Message
     PROVE  m.ref \subseteq Message
