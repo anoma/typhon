@@ -20,7 +20,7 @@ Acceptor == SafeAcceptor \cup FakeAcceptor
 
 ASSUME AcceptorAssumption ==
     /\ SafeAcceptor \cap FakeAcceptor = {}
-    /\ Acceptor \cap Learner = {}
+\*    /\ Acceptor \cap Learner = {}
 
 ASSUME BQAssumption ==
     /\ SafeAcceptor \in ByzQuorum
