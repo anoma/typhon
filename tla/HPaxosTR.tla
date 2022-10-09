@@ -75,11 +75,8 @@ FINSUBSET(S, R) == { Range(seq) : seq \in [R -> S] }
 \*FINSUBSET(S, K) == { Range(seq) : seq \in [1..K -> S] }
 \*FINSUBSET(S, R) == UNION { {Range(seq) : seq \in [1..K -> S]} : K \in R }
 
-\* TODO remove 1b, 2a cases
 MessageRec0 ==
     [ type : {"1a"}, bal : Ballot, ref : {{}} ]
-\*    [ type : {"1b"}, acc : Acceptor, ref : {{}} ] \cup
-\*    [ type : {"2a"}, lrn : Learner, acc : Acceptor, ref : {{}} ]
 
 MessageRec1(M, n) ==
     M \cup
@@ -90,13 +87,6 @@ MessageRec1(M, n) ==
       lrn : Learner,
       acc : Acceptor,
       ref : FINSUBSET(M, RefCardinality) ]
-
-\*MessageRec ==
-\*    CHOOSE MessageRec :
-\*    MessageRec = [n \in Nat |->
-\*                    IF n = 0
-\*                    THEN MessageRec0
-\*                    ELSE MessageRec1(MessageRec[n-1], n)]
 
 MessageRec[n \in Nat] ==
     IF n = 0
@@ -117,13 +107,6 @@ Message == UNION { MessageRec[n] : n \in MessageDepthRange }
 TranBound0 == [m \in Message |-> {m}]
 TranBound1(tr, n) ==
     [m \in Message |-> {m} \cup UNION {tr[r] : r \in m.ref}]
-
-\*TranBound ==
-\*    CHOOSE TranBound :
-\*    TranBound = [n \in Nat |->
-\*                    IF n = 0
-\*                    THEN TranBound0
-\*                    ELSE TranBound1(TranBound[n-1], n)]
 
 TranBound[n \in Nat] ==
     IF n = 0
