@@ -317,16 +317,20 @@ AcceptorProcessAction ==
         \/ /\ 2a_lrn_loop[a] = TRUE
            /\ Process1bLearnerLoop(a)
 
-FakeSend(a) ==
-    /\ \E m \in { mm \in Message :
-                    /\ mm.type \in {"1b", "2a"}
-                    /\ mm.acc = a
-                    /\ WellFormed(mm)  \* assume that adversaries can send only
-                                       \* wellformed messages
-                } :
-        \* ===>
-\*        /\ B(m, 0)
-        /\ Send(m)
+FakeSend1b(a) ==
+    /\ \E fin \in FINSUBSET(msgs, RefCardinality) :
+        LET new1b == [type |-> "1b", acc |-> a, ref |-> fin] IN
+        /\ WellFormed(new1b)
+        /\ Send(new1b)
+    /\ UNCHANGED << known_msgs, recent_msgs, 2a_lrn_loop, processed_lrns, decision >>
+    /\ UNCHANGED BVal
+
+FakeSend2a(a) ==
+    /\ \E fin \in FINSUBSET(msgs, RefCardinality) :
+        \E lrn \in Learner :
+            LET new2a == [type |-> "2a", lrn |-> lrn, acc |-> a, ref |-> fin] IN
+            /\ WellFormed(new2a)
+            /\ Send(new2a)
     /\ UNCHANGED << known_msgs, recent_msgs, 2a_lrn_loop, processed_lrns, decision >>
     /\ UNCHANGED BVal
 
@@ -352,7 +356,10 @@ LearnerAction ==
            \E val \in Value :
             LearnerDecide(lrn, bal, val)
 
-FakeAcceptorAction == \E a \in FakeAcceptor : FakeSend(a)
+FakeAcceptorAction ==
+    \E a \in FakeAcceptor :
+        \/ FakeSend1b(a)
+        \/ FakeSend2a(a)
 
 Next ==
     /\ \/ ProposerSendAction
@@ -369,7 +376,7 @@ Safety ==
         V1 \in decision[L1, B1] /\ V2 \in decision[L2, B2] =>
         V1 = V2
 
-\*THEOREM SafetyResult == Spec => []Safety
+\* THEOREM SafetyResult == Spec => []Safety
 
 -----------------------------------------------------------------------------
 (* Sanity check propositions *)
