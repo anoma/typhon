@@ -855,7 +855,8 @@ PROOF
 <1>6. CASE LearnerAction
       BY <1>6, Isa DEF LearnerAction, LearnerRecv, LearnerDecide, Recv, TypeOK
 <1>7. CASE FakeAcceptorAction
-      BY <1>7 DEF FakeAcceptorAction, FakeSend, Send, TypeOK
+      BY <1>7, WellFormedMessage, Zenon
+      DEF FakeAcceptorAction, FakeSend1b, FakeSend2a, Send, TypeOK
 <1>8. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, <1>7
           DEF Next, AcceptorProcessAction, Process1bLearnerLoop
 
@@ -899,7 +900,7 @@ PROOF
             LearnerDecide(lrn, bal, val)
       BY <1>7 DEF LearnerDecide, TypeOK
 <1>8. CASE FakeAcceptorAction
-      BY <1>8 DEF FakeAcceptorAction, FakeSend, TypeOK
+      BY <1>8 DEF FakeAcceptorAction, FakeSend1b, FakeSend2a, TypeOK
 <1>9. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, <1>7, <1>8
           DEF Next, AcceptorProcessAction, Process1bLearnerLoop, LearnerAction
 
@@ -939,7 +940,8 @@ PROOF
             LearnerDecide(lrn, bal, val)
       BY <1>7, KnownMsgMonotone, Zenon DEF LearnerDecide, V, TypeOK
 <1>8. CASE FakeAcceptorAction
-      BY <1>8, KnownMsgMonotone DEF FakeAcceptorAction, FakeSend, V, TypeOK
+      BY <1>8, KnownMsgMonotone
+      DEF FakeAcceptorAction, FakeSend1b, FakeSend2a, V, TypeOK
 <1>9. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, <1>7, <1>8
           DEF Next, AcceptorProcessAction, Process1bLearnerLoop, LearnerAction
 
@@ -984,7 +986,7 @@ PROOF
       BY <1>7, Zenon DEF LearnerDecide
   <2>0. QED BY Known2aMonotone DEF TypeOK
 <1>8. CASE FakeAcceptorAction
-      BY <1>8, Known2aMonotone DEF FakeAcceptorAction, FakeSend
+      BY <1>8, Known2aMonotone DEF FakeAcceptorAction, FakeSend1b, FakeSend2a
 <1>9. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, <1>7, <1>8
           DEF Next, AcceptorProcessAction, Process1bLearnerLoop, LearnerAction
 
@@ -1164,10 +1166,16 @@ PROOF
       BY <1>5 DEF Process1bLearnerLoopDone, Send, SentBy
 <1>6. CASE LearnerAction
       BY <1>6 DEF LearnerAction, LearnerRecv, LearnerDecide, Send, SentBy
-<1>7. CASE FakeAcceptorAction
-      BY <1>7, AcceptorAssumption DEF FakeAcceptorAction, FakeSend, Send, SentBy
-<1>8. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, <1>7
-           DEF Next, AcceptorProcessAction, Process1bLearnerLoop
+<1>7. CASE \E a \in FakeAcceptor : FakeSend1b(a)
+  <2> PICK acc \in FakeAcceptor : FakeSend1b(acc)
+      BY <1>7
+  <2> QED BY AcceptorAssumption DEF FakeSend1b, Send, SentBy
+<1>8. CASE \E a \in FakeAcceptor : FakeSend2a(a)
+  <2> PICK acc \in FakeAcceptor : FakeSend2a(acc)
+      BY <1>8
+  <2> QED BY AcceptorAssumption DEF FakeSend2a, Send, SentBy
+<1> QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, <1>7, <1>8
+           DEF Next, AcceptorProcessAction, Process1bLearnerLoop, FakeAcceptorAction
 
 LEMMA UniqueMessageSent ==
     TypeOK /\ Next =>
@@ -1205,7 +1213,7 @@ PROOF
             LearnerDecide(lrn, bal, val)
       BY <1>7 DEF LearnerDecide
 <1>8. CASE FakeAcceptorAction
-      BY <1>8 DEF FakeAcceptorAction, FakeSend, Send
+      BY <1>8 DEF FakeAcceptorAction, FakeSend1b, FakeSend2a, Send
 <1>9. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, <1>7, <1>8
           DEF Next, AcceptorProcessAction, Process1bLearnerLoop, LearnerAction
 
@@ -1341,10 +1349,10 @@ PROOF
   <2> \E b \in Ballot : B(M, b)
       BY DEF WellFormed
   <2> QED OBVIOUS
-<1>8. CASE \E a \in FakeAcceptor : FakeSend(a)
-  <2> PICK acc \in FakeAcceptor : FakeSend(acc)
+<1>8. CASE \E a \in FakeAcceptor : FakeSend1b(a)
+  <2> PICK acc \in FakeAcceptor : FakeSend1b(acc)
       BY <1>8
-  <2> USE DEF FakeSend
+  <2> USE DEF FakeSend1b
   <2> known_msgs[AL]' \in SUBSET msgs'
       BY DEF Send
   <2> Proper(AL, M)'
@@ -1356,7 +1364,22 @@ PROOF
   <2> \E b \in Ballot : B(M, b)
       OBVIOUS
   <2> QED OBVIOUS
-<1>9. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, <1>7, <1>8
+<1>9. CASE \E a \in FakeAcceptor : FakeSend2a(a)
+  <2> PICK acc \in FakeAcceptor : FakeSend2a(acc)
+      BY <1>9
+  <2> USE DEF FakeSend2a
+  <2> known_msgs[AL]' \in SUBSET msgs'
+      BY DEF Send
+  <2> Proper(AL, M)'
+      BY DEF Proper
+  <2> WellFormed(M)'
+      BY WellFormed_monotone DEF TypeOK
+  <2> Tran(M) \in SUBSET known_msgs[AL]'
+      OBVIOUS
+  <2> \E b \in Ballot : B(M, b)
+      OBVIOUS
+  <2> QED OBVIOUS
+<1> QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, <1>7, <1>8, <1>9
           DEF Next, AcceptorProcessAction, Process1bLearnerLoop,
               LearnerAction, FakeAcceptorAction
 
@@ -1421,10 +1444,16 @@ PROOF
       BY <1>5 DEF Process1bLearnerLoopDone, Send
 <1>6. CASE LearnerAction
       BY <1>6 DEF LearnerAction, LearnerRecv, LearnerDecide, Send
-<1>7. CASE FakeAcceptorAction
-      BY <1>7, AcceptorAssumption DEF FakeAcceptorAction, FakeSend, Send
-<1>8. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, <1>7
-          DEF Next, AcceptorProcessAction, Process1bLearnerLoop
+<1>7. CASE \E acc \in FakeAcceptor : FakeSend1b(acc)
+  <2> PICK acc \in FakeAcceptor : FakeSend1b(acc)
+      BY <1>7
+  <2> QED BY AcceptorAssumption DEF FakeSend1b, Send
+<1>8. CASE \E acc \in FakeAcceptor : FakeSend2a(acc)
+  <2> PICK acc \in FakeAcceptor : FakeSend2a(acc)
+      BY <1>8
+  <2> QED BY AcceptorAssumption DEF FakeSend2a, Send
+<1> QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, <1>7, <1>8
+        DEF Next, AcceptorProcessAction, Process1bLearnerLoop, FakeAcceptorAction
 
 LEMMA MsgsSafeAcceptorSpecImpliesCaughtSpec ==
     ASSUME TypeOK, KnownMsgsSpec, MsgsSafeAcceptorSpec
@@ -1769,7 +1798,7 @@ PROOF
     <3> QED BY <3>1, <3>2, <3>3
   <2>10. QED OBVIOUS
 <1>8. CASE FakeAcceptorAction
-      BY <1>8 DEF FakeAcceptorAction, FakeSend, Safety
+      BY <1>8 DEF FakeAcceptorAction, FakeSend1b, FakeSend2a, Safety
 <1>9. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, <1>7, <1>8
           DEF Next, AcceptorProcessAction, Process1bLearnerLoop, LearnerAction
 
