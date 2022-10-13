@@ -66,10 +66,11 @@ Ent == { LL \in Learner \X Learner :
 
 CONSTANT MaxRefCardinality
 ASSUME MaxRefCardinalityAssumption ==
-    MaxRefCardinality \in Nat
+    /\ MaxRefCardinality \in Nat
+    /\ MaxRefCardinality >= 1
 
 \*RefCardinality == Nat
-RefCardinality == 0..MaxRefCardinality
+RefCardinality == 1..MaxRefCardinality
 
 FINSUBSET(S, R) == { Range(seq) : seq \in [R -> S] }
 \*FINSUBSET(S, K) == { Range(seq) : seq \in [1..K -> S] }
@@ -409,5 +410,5 @@ UniqueDecision ==
 
 =============================================================================
 \* Modification History
-\* Last modified Tue Oct 04 15:13:46 CEST 2022 by aleph
+\* Last modified Thu Oct 13 12:51:27 CEST 2022 by aleph
 \* Created Mon Jul 25 14:24:03 CEST 2022 by aleph
