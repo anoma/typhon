@@ -1866,5 +1866,5 @@ PROOF BY PTL, FullSafetyInvariantInit, FullSafetyInvariantNext
 
 =============================================================================
 \* Modification History
-\* Last modified Fri Oct 14 13:57:54 CEST 2022 by aleph
-\* Created Thu Aug 25 10:12:00 CEST 2022 by aleph
+\* Last modified Fri Oct 14 13:57:54 CEST 2022 by karbyshev
+\* Created Thu Aug 25 10:12:00 CEST 2022 by karbyshev
