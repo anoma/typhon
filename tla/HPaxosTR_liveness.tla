@@ -26,7 +26,7 @@ EXTENDS HPaxosTR
 (*  6. Learner L eventually executes its decision action for ballot b if   *)
 (*     it has a chance to do so.                                           *)
 (*                                                                         *)
-(* then some value is eventually chosen.                                   *)
+(* then some value is eventually chosen by the learner L.                  *)
 (***************************************************************************)
 
 THEOREM Liveness ==
@@ -81,6 +81,6 @@ THEOREM Liveness ==
 
 =============================================================================
 \* Modification History
-\* Last modified Fri Oct 14 17:22:51 CEST 2022 by aleph
+\* Last modified Fri Oct 14 17:25:03 CEST 2022 by aleph
 \* Created Mon Oct 14 10:13:01 CEST 2022 by aleph
 
