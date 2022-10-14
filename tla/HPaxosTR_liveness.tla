@@ -39,7 +39,7 @@ THEOREM Liveness ==
                 \* (1a)
                 /\ \A m \in msgs : m.type = "1a" => m.bal < b
                 \* (1b)
-                /\ \A c \in Ballot : (c > b) => [][~Send1a(c)]_vars
+                /\ \A c \in Ballot : c > b => [][~Send1a(c)]_vars
                 \* (2)
                 /\ WF_vars(Send1a(b))
                 \* (3)
@@ -60,27 +60,31 @@ THEOREM Liveness ==
               (\E B \in Ballot : decision[L, B] # {})
             )
 
-\*CONSTANTS bb, LL, QQ
-\*
-\*CSpec ==
-\*    /\ QQ \subseteq SafeAcceptor
-\*    /\ [lr |-> LL, q |-> QQ] \in TrustLive
-\*    /\ Init
-\*    /\ [][Next]_vars
-\*    /\ [][\A m \in msgs : m.type = "1a" => m.bal <= bb]_vars
-\*    /\ \A a \in QQ : \A m \in msgs : WF_vars(Process1a(a, m))
-\*    /\ \A a \in QQ : \A m \in msgs : WF_vars(Process1b(a, m))
-\*    /\ \A a \in QQ : WF_vars(Process1bLearnerLoop(a))
-\*    /\ \A a \in QQ : \A m \in msgs : WF_vars(Process2a(a, m))
-\*    /\ WF_vars(\E v \in Value : LearnerDecide(L, b, v))
-\*
-\*CLiveness ==
-\*    (\A m \in msgs : m.type = "1a" /\ m.lr = LL => m.bal < bb)
-\*    ~>
-\*    (\E B \in Ballot : decision # {})
+CONSTANTS bb, LL, QQ
+
+CSpec ==
+    /\ QQ \subseteq SafeAcceptor
+    /\ [lr |-> LL, q |-> QQ] \in TrustLive
+    /\ Init
+    /\ [][Next]_vars
+    /\ [\A c \in Ballot : c > bb => ~Send1a(c)]_vars
+    /\ WF_vars(Send1a(bb))
+    /\ \A a \in QQ : \A m \in msgs :
+        B(m, bb) => WF_vars(Process1a(a, m))
+    /\ \A a \in QQ : \A m \in msgs :
+        B(m, bb) => WF_vars(Process1b(a, m))
+    /\ \A a \in QQ : WF_vars(Process1bLearnerLoop(a))
+    /\ \A a \in QQ : \A m \in msgs :
+        B(m, bb) => WF_vars(Process2a(a, m))
+    /\ WF_vars(\E v \in Value : LearnerDecide(LL, bb, v))
+
+CLiveness ==
+    (\A m \in msgs : m.type = "1a" => m.bal < bb)
+    ~>
+    (\E B \in Ballot : decision[LL, B] # {})
 
 =============================================================================
 \* Modification History
-\* Last modified Fri Oct 14 17:25:03 CEST 2022 by aleph
+\* Last modified Fri Oct 14 17:47:43 CEST 2022 by aleph
 \* Created Mon Oct 14 10:13:01 CEST 2022 by aleph
 
