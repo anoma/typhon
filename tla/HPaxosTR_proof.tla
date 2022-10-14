@@ -804,7 +804,7 @@ LEMMA TypeOKInvariant == TypeOK /\ Next => TypeOK'
 PROOF
 <1> SUFFICES ASSUME TypeOK, Next PROVE TypeOK' OBVIOUS
 <1>1. CASE ProposerSendAction
-  <2> PICK bal \in Ballot, val \in Value : Send1a(bal, val)
+  <2> PICK bal \in Ballot : Send1a(bal)
       BY <1>1 DEF ProposerSendAction
   <2> [type |-> "1a", bal |-> bal, ref |-> {}] \in Message
       BY Message_spec, MessageRec_eq0 DEF MessageRec0
@@ -877,7 +877,7 @@ PROOF
     OBVIOUS
 <1> TypeOK' BY TypeOKInvariant
 <1>1. CASE ProposerSendAction
-  <2> PICK bal \in Ballot, val \in Value : Send1a(bal, val)
+  <2> PICK bal \in Ballot : Send1a(bal)
       BY <1>1 DEF ProposerSendAction
   <2> QED BY DEF Send1a, TypeOK
 <1>2. CASE \E a \in SafeAcceptor : \E m \in msgs : Process1a(a, m)
@@ -917,7 +917,7 @@ PROOF
 <1> TypeOK' BY TypeOKInvariant
 <1> USE DEF Known2a
 <1>1. CASE ProposerSendAction
-  <2> PICK bal \in Ballot, val \in Value : Send1a(bal, val)
+  <2> PICK bal \in Ballot : Send1a(bal)
       BY <1>1 DEF ProposerSendAction
   <2> QED BY KnownMsgMonotone DEF Send1a, V, TypeOK
 <1>2. CASE \E a \in SafeAcceptor : \E m \in msgs : Process1a(a, m)
@@ -958,7 +958,7 @@ PROOF
 <1> USE DEF DecisionSpec
 <1> USE DEF ChosenIn
 <1>1. CASE ProposerSendAction
-  <2> PICK bal \in Ballot, val \in Value : Send1a(bal, val)
+  <2> PICK bal \in Ballot : Send1a(bal)
       BY <1>1 DEF ProposerSendAction
   <2> QED BY Known2aMonotone DEF Send1a
 <1>2. CASE \E a \in SafeAcceptor : \E m \in msgs : Process1a(a, m)
@@ -1007,7 +1007,7 @@ PROOF
 <1> mm \in msgs' /\ mm.type # "1a" /\ mm.acc = A BY DEF SentBy
 <1> USE DEF RecentMsgsSafeAcceptorSpec
 <1>1. CASE ProposerSendAction
-  <2> PICK bal \in Ballot, val \in Value : Send1a(bal, val)
+  <2> PICK bal \in Ballot : Send1a(bal)
       BY <1>1 DEF ProposerSendAction
   <2> QED BY DEF Send1a, Send, SentBy
 <1>2. CASE \E a \in SafeAcceptor : \E m \in msgs : Process1a(a, m)
@@ -1190,7 +1190,7 @@ PROOF
     OBVIOUS
 <1> TypeOK' BY TypeOKInvariant
 <1>1. CASE ProposerSendAction
-  <2> PICK bal \in Ballot, val \in Value : Send1a(bal, val)
+  <2> PICK bal \in Ballot : Send1a(bal)
       BY <1>1 DEF ProposerSendAction
   <2> QED BY Zenon DEF Send1a, Send
 <1>2. CASE \E a \in SafeAcceptor : \E m \in msgs : Process1a(a, m)
@@ -1234,7 +1234,7 @@ PROOF
     BY DEF KnownMsgsSpec
 <1> USE DEF KnownMsgsSpec
 <1>1. CASE ProposerSendAction
-  <2> PICK bal \in Ballot, val \in Value : Send1a(bal, val)
+  <2> PICK bal \in Ballot : Send1a(bal)
       BY <1>1 DEF ProposerSendAction
   <2> USE DEF Send1a
   <2> known_msgs[AL]' \in SUBSET msgs'
@@ -1866,5 +1866,5 @@ PROOF BY PTL, FullSafetyInvariantInit, FullSafetyInvariantNext
 
 =============================================================================
 \* Modification History
-\* Last modified Thu Oct 13 12:35:41 CEST 2022 by aleph
+\* Last modified Fri Oct 14 13:57:54 CEST 2022 by aleph
 \* Created Thu Aug 25 10:12:00 CEST 2022 by aleph

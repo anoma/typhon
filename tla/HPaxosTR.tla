@@ -237,7 +237,7 @@ Recv(a, m) ==
     /\ Proper(a, m)
     /\ known_msgs' = [known_msgs EXCEPT ![a] = known_msgs[a] \cup {m}]
 
-Send1a(b, v) ==
+Send1a(b) ==
     /\ Send([type |-> "1a", bal |-> b, ref |-> {}])
     /\ UNCHANGED << known_msgs, recent_msgs, 2a_lrn_loop, processed_lrns, decision >>
     /\ UNCHANGED BVal
@@ -305,8 +305,7 @@ Process2a(a, m) ==
     /\ UNCHANGED BVal
 
 ProposerSendAction ==
-    \E bal \in Ballot : \E val \in Value :
-        Send1a(bal, val)
+    \E bal \in Ballot : Send1a(bal)
 
 AcceptorProcessAction ==
     \E a \in SafeAcceptor:
@@ -410,5 +409,5 @@ UniqueDecision ==
 
 =============================================================================
 \* Modification History
-\* Last modified Thu Oct 13 12:51:27 CEST 2022 by aleph
+\* Last modified Fri Oct 14 13:56:31 CEST 2022 by aleph
 \* Created Mon Jul 25 14:24:03 CEST 2022 by aleph
