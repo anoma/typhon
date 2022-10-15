@@ -467,31 +467,31 @@ THEOREM Liveness ==
               (\E BB \in Ballot : decision[L, BB] # {})
             )
 
-\*CONSTANTS bb, LL, QQ
-\*
-\*CSpec ==
-\*    /\ Init
-\*    /\ [][Next]_vars
-\*    /\ [\A c \in Ballot : c > bb => ~Send1a(c)]_vars
-\*    /\ WF_vars(Send1a(bb))
-\*    /\ \A a \in QQ : \A m \in msgs :
-\*        B(m, bb) => WF_vars(Process1a(a, m))
-\*    /\ \A a \in QQ : \A m \in msgs :
-\*        B(m, bb) => WF_vars(Process1b(a, m))
-\*    /\ \A a \in QQ : WF_vars(Process1bLearnerLoop(a))
-\*    /\ \A a \in QQ : \A m \in msgs :
-\*        B(m, bb) => WF_vars(Process2a(a, m))
-\*    /\ WF_vars(\E v \in Value : LearnerDecide(LL, bb, v))
-\*
-\*CLiveness ==
-\*    (/\ QQ \subseteq SafeAcceptor
-\*     /\ [lr |-> LL, q |-> QQ] \in TrustLive)
-\*    =>
-\*    (\A m \in msgs : m.type = "1a" => m.bal < bb)
-\*    ~>
-\*    (\E BB \in Ballot : decision[LL, BB] # {})
+CONSTANTS bb, LL, QQ
+
+CSpec ==
+    /\ Init
+    /\ [][Next]_vars
+    /\ [][\A c \in Ballot : c > bb => ~Send1a(c)]_vars
+    /\ WF_vars(Send1a(bb))
+    /\ \A a \in QQ : \A m \in msgs :
+        B(m, bb) => WF_vars(Process1a(a, m))
+    /\ \A a \in QQ : \A m \in msgs :
+        B(m, bb) => WF_vars(Process1b(a, m))
+    /\ \A a \in QQ : WF_vars(Process1bLearnerLoop(a))
+    /\ \A a \in QQ : \A m \in msgs :
+        B(m, bb) => WF_vars(Process2a(a, m))
+    /\ WF_vars(\E v \in Value : LearnerDecide(LL, bb, v))
+
+CLiveness ==
+    (/\ QQ \subseteq SafeAcceptor
+     /\ [lr |-> LL, q |-> QQ] \in TrustLive)
+    =>
+    ((\A m \in msgs : m.type = "1a" => m.bal < bb)
+    ~>
+    \E BB \in Ballot : decision[LL, BB] # {})
 
 =============================================================================
 \* Modification History
-\* Last modified Fri Oct 14 22:35:35 CEST 2022 by karbyshev
+\* Last modified Sun Oct 16 16:44:40 CEST 2022 by karbyshev
 \* Created Mon Jul 25 14:24:03 CEST 2022 by karbyshev
