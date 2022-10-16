@@ -1,5 +1,5 @@
---------------------------- MODULE HPaxosTR_proof ---------------------------
-EXTENDS HPaxosTR, Sequences, NaturalsInduction, WellFoundedInduction, TLAPS
+---------------------------- MODULE HPaxos_proof ----------------------------
+EXTENDS HPaxos, Sequences, NaturalsInduction, WellFoundedInduction, TLAPS
 
 -----------------------------------------------------------------------------
 LEMMA RefCardinalitySpec ==
@@ -16,7 +16,7 @@ LEMMA FinSubset_sub_nontriv ==
     ASSUME NEW S, S # {},
            NEW R \in SUBSET Nat, R # {}, NEW F \in FINSUBSET(S, R)
     PROVE  F # {}
-PROOF BY Zenon DEF Range, FINSUBSET
+PROOF BY Isa DEF Range, FINSUBSET
 
 \*LEMMA FinSubset_sub ==
 \*    ASSUME NEW S, NEW K \in Nat, NEW F \in FINSUBSET(S, K)
@@ -1866,5 +1866,5 @@ PROOF BY PTL, FullSafetyInvariantInit, FullSafetyInvariantNext
 
 =============================================================================
 \* Modification History
-\* Last modified Fri Oct 14 13:57:54 CEST 2022 by karbyshev
+\* Last modified Sun Oct 16 18:18:07 CEST 2022 by karbyshev
 \* Created Thu Aug 25 10:12:00 CEST 2022 by karbyshev

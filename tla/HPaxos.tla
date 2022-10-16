@@ -1,4 +1,4 @@
------------------------------- MODULE HPaxosTR ------------------------------
+------------------------------- MODULE HPaxos -------------------------------
 EXTENDS Naturals, FiniteSets, Functions
 
 -----------------------------------------------------------------------------
@@ -493,5 +493,5 @@ CLiveness ==
 
 =============================================================================
 \* Modification History
-\* Last modified Sun Oct 16 16:44:40 CEST 2022 by karbyshev
+\* Last modified Sun Oct 16 17:07:31 CEST 2022 by karbyshev
 \* Created Mon Jul 25 14:24:03 CEST 2022 by karbyshev
