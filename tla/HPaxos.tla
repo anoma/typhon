@@ -334,8 +334,8 @@ FakeSend2a(a) ==
     /\ UNCHANGED << known_msgs, recent_msgs, 2a_lrn_loop, processed_lrns, decision >>
     /\ UNCHANGED BVal
 
-LearnerRecv(l) ==
-    /\ \E m \in msgs : Recv(l, m)
+LearnerRecv(l, m) ==
+    /\ Recv(l, m)
     /\ UNCHANGED << msgs, recent_msgs, 2a_lrn_loop, processed_lrns, decision >>
     /\ UNCHANGED BVal
 
@@ -351,7 +351,8 @@ LearnerDecide(l, b, v) ==
 
 LearnerAction ==
     \E lrn \in Learner :
-        \/ LearnerRecv(lrn)
+        \/ \E m \in msgs :
+            LearnerRecv(lrn, m)
         \/ \E bal \in Ballot :
            \E val \in Value :
             LearnerDecide(lrn, bal, val)

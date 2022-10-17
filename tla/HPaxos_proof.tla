@@ -894,7 +894,7 @@ PROOF
   <2> QED BY DEF Process1bLearnerLoopStep, TypeOK
 <1>5. CASE \E a \in SafeAcceptor : Process1bLearnerLoopDone(a)
       BY <1>5 DEF Process1bLearnerLoopDone, TypeOK
-<1>6. CASE \E lrn \in Learner : LearnerRecv(lrn)
+<1>6. CASE \E lrn \in Learner : \E m \in msgs : LearnerRecv(lrn, m)
       BY <1>6 DEF LearnerRecv, Recv, TypeOK
 <1>7. CASE \E lrn \in Learner : \E bal \in Ballot : \E val \in Value :
             LearnerDecide(lrn, bal, val)
@@ -934,7 +934,7 @@ PROOF
   <2> QED BY KnownMsgMonotone DEF Process1bLearnerLoopStep, V, TypeOK
 <1>5. CASE \E a \in SafeAcceptor : Process1bLearnerLoopDone(a)
       BY <1>5, KnownMsgMonotone DEF Process1bLearnerLoopDone, V, TypeOK
-<1>6. CASE \E lrn \in Learner : LearnerRecv(lrn)
+<1>6. CASE \E lrn \in Learner : \E m \in msgs : LearnerRecv(lrn, m)
       BY <1>6, KnownMsgMonotone DEF LearnerRecv, V, TypeOK
 <1>7. CASE \E lrn \in Learner : \E bal \in Ballot : \E val \in Value :
             LearnerDecide(lrn, bal, val)
@@ -975,7 +975,7 @@ PROOF
   <2> QED BY Known2aMonotone DEF Process1bLearnerLoopStep
 <1>5. CASE \E a \in SafeAcceptor : Process1bLearnerLoopDone(a)
       BY <1>5, Known2aMonotone DEF Process1bLearnerLoopDone
-<1>6. CASE \E lrn \in Learner : LearnerRecv(lrn)
+<1>6. CASE \E lrn \in Learner : \E m \in msgs : LearnerRecv(lrn, m)
       BY <1>6, Known2aMonotone DEF LearnerRecv
 <1>7. CASE \E lrn \in Learner : \E bal \in Ballot : \E val \in Value :
             LearnerDecide(lrn, bal, val)
@@ -1207,7 +1207,7 @@ PROOF
   <2> QED BY DEF Process1bLearnerLoopStep, Send
 <1>5. CASE \E a \in SafeAcceptor : Process1bLearnerLoopDone(a)
       BY <1>5 DEF Process1bLearnerLoopDone
-<1>6. CASE \E lrn \in Learner : LearnerRecv(lrn)
+<1>6. CASE \E lrn \in Learner : \E m \in msgs : LearnerRecv(lrn, m)
       BY <1>6 DEF LearnerRecv
 <1>7. CASE \E lrn \in Learner : \E bal \in Ballot : \E val \in Value :
             LearnerDecide(lrn, bal, val)
@@ -1315,8 +1315,8 @@ PROOF
   <2> \E b \in Ballot : B(M, b)
       BY DEF WellFormed
   <2> QED OBVIOUS
-<1>6. CASE \E lrn \in Learner : LearnerRecv(lrn)
-  <2> PICK lrn \in Learner : LearnerRecv(lrn)
+<1>6. CASE \E lrn \in Learner : \E m \in msgs : LearnerRecv(lrn, m)
+  <2> PICK lrn \in Learner, m \in msgs : LearnerRecv(lrn, m)
       BY <1>6
   <2> USE DEF LearnerRecv
   <2> known_msgs[AL]' \in SUBSET msgs'
@@ -1766,7 +1766,7 @@ PROOF
       BY <1>4 DEF Process1bLearnerLoopStep, Safety
 <1>5. CASE \E a \in SafeAcceptor : Process1bLearnerLoopDone(a)
       BY <1>5 DEF Process1bLearnerLoopDone, Safety
-<1>6. CASE \E lrn \in Learner : LearnerRecv(lrn)
+<1>6. CASE \E lrn \in Learner : \E m \in msgs : LearnerRecv(lrn, m)
       BY <1>6 DEF LearnerRecv, Safety
 <1>7. CASE \E lrn \in Learner : \E bal \in Ballot : \E val \in Value :
             LearnerDecide(lrn, bal, val)
@@ -1866,5 +1866,5 @@ PROOF BY PTL, FullSafetyInvariantInit, FullSafetyInvariantNext
 
 =============================================================================
 \* Modification History
-\* Last modified Sun Oct 16 18:18:07 CEST 2022 by karbyshev
+\* Last modified Mon Oct 17 16:25:45 CEST 2022 by karbyshev
 \* Created Thu Aug 25 10:12:00 CEST 2022 by karbyshev
