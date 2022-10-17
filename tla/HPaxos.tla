@@ -420,8 +420,8 @@ UniqueDecision ==
 (*                                                                         *)
 (*  2. The ballot b leader eventually sends a 1a message for ballot b.     *)
 (*                                                                         *)
-(*  3. Each acceptor in Q eventually receives a 1a message of ballot b and *)
-(*     responds to it by sending a 1b message.                             *)
+(*  3. Each acceptor in Q eventually receives the 1a message of ballot b   *)
+(*     and responds to it by sending a 1b message.                         *)
 (*                                                                         *)
 (*  4. (a) Each acceptor in Q eventually receives a 1b message of ballot b *)
 (*         from themself and every other acceptor of Q, and                *)
@@ -451,37 +451,42 @@ THEOREM Liveness ==
                 \* (2)
                 /\ WF_vars(Send1a(b))
                 \* (3)
-                /\ \A a \in Q : \A m \in msgs :
-                    B(m, b) => WF_vars(Process1a(a, m))
+                /\ \A m \in Message :
+                    B(m, b) =>
+                    \A a \in Q : WF_vars(Process1a(a, m))
                 \* (4a)
-                /\ \A a \in Q : \A m \in msgs :
-                    B(m, b) => WF_vars(Process1b(a, m))
+                /\ \A m \in Message :
+                    B(m, b) =>
+                    \A a \in Q : WF_vars(Process1b(a, m))
                 \* (4b)
                 /\ \A a \in Q : WF_vars(Process1bLearnerLoop(a))
                 \* (5)
-                /\ \A a \in Q : \A m \in msgs :
-                    B(m, b) => WF_vars(Process2a(a, m))
+                /\ \A m \in Message :
+                    B(m, b) => WF_vars(LearnerRecv(L, m))
                 \* (6)
                 /\ WF_vars(\E v \in Value : LearnerDecide(L, b, v))
               )
               ~>
               (\E BB \in Ballot : decision[L, BB] # {})
             )
+            \* A ~> B == [](A -> E B)
+            \* WF(A) == []( [](enabled A) => E A )
 
 CONSTANTS bb, LL, QQ
 
 CSpec ==
     /\ Init
-    /\ [][Next]_vars
-    /\ [][\A c \in Ballot : c > bb => ~Send1a(c)]_vars
+    /\ [][Next /\ \A c \in Ballot : c > bb => ~Send1a(c)]_vars
     /\ WF_vars(Send1a(bb))
-    /\ \A a \in QQ : \A m \in msgs :
-        B(m, bb) => WF_vars(Process1a(a, m))
-    /\ \A a \in QQ : \A m \in msgs :
-        B(m, bb) => WF_vars(Process1b(a, m))
+    /\ \A m \in Message :
+        B(m, bb) =>
+        \A a \in QQ : WF_vars(Process1a(a, m))
+    /\ \A m \in Message :
+        B(m, bb) =>
+        \A a \in QQ : WF_vars(Process1b(a, m))
     /\ \A a \in QQ : WF_vars(Process1bLearnerLoop(a))
-    /\ \A a \in QQ : \A m \in msgs :
-        B(m, bb) => WF_vars(Process2a(a, m))
+    /\ \A m \in Message :
+        B(m, bb) => WF_vars(LearnerRecv(LL, m))
     /\ WF_vars(\E v \in Value : LearnerDecide(LL, bb, v))
 
 CLiveness ==
@@ -494,5 +499,5 @@ CLiveness ==
 
 =============================================================================
 \* Modification History
-\* Last modified Sun Oct 16 17:07:31 CEST 2022 by karbyshev
+\* Last modified Mon Oct 17 16:16:31 CEST 2022 by karbyshev
 \* Created Mon Jul 25 14:24:03 CEST 2022 by karbyshev
