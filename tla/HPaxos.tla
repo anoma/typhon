@@ -469,8 +469,6 @@ THEOREM Liveness ==
               ~>
               (\E BB \in Ballot : decision[L, BB] # {})
             )
-            \* A ~> B == [](A -> E B)
-            \* WF(A) == []( [](enabled A) => E A )
 
 CONSTANTS bb, LL, QQ
 
@@ -499,5 +497,5 @@ CLiveness ==
 
 =============================================================================
 \* Modification History
-\* Last modified Mon Oct 17 16:16:31 CEST 2022 by karbyshev
+\* Last modified Mon Oct 17 16:29:25 CEST 2022 by karbyshev
 \* Created Mon Jul 25 14:24:03 CEST 2022 by karbyshev
