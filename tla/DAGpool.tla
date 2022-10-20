@@ -15,7 +15,7 @@
 (* (3) a partial proposed-by map from nodes to validators                  *)
 (*                                                                         *)
 (* subject to the following conditions, relative to a fixed set of         *)
-(* Byzantinve validators and quorum data:                                  *)
+(* Byzantine validators and quorum data:                                   *)
 (*                                                                         *)
 (* (a) every node has a time-independent _depth_, defined as the maximal   *)
 (* length of all outgoing paths                                            *)
@@ -42,18 +42,17 @@ EXTENDS
   TLC
 
 \* The set of payloads. 
- 
-CONSTANT 
+CONSTANT
   \* @type: Set(PAYLOAD);
   Payload
 
-\* a single non-validator node (for encoding of partial functions)
+\* a single non-validator node (used to encode partial functions)
 CONSTANT
   \* @type: BYZ_VAL;
   noValidator
 
-ASSUME noValidatorAssumption == noValidator \notin ByzValidator
-
+ASSUME noValidatorAssumption == 
+  noValidator \notin ByzValidator
 
 \* @type: Set(BYZ_VAL);
 noQuorum == {noValidator}
@@ -71,6 +70,11 @@ QuorumOption == ByzQuorum \cup {noQuorum}
 (* 3.  a set of validtor-depth pairs (weak-links to orphaned blocks),      *)
 (*     possibly empty                                                      *)
 (***************************************************************************)
+
+\* We have at most one block for each validator per round. 
+\* Hence, each block is determined by a pair (depth, validator). 
+\* Moreover, previous blocks have an implicit the depth, 
+\* namely the depth of the current block minus one. 
 
 \* @typeAlias: weakLink = <<Int, BYZ_VAL>> ; 
 \* 
@@ -94,7 +98,7 @@ Block == [
 (*                                                                         *)
 (* - a list of `layers` where                                              *)
 (*                                                                         *)
-(* - a layer is (partial) function from validators to blocks               *)
+(* - a layer “is” a (partial) function from validators to blocks.          *)
 (***************************************************************************)
 
 VARIABLE
@@ -102,8 +106,8 @@ VARIABLE
   dag 
   
 (***************************************************************************)
-(* Within the dag, we have choices of anchor, reminiscent of Tusk.   *)
-(* The anchor is encoded as a pair of the block height and the       *)
+(* Within the DAG, we do choose _anchors_, reminiscent of Tusk.            *)
+(* Each anchor is encoded as a pair of the block height and the            *)
 (* proposing validator.                                                    *)
 (***************************************************************************)
 VARIABLE    
@@ -114,42 +118,41 @@ VARIABLE
 vars == <<dag, anchors>>
 
 
-(* Specifying a Apalache accepted `emptyLayer` *)   
+(* Specifying an Apalache-accepted `emptyLayer` *)   
 CONSTANT
   \* @type: BYZ_VAL -> $block;
   emptyLayer
 
 ASSUME emptyLayerEmpty == DOMAIN emptyLayer = {}
 
-
 (***************************************************************************)
 (* Initially,                                                              *)
 (*                                                                         *)
 (* - the DAG consists of an empty layer and                                *)
 (*                                                                         *)
-(* - no anchors are chosen                                           *)
+(* - no anchors are chosen                                                 *)
 (***************************************************************************)
 \* @type: Bool;
 Init == 
   /\ dag = << emptyLayer >>  
   /\ anchors = <<  >>
-    
 
 (***************************************************************************)
-(* For block addition, we distinguish the following three scenarios:       *)
+(* For new blocks, we distinguish the following three scenarios:           *)
 (*                                                                         *)
-(* - adding a block at genesis layer                                       *)
+(* - a new block at genesis layer                                          *)
 (*                                                                         *)
-(* - adding the first block of a new layer (not the genesis layer)         *)
+(* - the first block of a new layer (not the genesis layer)                *)
 (*                                                                         *)
-(* - adding an additional block to an already existing layer (not the      *)
-(* genesis layer                                                           *)
+(* - an additional new block in an already existing layer                  *)
+(*   (not the genesis layer                                                *)
 (***************************************************************************)
 
 (***************************************************************************)
-(* We use the following operator to add a layer; it could also be used to  *)
-(* "overwrite" an existing binding.                                        *)
+(* We use the following operator to add entries to layers;                 *)
+(* it could also be used to  "overwrite" an existing binding.              *)
 (***************************************************************************)
+\*
 \* @type: (BYZ_VAL -> $block,BYZ_VAL, $block) => BYZ_VAL -> $block;
 UpdatedEntryInLayer(l, v, b) == 
   [ x \in {v} \cup DOMAIN l |-> 
@@ -173,7 +176,7 @@ AddBlockInGenesisLayer(v, b) ==
   \* - no previous blocks, so no links
   /\ b.links = noQuorum
   \* - no block proposed yet
-  /\ v \notin DOMAIN dag[1]  
+  /\ v \notin DOMAIN dag[1]
   \* post-condition
   \* - add the layer at genesis (depth 1)
   /\ dag' = [dag EXCEPT ![1] = extendedLayer]
@@ -194,7 +197,7 @@ AddBlockInGenesisLayerPossibilities ==
 (***************************************************************************)
 (* Adding a block in a new layer                                           *)
 (***************************************************************************)
-
+\*
 \* @type: (BYZ_VAL, $block) => Bool;
 AddBlockInNewLayer(v, b) == 
   LET
@@ -310,7 +313,6 @@ ChooseSupportedLeaderBlock ==
     /\ anchors' = anchors \o << << n, v >> >>  
     /\ UNCHANGED dag
 
-
 (***************************************************************************)
 (* The Lamport-esque "Next".                                               *)
 (***************************************************************************)
@@ -318,22 +320,20 @@ ChooseSupportedLeaderBlock ==
 Next == 
   \/ NewBlock
   \/ ChooseSupportedLeaderBlock
-
+  \/ UNCHANGED vars
 
 \* ChooseArbitraryLeaderBlock == 'soon ™' \* not really needed/useful
 
+\* see red belly for censor-ship resistance [citation needed!]
 \* @\\type: Bool;
 CensorshipResistance == 
  \A v \in ByzValidator : \A b \in Block : \A n \in Nat :
    WF_vars( AddBlock(v, b, n) )
 
-
 \* @\\type: Bool;
 Spec == Init /\ [][Next]_vars /\ CensorshipResistance
         
-
 -----------------------------------------------------------------------------        
-
 \* @type: (<<Int, BYZ_VAL>>, <<Int, BYZ_VAL>>) => Bool;
 LinkFromTo(x,y) == 
   LET
