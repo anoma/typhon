@@ -135,9 +135,6 @@ Get1a(m) ==
         /\ x.type = "1a"
         /\ \A y \in Tran(m) :
             y.type = "1a" => y.bal <= x.bal }
-\* Invariant: x \in Get1a(m) /\ y \in Get1a(m) => x = y
-\* TODO: totality for 1b, 2a messages. Required invariant:
-\*   each well-formed 1b references a 1a.
 
 B(m, bal) == \E x \in Get1a(m) : bal = x.bal
 
