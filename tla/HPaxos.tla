@@ -164,17 +164,18 @@ CaughtMsg(x) ==
 Caught(x) == { m.acc : m \in CaughtMsg(x) }
 
 \* Connected
-ConByQuorum(a, b, x, S) ==
+ConByQuorum(a, b, x, S) == \* a : Learner, b : Learner, x : 1b, S \in ByzQuorum
     /\ [from |-> a, to |-> b, q |-> S] \in TrustSafe
     /\ S \cap Caught(x) = {}
 
-Con(a, x) ==
-    { b \in Learner : \E S \in ByzQuorum : ConByQuorum(a, b, x, S) }
+Con(a, x) == \* a : Learner, x : 1b
+    { b \in Learner :
+        \E S \in ByzQuorum : ConByQuorum(a, b, x, S) }
 
 \* 2a-message is _buried_ if there exists a quorum of acceptors that have seen
 \* 2a-messages with different values, the same learner, and higher ballot
 \* numbers.
-Buried(x, y) ==
+Buried(x, y) == \* x : 2a, y : 1b
     LET Q == { m \in Tran(y) :
                 \E z \in Tran(m) :
                     /\ z.type = "2a"
@@ -186,7 +187,7 @@ Buried(x, y) ==
     IN [lr |-> x.lrn, q |-> { m.acc : m \in Q }] \in TrustLive
 
 \* Connected 2a messages
-Con2as(l, x) ==
+Con2as(l, x) == \* l : Learner, x : 1b
     { m \in Tran(x) :
         /\ m.type = "2a"
         /\ m.acc = x.acc
@@ -194,11 +195,11 @@ Con2as(l, x) ==
         /\ m.lrn \in Con(l, x) }
 
 \* Fresh 1b messages
-Fresh(l, x) == \* x : 1b
+Fresh(l, x) == \* l : Learner, x : 1b
     \A m \in Con2as(l, x) : \A v \in Value : V(x, v) <=> V(m, v)
 
 \* Quorum of messages referenced by 2a
-q(x) ==
+q(x) == \* x : 2a
     LET Q == { m \in Tran(x) :
                 /\ m.type = "1b"
                 /\ Fresh(x.lrn, m)
