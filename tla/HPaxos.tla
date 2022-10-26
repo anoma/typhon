@@ -409,6 +409,7 @@ UniqueDecision ==
 -----------------------------------------------------------------------------
 (***************************************************************************)
 (*                               Liveness                                  *)
+(* WORK IN PROGRESS                                                        *)
 (*                                                                         *)
 (* For any learner L, ballot b and quorum Q of safe acceptors trusted by L *)
 (* such that                                                               *)
