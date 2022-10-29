@@ -102,6 +102,12 @@ MessageDepthRange == Nat
 Message == UNION { MessageRec[n] : n \in MessageDepthRange }
 
 -----------------------------------------------------------------------------
+(* Non-message value *)
+
+None == CHOOSE v : v \notin Message
+NoMessage == None
+
+-----------------------------------------------------------------------------
 (* Transitive references *)
 
 \* Bounded transitive references
@@ -125,6 +131,7 @@ Tran(m) == UNION {TranBound[n][m] : n \in TranDepthRange}
 VARIABLES msgs,
           known_msgs,
           recent_msgs,
+          queued_msg,
           2a_lrn_loop,
           processed_lrns,
           decision,
@@ -215,12 +222,14 @@ WellFormed(m) ==
     /\ m.type = "2a" =>
         /\ [lr |-> m.lrn, q |-> q(m)] \in TrustLive
 
-vars == << msgs, known_msgs, recent_msgs, 2a_lrn_loop, processed_lrns, decision, BVal >>
+vars == << msgs, known_msgs, recent_msgs, queued_msg,
+           2a_lrn_loop, processed_lrns, decision, BVal >>
 
 Init ==
     /\ msgs = {}
     /\ known_msgs = [x \in Acceptor \cup Learner |-> {}]
     /\ recent_msgs = [a \in Acceptor \cup Learner |-> {}]
+    /\ queued_msg = [a \in Acceptor |-> NoMessage]
     /\ 2a_lrn_loop = [a \in Acceptor |-> FALSE]
     /\ processed_lrns = [a \in Acceptor |-> {}]
     /\ decision = [lb \in Learner \X Ballot |-> {}]
@@ -231,13 +240,17 @@ Send(m) == msgs' = msgs \cup {m}
 Proper(a, m) == \A r \in m.ref : r \in known_msgs[a]
 
 Recv(a, m) ==
+    /\ m \notin known_msgs[a] \* ignore known messages
     /\ WellFormed(m)
     /\ Proper(a, m)
+
+Store(a, m) ==
     /\ known_msgs' = [known_msgs EXCEPT ![a] = known_msgs[a] \cup {m}]
 
 Send1a(b) ==
     /\ Send([type |-> "1a", bal |-> b, ref |-> {}])
-    /\ UNCHANGED << known_msgs, recent_msgs, 2a_lrn_loop, processed_lrns, decision >>
+    /\ UNCHANGED << known_msgs, recent_msgs, queued_msg,
+                    2a_lrn_loop, processed_lrns, decision >>
     /\ UNCHANGED BVal
 
 Known2a(l, b, v) ==
@@ -247,28 +260,37 @@ Known2a(l, b, v) ==
         /\ B(x, b)
         /\ V(x, v) }
 
+\* The following is invariant for queued_msg variable values.
+\* For any safe acceptor A, if queued_msg[A] # NoMessage then
+\* queued_msg[A] is a well-formed message of type "1b" sent by A,
+\* having the direct references all known to A.
+
 Process1a(a, m) ==
     LET new1b == [type |-> "1b", acc |-> a, ref |-> recent_msgs[a] \cup {m}] IN
-    /\ Recv(a, m)
     /\ m.type = "1a"
+    /\ Recv(a, m)
+    /\ Store(a, m)
     /\ WellFormed(new1b) =>
         /\ Send(new1b)
-        /\ recent_msgs' = [recent_msgs EXCEPT ![a] = {new1b}]
+        /\ recent_msgs' = [recent_msgs EXCEPT ![a] = {}]
+        /\ queued_msg' = [queued_msg EXCEPT ![a] = new1b]
     /\ (~WellFormed(new1b)) =>
         /\ recent_msgs' = [recent_msgs EXCEPT ![a] = recent_msgs[a] \cup {m}]
-        /\ UNCHANGED msgs
+        /\ UNCHANGED << msgs, queued_msg >>
     /\ UNCHANGED << 2a_lrn_loop, processed_lrns, decision >>
     /\ UNCHANGED BVal
 
 Process1b(a, m) ==
-    /\ Recv(a, m)
     /\ m.type = "1b"
+    /\ Recv(a, m)
+    /\ Store(a, m)
     /\ recent_msgs' = [recent_msgs EXCEPT ![a] = recent_msgs[a] \cup {m}]
     /\ (\A mb, b \in Ballot : MaxBal(a, mb) /\ B(m, b) => mb <= b) =>
         /\ 2a_lrn_loop' = [2a_lrn_loop EXCEPT ![a] = TRUE]
         /\ processed_lrns' = [processed_lrns EXCEPT ![a] = {}]
     /\ (~(\A mb, b \in Ballot : MaxBal(a, mb) /\ B(m, b) => mb <= b)) =>
         UNCHANGED << 2a_lrn_loop, processed_lrns >>
+    /\ queued_msg' = [queued_msg EXCEPT ![a] = NoMessage]
     /\ UNCHANGED << msgs, decision >>
     /\ UNCHANGED BVal
 
@@ -278,16 +300,18 @@ Process1bLearnerLoopStep(a, lrn) ==
         [processed_lrns EXCEPT ![a] = processed_lrns[a] \cup {lrn}]
     /\ WellFormed(new2a) =>
         /\ Send(new2a)
+        /\ Store(a, new2a)
         /\ recent_msgs' = [recent_msgs EXCEPT ![a] = {new2a}]
     /\ (~WellFormed(new2a)) =>
-        UNCHANGED << msgs, recent_msgs >>
-    /\ UNCHANGED << known_msgs, 2a_lrn_loop, decision >>
+        UNCHANGED << msgs, known_msgs, recent_msgs >>
+    /\ UNCHANGED << queued_msg, 2a_lrn_loop, decision >>
     /\ UNCHANGED BVal
 
 Process1bLearnerLoopDone(a) ==
     /\ Learner \ processed_lrns[a] = {}
     /\ 2a_lrn_loop' = [2a_lrn_loop EXCEPT ![a] = FALSE]
-    /\ UNCHANGED << msgs, known_msgs, recent_msgs, processed_lrns, decision >>
+    /\ UNCHANGED << msgs, known_msgs, recent_msgs, queued_msg,
+                    processed_lrns, decision >>
     /\ UNCHANGED BVal
 
 Process1bLearnerLoop(a) ==
@@ -296,10 +320,11 @@ Process1bLearnerLoop(a) ==
     \/ Process1bLearnerLoopDone(a)
 
 Process2a(a, m) ==
-    /\ Recv(a, m)
     /\ m.type = "2a"
+    /\ Recv(a, m)
+    /\ Store(a, m)
     /\ recent_msgs' = [recent_msgs EXCEPT ![a] = recent_msgs[a] \cup {m}]
-    /\ UNCHANGED << msgs, 2a_lrn_loop, processed_lrns, decision >>
+    /\ UNCHANGED << msgs, queued_msg, 2a_lrn_loop, processed_lrns, decision >>
     /\ UNCHANGED BVal
 
 ProposerSendAction ==
@@ -308,10 +333,12 @@ ProposerSendAction ==
 AcceptorProcessAction ==
     \E a \in SafeAcceptor:
         \/ /\ 2a_lrn_loop[a] = FALSE
-           /\ \E m \in msgs :
-                /\ m \notin known_msgs[a]
-                /\ \/ Process1a(a, m)
-                   \/ Process1b(a, m)
+           /\ \/ /\ queued_msg[a] # NoMessage
+                 /\ Process1b(a, queued_msg[a])
+              \/ /\ queued_msg[a] = NoMessage
+                 /\ \E m \in msgs :
+                    /\ \/ Process1a(a, m)
+                       \/ Process1b(a, m)
         \/ /\ 2a_lrn_loop[a] = TRUE
            /\ Process1bLearnerLoop(a)
 
@@ -320,7 +347,8 @@ FakeSend1b(a) ==
         LET new1b == [type |-> "1b", acc |-> a, ref |-> fin] IN
         /\ WellFormed(new1b)
         /\ Send(new1b)
-    /\ UNCHANGED << known_msgs, recent_msgs, 2a_lrn_loop, processed_lrns, decision >>
+    /\ UNCHANGED << known_msgs, recent_msgs, queued_msg,
+                    2a_lrn_loop, processed_lrns, decision >>
     /\ UNCHANGED BVal
 
 FakeSend2a(a) ==
@@ -329,12 +357,15 @@ FakeSend2a(a) ==
             LET new2a == [type |-> "2a", lrn |-> lrn, acc |-> a, ref |-> fin] IN
             /\ WellFormed(new2a)
             /\ Send(new2a)
-    /\ UNCHANGED << known_msgs, recent_msgs, 2a_lrn_loop, processed_lrns, decision >>
+    /\ UNCHANGED << known_msgs, recent_msgs, queued_msg,
+                    2a_lrn_loop, processed_lrns, decision >>
     /\ UNCHANGED BVal
 
 LearnerRecv(l, m) ==
     /\ Recv(l, m)
-    /\ UNCHANGED << msgs, recent_msgs, 2a_lrn_loop, processed_lrns, decision >>
+    /\ Store(l, m)
+    /\ UNCHANGED << msgs, recent_msgs, queued_msg,
+                    2a_lrn_loop, processed_lrns, decision >>
     /\ UNCHANGED BVal
 
 ChosenIn(l, b, v) ==
@@ -344,7 +375,8 @@ ChosenIn(l, b, v) ==
 LearnerDecide(l, b, v) ==
     /\ ChosenIn(l, b, v)
     /\ decision' = [decision EXCEPT ![<<l, b>>] = decision[l, b] \cup {v}]
-    /\ UNCHANGED << msgs, known_msgs, recent_msgs, 2a_lrn_loop, processed_lrns >>
+    /\ UNCHANGED << msgs, known_msgs, recent_msgs, queued_msg,
+                    2a_lrn_loop, processed_lrns >>
     /\ UNCHANGED BVal
 
 LearnerAction ==
@@ -361,10 +393,10 @@ FakeAcceptorAction ==
         \/ FakeSend2a(a)
 
 Next ==
-    /\ \/ ProposerSendAction
-       \/ AcceptorProcessAction
-       \/ LearnerAction
-       \/ FakeAcceptorAction
+    \/ ProposerSendAction
+    \/ AcceptorProcessAction
+    \/ LearnerAction
+    \/ FakeAcceptorAction
 
 Spec == Init /\ [][Next]_vars
 
