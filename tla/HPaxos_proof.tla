@@ -2,6 +2,11 @@
 EXTENDS HPaxos, Sequences, NaturalsInduction, WellFoundedInduction, TLAPS
 
 -----------------------------------------------------------------------------
+LEMMA NoMessageIsNotAMessage ==
+    NoMessage \notin Message
+PROOF BY NoSetContainsEverything DEF NoMessage, None
+
+-----------------------------------------------------------------------------
 LEMMA RefCardinalitySpec ==
     /\ RefCardinality \in SUBSET Nat
     /\ RefCardinality # {}
@@ -442,7 +447,7 @@ PROOF
 <1>2. HIDE DEF P
 <1>3. QED BY <1>0, <1>1, NatInduction, Isa
 
-LEMMA Message_ref_TranBound1 == \* TODO remove
+LEMMA Message_ref_TranBound1 ==
     ASSUME NEW m1 \in Message
     PROVE  m1.ref \in SUBSET TranBound[1][m1]
 PROOF
@@ -747,21 +752,24 @@ LEMMA WellFormedCondition3 ==
 PROOF BY TranBallot DEF Ballot
 
 -----------------------------------------------------------------------------
-\* vars == << msgs, known_msgs, recent_msgs, 2a_lrn_loop, processed_lrns, decision >>
 TypeOK ==
     /\ msgs \in SUBSET Message
     /\ known_msgs \in [Acceptor \cup Learner -> SUBSET Message]
     /\ recent_msgs \in [Acceptor \cup Learner -> SUBSET Message]
+    /\ queued_msg \in [Acceptor -> Message \cup {NoMessage}]
     /\ 2a_lrn_loop \in [Acceptor -> BOOLEAN]
     /\ processed_lrns \in [Acceptor -> SUBSET Learner]
     /\ decision \in [Learner \X Ballot -> SUBSET Value]
     /\ BVal \in [Ballot -> Value]
 
 -----------------------------------------------------------------------------
-\* TODO remove
-\*RecentMsgSpec ==
-\*    \A AL \in SafeAcceptor \cup Learner :
-\*        /\ recent_msgs[AL] \in SUBSET known_msgs[AL]
+SentBy(acc) == { mm \in msgs : mm.type # "1a" /\ mm.acc = acc }
+
+Sent1bBy(acc) == { mm \in msgs : mm.type = "1b" /\ mm.acc = acc }
+
+RecentMsgsSpec ==
+    \A AL \in SafeAcceptor \cup Learner :
+        recent_msgs[AL] \in SUBSET known_msgs[AL]
 
 KnownMsgsSpec ==
     \A AL \in SafeAcceptor \cup Learner :
@@ -781,13 +789,21 @@ DecisionSpec ==
     \A L \in Learner : \A BB \in Ballot : \A VV \in Value :
         VV \in decision[L, BB] => ChosenIn(L, BB, VV)
 
-SentBy(acc) == { mm \in msgs : mm.type # "1a" /\ mm.acc = acc }
-
-RecentMsgsSafeAcceptorSpec ==
+SafeAcceptorOwnMessagesRefsSpec ==
     \A A \in SafeAcceptor :
         SentBy(A) # {} =>
-        \E m0 \in recent_msgs[A] :
-            \A m1 \in SentBy(A) : m1 \in Tran(m0)
+        /\ queued_msg[A] = NoMessage =>
+            \E m0 \in recent_msgs[A] :
+                \A m1 \in SentBy(A) : m1 \in Tran(m0)
+        /\ queued_msg[A] # NoMessage =>
+            \A m1 \in SentBy(A) : m1 \in Tran(queued_msg[A])
+
+RecentMsgsUniquePreviousMessageSpec ==
+    \A A \in SafeAcceptor :
+        \A x, y \in recent_msgs[A] :
+            x.type # "1a" /\ y.type # "1a" /\
+            x.acc = A /\ y.acc = A =>
+            x = y
 
 MsgsSafeAcceptorSpec ==
     \A A \in SafeAcceptor :
@@ -796,11 +812,31 @@ MsgsSafeAcceptorSpec ==
             m1.acc = A /\ m2.acc = A =>
             m1 \in Tran(m2) \/ m2 \in Tran(m1)
 
+QueuedMsgSpec1 ==
+    \A A \in SafeAcceptor :
+        queued_msg[A] # NoMessage =>
+        /\ queued_msg[A].type = "1b"
+        /\ queued_msg[A] \in msgs
+        /\ recent_msgs[A] = {}
+
+QueuedMsgSpec2 ==
+    \A A \in SafeAcceptor :
+        \A m \in Sent1bBy(A) :
+            m \notin known_msgs[A] =>
+            queued_msg[A] = m
+
+2aLearnerLoopSpec ==
+    \A A \in SafeAcceptor :
+        2a_lrn_loop[A] = TRUE =>
+        queued_msg[A] = NoMessage
+
+
 LEMMA WellFormedMessage ==
     ASSUME NEW M, WellFormed(M) PROVE M \in Message
 BY DEF WellFormed
 
-LEMMA TypeOKInvariant == TypeOK /\ Next => TypeOK'
+LEMMA TypeOKInvariant ==
+    TypeOK /\ Next => TypeOK'
 PROOF
 <1> SUFFICES ASSUME TypeOK, Next PROVE TypeOK' OBVIOUS
 <1>1. CASE ProposerSendAction
@@ -818,10 +854,16 @@ PROOF
   <2> msgs' \in SUBSET Message
       BY WellFormedMessage, Zenon DEF Send, TypeOK
   <2> known_msgs' \in [Acceptor \cup Learner -> SUBSET Message]
-      BY Zenon DEF Recv, TypeOK
+      BY Zenon DEF Store, TypeOK
+  <2> DEFINE new1b == [type |-> "1b", acc |-> acc,
+                       ref |-> recent_msgs[acc] \cup {msg}]
   <2> recent_msgs' \in [Acceptor \cup Learner -> SUBSET Message]
-    <3> DEFINE new1b == [type |-> "1b", acc |-> acc,
-                         ref |-> recent_msgs[acc] \cup {msg}]
+    <3>1. CASE WellFormed(new1b)
+          BY <3>1, WellFormedMessage, Isa DEF TypeOK
+    <3>2. CASE ~WellFormed(new1b)
+          BY <3>2, Isa DEF TypeOK
+    <3> QED BY <3>1, <3>2
+  <2> queued_msg' \in [Acceptor -> Message \cup {NoMessage}]
     <3>1. CASE WellFormed(new1b)
           BY <3>1, WellFormedMessage, Isa DEF TypeOK
     <3>2. CASE ~WellFormed(new1b)
