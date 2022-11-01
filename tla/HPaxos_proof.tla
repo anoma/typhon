@@ -1175,26 +1175,32 @@ PROOF
 <1>2. CASE \E a \in SafeAcceptor : \E m \in msgs : Process1a(a, m)
   <2> PICK acc \in SafeAcceptor, m1a \in msgs : Process1a(acc, m1a)
       BY <1>2
-  <2> QED BY DEF Process1a, Recv, TypeOK
-<1>3. CASE \E a \in SafeAcceptor : \E m \in msgs : Process1b(a, m)
-  <2> PICK acc \in SafeAcceptor, msg \in msgs : Process1b(acc, msg)
+  <2> QED BY DEF Process1a, Store, TypeOK
+<1>3. CASE \E a \in SafeAcceptor :
+            Process1b(a, queued_msg[a])
+  <2> PICK acc \in SafeAcceptor :
+            Process1b(acc, queued_msg[acc])
       BY <1>3
-  <2> QED BY DEF Process1b, Recv, TypeOK
-<1>4. CASE \E a \in SafeAcceptor : \E l \in Learner : Process1bLearnerLoopStep(a, l)
-  <2> PICK acc \in SafeAcceptor, lrn \in Learner : Process1bLearnerLoopStep(acc, lrn)
+  <2> QED BY DEF Process1b, Store, TypeOK
+<1>4. CASE \E a \in SafeAcceptor : \E m \in msgs : Process1b(a, m)
+  <2> PICK acc \in SafeAcceptor, msg \in msgs : Process1b(acc, msg)
       BY <1>4
-  <2> QED BY DEF Process1bLearnerLoopStep, TypeOK
-<1>5. CASE \E a \in SafeAcceptor : Process1bLearnerLoopDone(a)
-      BY <1>5 DEF Process1bLearnerLoopDone, TypeOK
-<1>6. CASE \E lrn \in Learner : \E m \in msgs : LearnerRecv(lrn, m)
-      BY <1>6 DEF LearnerRecv, Recv, TypeOK
-<1>7. CASE \E lrn \in Learner : \E bal \in Ballot : \E val \in Value :
+  <2> QED BY DEF Process1b, Store, TypeOK
+<1>5. CASE \E a \in SafeAcceptor : \E l \in Learner : Process1bLearnerLoopStep(a, l)
+  <2> PICK acc \in SafeAcceptor, lrn \in Learner : Process1bLearnerLoopStep(acc, lrn)
+      BY <1>5
+  <2> QED BY DEF Process1bLearnerLoopStep, Acceptor, Store, TypeOK
+<1>6. CASE \E a \in SafeAcceptor : Process1bLearnerLoopDone(a)
+      BY <1>6 DEF Process1bLearnerLoopDone, TypeOK
+<1>7. CASE \E lrn \in Learner : \E m \in msgs : LearnerRecv(lrn, m)
+      BY <1>7 DEF LearnerRecv, Store, TypeOK
+<1>8. CASE \E lrn \in Learner : \E bal \in Ballot : \E val \in Value :
             LearnerDecide(lrn, bal, val)
-      BY <1>7 DEF LearnerDecide, TypeOK
-<1>8. CASE FakeAcceptorAction
-      BY <1>8 DEF FakeAcceptorAction, FakeSend1b, FakeSend2a, TypeOK
-<1>9. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, <1>7, <1>8
-          DEF Next, AcceptorProcessAction, Process1bLearnerLoop, LearnerAction
+      BY <1>8 DEF LearnerDecide, TypeOK
+<1>9. CASE FakeAcceptorAction
+      BY <1>9 DEF FakeAcceptorAction, FakeSend1b, FakeSend2a, TypeOK
+<1>10. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, <1>7, <1>8, <1>9
+           DEF Next, AcceptorProcessAction, Process1bLearnerLoop, LearnerAction
 
 LEMMA Known2aMonotone ==
     TypeOK /\ Next =>
@@ -1216,25 +1222,31 @@ PROOF
   <2> PICK acc \in SafeAcceptor, m1a \in msgs : Process1a(acc, m1a)
       BY <1>2
   <2> QED BY KnownMsgMonotone DEF Process1a, V, TypeOK
-<1>3. CASE \E a \in SafeAcceptor : \E m \in msgs : Process1b(a, m)
-  <2> PICK acc \in SafeAcceptor, msg \in msgs : Process1b(acc, msg)
+<1>3. CASE \E a \in SafeAcceptor :
+            Process1b(a, queued_msg[a])
+  <2> PICK acc \in SafeAcceptor :
+            Process1b(acc, queued_msg[acc])
       BY <1>3
   <2> QED BY KnownMsgMonotone DEF Process1b, V, TypeOK
-<1>4. CASE \E a \in SafeAcceptor : \E l \in Learner : Process1bLearnerLoopStep(a, l)
-  <2> PICK acc \in SafeAcceptor, lrn \in Learner : Process1bLearnerLoopStep(acc, lrn)
+<1>4. CASE \E a \in SafeAcceptor : \E m \in msgs : Process1b(a, m)
+  <2> PICK acc \in SafeAcceptor, msg \in msgs : Process1b(acc, msg)
       BY <1>4
+  <2> QED BY KnownMsgMonotone DEF Process1b, V, TypeOK
+<1>5. CASE \E a \in SafeAcceptor : \E l \in Learner : Process1bLearnerLoopStep(a, l)
+  <2> PICK acc \in SafeAcceptor, lrn \in Learner : Process1bLearnerLoopStep(acc, lrn)
+      BY <1>5
   <2> QED BY KnownMsgMonotone DEF Process1bLearnerLoopStep, V, TypeOK
-<1>5. CASE \E a \in SafeAcceptor : Process1bLearnerLoopDone(a)
-      BY <1>5, KnownMsgMonotone DEF Process1bLearnerLoopDone, V, TypeOK
-<1>6. CASE \E lrn \in Learner : \E m \in msgs : LearnerRecv(lrn, m)
-      BY <1>6, KnownMsgMonotone DEF LearnerRecv, V, TypeOK
-<1>7. CASE \E lrn \in Learner : \E bal \in Ballot : \E val \in Value :
+<1>6. CASE \E a \in SafeAcceptor : Process1bLearnerLoopDone(a)
+      BY <1>6, KnownMsgMonotone DEF Process1bLearnerLoopDone, V, TypeOK
+<1>7. CASE \E lrn \in Learner : \E m \in msgs : LearnerRecv(lrn, m)
+      BY <1>7, KnownMsgMonotone DEF LearnerRecv, V, TypeOK
+<1>8. CASE \E lrn \in Learner : \E bal \in Ballot : \E val \in Value :
             LearnerDecide(lrn, bal, val)
-      BY <1>7, KnownMsgMonotone, Zenon DEF LearnerDecide, V, TypeOK
-<1>8. CASE FakeAcceptorAction
-      BY <1>8, KnownMsgMonotone
+      BY <1>8, KnownMsgMonotone, Zenon DEF LearnerDecide, V, TypeOK
+<1>9. CASE FakeAcceptorAction
+      BY <1>9, KnownMsgMonotone
       DEF FakeAcceptorAction, FakeSend1b, FakeSend2a, V, TypeOK
-<1>9. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, <1>7, <1>8
+<1>10. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, <1>7, <1>8, <1>9
           DEF Next, AcceptorProcessAction, Process1bLearnerLoop, LearnerAction
 
 LEMMA DecisionSpecInvariant ==
@@ -1257,53 +1269,68 @@ PROOF
   <2> PICK acc \in SafeAcceptor, m1a \in msgs : Process1a(acc, m1a)
       BY <1>2
   <2> QED BY Known2aMonotone DEF Process1a
-<1>3. CASE \E a \in SafeAcceptor : \E m \in msgs : Process1b(a, m)
-  <2> PICK acc \in SafeAcceptor, msg \in msgs : Process1b(acc, msg)
+<1>3. CASE \E a \in SafeAcceptor :
+            Process1b(a, queued_msg[a])
+  <2> PICK acc \in SafeAcceptor :
+            Process1b(acc, queued_msg[acc])
       BY <1>3
   <2> QED BY Known2aMonotone DEF Process1b
-<1>4. CASE \E a \in SafeAcceptor : \E l \in Learner : Process1bLearnerLoopStep(a, l)
-  <2> PICK acc \in SafeAcceptor, lrn \in Learner : Process1bLearnerLoopStep(acc, lrn)
+<1>4. CASE \E a \in SafeAcceptor : \E m \in msgs : Process1b(a, m)
+  <2> PICK acc \in SafeAcceptor, msg \in msgs : Process1b(acc, msg)
       BY <1>4
+  <2> QED BY Known2aMonotone DEF Process1b
+<1>5. CASE \E a \in SafeAcceptor : \E l \in Learner : Process1bLearnerLoopStep(a, l)
+  <2> PICK acc \in SafeAcceptor, lrn \in Learner : Process1bLearnerLoopStep(acc, lrn)
+      BY <1>5
   <2> QED BY Known2aMonotone DEF Process1bLearnerLoopStep
-<1>5. CASE \E a \in SafeAcceptor : Process1bLearnerLoopDone(a)
-      BY <1>5, Known2aMonotone DEF Process1bLearnerLoopDone
-<1>6. CASE \E lrn \in Learner : \E m \in msgs : LearnerRecv(lrn, m)
-      BY <1>6, Known2aMonotone DEF LearnerRecv
-<1>7. CASE \E lrn \in Learner : \E bal \in Ballot : \E val \in Value :
+<1>6. CASE \E a \in SafeAcceptor : Process1bLearnerLoopDone(a)
+      BY <1>6, Known2aMonotone DEF Process1bLearnerLoopDone
+<1>7. CASE \E lrn \in Learner : \E m \in msgs : LearnerRecv(lrn, m)
+      BY <1>7, Known2aMonotone DEF LearnerRecv
+<1>8. CASE \E lrn \in Learner : \E bal \in Ballot : \E val \in Value :
             LearnerDecide(lrn, bal, val)
   <2> PICK lrn \in Learner, bal \in Ballot, val \in Value :
         /\ ChosenIn(lrn, bal, val)
         /\ decision' = [decision EXCEPT ![<<lrn, bal>>] = decision[lrn, bal] \cup {val}]
         /\ UNCHANGED << msgs, known_msgs, recent_msgs, 2a_lrn_loop, processed_lrns, BVal >>
-      BY <1>7, Zenon DEF LearnerDecide
+      BY <1>8, Zenon DEF LearnerDecide
   <2>0. QED BY Known2aMonotone DEF TypeOK
-<1>8. CASE FakeAcceptorAction
-      BY <1>8, Known2aMonotone DEF FakeAcceptorAction, FakeSend1b, FakeSend2a
-<1>9. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, <1>7, <1>8
+<1>9. CASE FakeAcceptorAction
+      BY <1>9, Known2aMonotone DEF FakeAcceptorAction, FakeSend1b, FakeSend2a
+<1>10. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, <1>7, <1>8, <1>9
           DEF Next, AcceptorProcessAction, Process1bLearnerLoop, LearnerAction
 
 LEMMA RecentMsgsSafeAcceptorSpecInvariant ==
-    TypeOK /\ Next /\ RecentMsgsSafeAcceptorSpec => RecentMsgsSafeAcceptorSpec'
+    TypeOK /\ Next /\ 2aLearnerLoopSpec /\
+    SafeAcceptorOwnMessagesRefsSpec =>
+    SafeAcceptorOwnMessagesRefsSpec'
 PROOF
-<1> SUFFICES ASSUME TypeOK, Next,
-                    RecentMsgsSafeAcceptorSpec
-             PROVE  RecentMsgsSafeAcceptorSpec'
+<1> SUFFICES ASSUME TypeOK, Next, 2aLearnerLoopSpec,
+                    SafeAcceptorOwnMessagesRefsSpec
+             PROVE  SafeAcceptorOwnMessagesRefsSpec'
     OBVIOUS
 <1> TypeOK' BY TypeOKInvariant
 <1> SUFFICES ASSUME NEW A \in SafeAcceptor,
                     NEW mm \in SentBy(A)'
-             PROVE  \E m0 \in recent_msgs[A]' :
-                        \A m1 \in SentBy(A)' : m1 \in Tran(m0)
-    BY DEF RecentMsgsSafeAcceptorSpec
+             PROVE  /\ queued_msg[A]' = NoMessage =>
+                        \E m0 \in recent_msgs[A]' :
+                            \A m1 \in SentBy(A)' : m1 \in Tran(m0)
+                    /\ queued_msg[A]' # NoMessage =>
+                        \A m1 \in SentBy(A)' : m1 \in Tran(queued_msg[A]')
+    BY DEF SafeAcceptorOwnMessagesRefsSpec
 <1> A \in Acceptor BY DEF Acceptor
 <1> mm \in msgs' /\ mm.type # "1a" /\ mm.acc = A BY DEF SentBy
-<1> USE DEF RecentMsgsSafeAcceptorSpec
+<1> USE DEF SafeAcceptorOwnMessagesRefsSpec
 <1>1. CASE ProposerSendAction
   <2> PICK bal \in Ballot : Send1a(bal)
       BY <1>1 DEF ProposerSendAction
   <2> QED BY DEF Send1a, Send, SentBy
-<1>2. CASE \E a \in SafeAcceptor : \E m \in msgs : Process1a(a, m)
-  <2> PICK acc \in SafeAcceptor, m1a \in msgs : Process1a(acc, m1a)
+<1>2. CASE \E a \in SafeAcceptor :
+            /\ queued_msg[a] = NoMessage
+            /\ \E m \in msgs : Process1a(a, m)
+  <2> PICK acc \in SafeAcceptor, m1a \in msgs :
+            /\ queued_msg[acc] = NoMessage
+            /\ Process1a(acc, m1a)
       BY <1>2
   <2> USE DEF Process1a
   <2> acc \in Acceptor BY DEF Acceptor
