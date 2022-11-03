@@ -1545,6 +1545,10 @@ PROOF
   <2> PICK acc \in SafeAcceptor, m1a \in msgs : Process1a(acc, m1a)
       BY <1>2
   <2> QED BY Isa DEF Process1a, Send
+<1>q. CASE \E a \in SafeAcceptor : Process1b(a, queued_msg[a])
+  <2> PICK acc \in SafeAcceptor : Process1b(acc, queued_msg[acc])
+      BY <1>q
+  <2> QED BY DEF Process1b
 <1>3. CASE \E a \in SafeAcceptor : \E m \in msgs : Process1b(a, m)
   <2> PICK acc \in SafeAcceptor, msg \in msgs : Process1b(acc, msg)
       BY <1>3
@@ -1562,13 +1566,16 @@ PROOF
       BY <1>7 DEF LearnerDecide
 <1>8. CASE FakeAcceptorAction
       BY <1>8 DEF FakeAcceptorAction, FakeSend1b, FakeSend2a, Send
-<1>9. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, <1>7, <1>8
+<1>9. QED BY <1>1, <1>2, <1>q, <1>3, <1>4, <1>5, <1>6, <1>7, <1>8
           DEF Next, AcceptorProcessAction, Process1bLearnerLoop, LearnerAction
 
 LEMMA KnownMsgsSpecInvariant ==
-    TypeOK /\ Next /\ KnownMsgsSpec => KnownMsgsSpec'
+    TypeOK /\ Next /\ RecentMsgsSpec /\ QueuedMsgSpec1 /\
+    KnownMsgsSpec =>
+    KnownMsgsSpec'
 PROOF
-<1> SUFFICES ASSUME TypeOK, Next, KnownMsgsSpec
+<1> SUFFICES ASSUME TypeOK, Next, RecentMsgsSpec, QueuedMsgSpec1,
+                    KnownMsgsSpec
              PROVE  KnownMsgsSpec'
     OBVIOUS
 <1> TypeOK' BY TypeOKInvariant
@@ -1601,52 +1608,124 @@ PROOF
       BY <1>2
   <2> USE DEF Process1a
   <2> known_msgs[AL]' \in SUBSET msgs'
-      BY DEF Send, Recv
+      BY DEF Send, Store
   <2> Proper(AL, M)'
-      BY DEF Proper, Recv
+      BY DEF Proper, Recv, Store
   <2> WellFormed(M)'
-      BY WellFormed_monotone DEF Recv, TypeOK
+      BY WellFormed_monotone DEF Recv, Store, TypeOK
   <2> Tran(M) \in SUBSET known_msgs[AL]'
-      BY Tran_1a DEF Recv, TypeOK
+      BY Tran_1a DEF Store, TypeOK
   <2> \E b \in Ballot : B(M, b)
     <3> CASE M \notin known_msgs[AL]
-      <4> M = m1a BY DEF Recv
+      <4> M = m1a BY DEF Store
       <4> QED BY B_1a, MessageTypeSpec DEF Recv, TypeOK
     <3> QED OBVIOUS
+  <2> QED OBVIOUS
+<1>q. CASE \E a \in SafeAcceptor :
+            /\ queued_msg[a] # NoMessage
+            /\ Process1b(a, queued_msg[a])
+  <2> PICK acc \in SafeAcceptor :
+            /\ queued_msg[acc] # NoMessage
+            /\ Process1b(acc, queued_msg[acc])
+      BY <1>q
+  <2> USE DEF Process1b
+  <2> queued_msg[acc] \in Message
+      BY DEF Recv, WellFormed
+  <2> known_msgs[AL]' \in SUBSET msgs'
+      BY DEF QueuedMsgSpec1, Store
+  <2> Proper(AL, M)'
+      BY KnownMsgMonotone DEF Recv, Proper, Store, QueuedMsgSpec1
+  <2> WellFormed(M)'
+      BY WellFormed_monotone DEF Recv, Store, TypeOK
+  <2> Tran(M) \in SUBSET known_msgs[AL]'
+    <3> CASE M \notin known_msgs[AL]
+      <4> QED BY Tran_eq DEF Recv, Store, Proper, TypeOK
+    <3> QED BY DEF Store
+  <2> \E b \in Ballot : B(M, b)
+      BY DEF WellFormed
   <2> QED OBVIOUS
 <1>3. CASE \E a \in SafeAcceptor : \E m \in msgs : Process1b(a, m)
   <2> PICK acc \in SafeAcceptor, msg \in msgs : Process1b(acc, msg)
       BY <1>3
   <2> USE DEF Process1b
   <2> known_msgs[AL]' \in SUBSET msgs'
-      BY DEF Send, Recv
+      BY DEF Send, Store
   <2> Proper(AL, M)'
-      BY DEF Proper, Recv
+      BY DEF Proper, Recv, Store
   <2> WellFormed(M)'
-      BY WellFormed_monotone DEF Recv, TypeOK
+      BY WellFormed_monotone DEF Recv, Store, TypeOK
   <2> Tran(M) \in SUBSET known_msgs[AL]'
     <3> CASE M \notin known_msgs[AL]
-      <4> M = msg BY DEF Recv
-      <4> AL = acc BY DEF Recv
-      <4> QED BY Tran_eq DEF Recv, Proper, TypeOK
-    <3> QED BY DEF Recv
+      <4> M = msg BY DEF Store
+      <4> AL = acc BY DEF Store
+      <4> M \in Message BY DEF WellFormed
+      <4> QED BY Tran_eq, KnownMsgMonotone DEF Recv, Proper
+    <3> QED BY DEF Store
   <2> \E b \in Ballot : B(M, b)
       BY DEF WellFormed
   <2> QED OBVIOUS
-<1>4. CASE \E a \in SafeAcceptor : \E l \in Learner : Process1bLearnerLoopStep(a, l)
-  <2> PICK acc \in SafeAcceptor, lrn \in Learner : Process1bLearnerLoopStep(acc, lrn)
+<1>4. CASE \E a \in SafeAcceptor : \E l \in Learner :
+            Process1bLearnerLoopStep(a, l)
+  <2> PICK acc \in SafeAcceptor, lrn \in Learner :
+            Process1bLearnerLoopStep(acc, lrn)
       BY <1>4
+  <2> acc \in Acceptor
+      BY DEF Acceptor
   <2> USE DEF Process1bLearnerLoopStep
-  <2> known_msgs[AL]' \in SUBSET msgs'
-      BY DEF Send
-  <2> Proper(AL, M)'
-      BY DEF Proper
-  <2> WellFormed(M)'
-      BY WellFormed_monotone DEF TypeOK
-  <2> Tran(M) \in SUBSET known_msgs[AL]'
-      OBVIOUS
-  <2> \E b \in Ballot : B(M, b)
-      BY DEF WellFormed
+  <2> DEFINE new2a == [type |-> "2a", lrn |-> lrn, acc |-> acc,
+                       ref |-> recent_msgs[acc]]
+  <2> CASE WellFormed(new2a)
+    <3> new2a \in Message
+        BY DEF WellFormed
+    <3> CASE acc = AL
+      <4> known_msgs[AL]' \in SUBSET msgs'
+          BY DEF Send, Store, TypeOK
+      <4> Proper(AL, M)'
+        <5> CASE M \in known_msgs[acc]
+            BY KnownMsgMonotone DEF Proper
+        <5> CASE M \notin known_msgs[acc]
+          <6> M = new2a
+              BY DEF Store, TypeOK
+          <6> QED BY Zenon, KnownMsgMonotone
+                  DEF Proper, Store, RecentMsgsSpec
+        <5> QED OBVIOUS
+      <4> WellFormed(M)'
+          BY WellFormed_monotone DEF Store, TypeOK
+      <4> Tran(M) \in SUBSET known_msgs[AL]'
+        <5> CASE M \in known_msgs[acc]
+            BY KnownMsgMonotone DEF Proper
+        <5> CASE M \notin known_msgs[acc]
+          <6> M = new2a
+              BY DEF Store, TypeOK
+          <6> M.ref \in SUBSET known_msgs[AL]'
+              BY DEF Proper
+          <6> \A r \in M.ref : Tran(r) \in SUBSET known_msgs[AL]'
+              BY Zenon, KnownMsgMonotone DEF RecentMsgsSpec
+          <6> QED BY Tran_eq
+        <5> QED OBVIOUS
+      <4> \E b \in Ballot : B(M, b)
+          BY DEF WellFormed
+      <4> QED OBVIOUS
+    <3> CASE acc # AL
+      <4> known_msgs' = [known_msgs EXCEPT ![acc] =
+                            known_msgs[acc] \cup {new2a}]
+          BY DEF Store
+      <4> M \in known_msgs[AL]
+          BY DEF TypeOK
+      <4> known_msgs[AL]' \in SUBSET msgs'
+          BY DEF Send, TypeOK
+      <4> Proper(AL, M)'
+          BY DEF Proper
+      <4> WellFormed(M)'
+          BY WellFormed_monotone DEF TypeOK
+      <4> QED OBVIOUS
+    <3> QED OBVIOUS
+  <2> CASE ~WellFormed(new2a)
+    <3> Proper(AL, M)'
+        BY DEF Proper
+    <3> WellFormed(M)'
+        BY WellFormed_monotone DEF TypeOK
+    <3> QED OBVIOUS
   <2> QED OBVIOUS
 <1>5. CASE \E a \in SafeAcceptor : Process1bLearnerLoopDone(a)
   <2> PICK acc \in SafeAcceptor : Process1bLearnerLoopDone(acc)
@@ -1668,15 +1747,15 @@ PROOF
       BY <1>6
   <2> USE DEF LearnerRecv
   <2> known_msgs[AL]' \in SUBSET msgs'
-      BY DEF Recv
+      BY DEF Store
   <2> Proper(AL, M)'
-      BY DEF Proper, Recv
+      BY DEF Proper, Recv, Store
   <2> WellFormed(M)'
-      BY WellFormed_monotone DEF TypeOK, Recv
+      BY WellFormed_monotone DEF TypeOK, Recv, Store
   <2> Tran(M) \in SUBSET known_msgs[AL]'
     <3> CASE M \notin known_msgs[AL]
-      <4> QED BY Tran_eq DEF Recv, Proper, TypeOK
-    <3> QED BY DEF Recv
+      <4> QED BY Tran_eq DEF Recv, Store, Proper, TypeOK
+    <3> QED BY DEF Store
   <2> \E b \in Ballot : B(M, b)
       BY DEF WellFormed
   <2> QED OBVIOUS
@@ -1727,15 +1806,18 @@ PROOF
   <2> \E b \in Ballot : B(M, b)
       OBVIOUS
   <2> QED OBVIOUS
-<1> QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, <1>7, <1>8, <1>9
-          DEF Next, AcceptorProcessAction, Process1bLearnerLoop,
-              LearnerAction, FakeAcceptorAction
+<1> QED BY <1>1, <1>2, <1>q, <1>3, <1>4, <1>5, <1>6, <1>7, <1>8, <1>9
+        DEF Next, AcceptorProcessAction, Process1bLearnerLoop,
+            LearnerAction, FakeAcceptorAction
 
 LEMMA MsgsSafeAcceptorSpecInvariant ==
-    TypeOK /\ Next /\ RecentMsgsSafeAcceptorSpec /\
+    TypeOK /\ Next /\
+    SafeAcceptorOwnMessagesRefsSpec /\ 2aLearnerLoopSpec /\
     MsgsSafeAcceptorSpec => MsgsSafeAcceptorSpec'
 PROOF
-<1> SUFFICES ASSUME TypeOK, Next, RecentMsgsSafeAcceptorSpec,
+<1> SUFFICES ASSUME TypeOK, Next,
+                    SafeAcceptorOwnMessagesRefsSpec,
+                    2aLearnerLoopSpec,
                     MsgsSafeAcceptorSpec
              PROVE  MsgsSafeAcceptorSpec'
     OBVIOUS
@@ -1756,8 +1838,12 @@ PROOF
   <2> QED BY UniqueMessageSent, Tran_refl DEF TypeOK
 <1>1. CASE ProposerSendAction
       BY <1>1 DEF ProposerSendAction, Send1a, Send
-<1>2. CASE \E a \in SafeAcceptor : \E m \in msgs : Process1a(a, m)
-  <2> PICK acc \in SafeAcceptor, m1a \in msgs : Process1a(acc, m1a)
+<1>2. CASE \E a \in SafeAcceptor :
+        /\ queued_msg[a] = NoMessage
+        /\ \E m \in msgs : Process1a(a, m)
+  <2> PICK acc \in SafeAcceptor, m1a \in msgs :
+        /\ queued_msg[acc] = NoMessage
+        /\ Process1a(acc, m1a)
       BY <1>2
   <2> USE DEF Process1a
   <2> acc \in Acceptor BY DEF Acceptor
@@ -1768,14 +1854,22 @@ PROOF
   <2> m2 \in Message BY DEF TypeOK
   <2> PICK m0 \in recent_msgs[A] :
             \A m \in SentBy(A) : m \in Tran(m0)
-      BY DEF RecentMsgsSafeAcceptorSpec, SentBy
+      BY DEF SafeAcceptorOwnMessagesRefsSpec, SentBy
   <2> m0 \in Tran(m2) BY Message_ref_Tran
   <2> QED BY Tran_trans DEF SentBy
+<1>q. CASE \E a \in SafeAcceptor : Process1b(a, queued_msg[a])
+      BY <1>q DEF Process1b, Send
 <1>3. CASE \E a \in SafeAcceptor : \E m \in msgs : Process1b(a, m)
-  BY <1>3 DEF Process1b, Send
-<1>4. CASE \E a \in SafeAcceptor : \E l \in Learner : Process1bLearnerLoopStep(a, l)
-  <2> PICK acc \in SafeAcceptor, lrn \in Learner : Process1bLearnerLoopStep(acc, lrn)
+      BY <1>3 DEF Process1b, Send
+<1>4. CASE \E a \in SafeAcceptor :
+            /\ 2a_lrn_loop[a] = TRUE
+            /\ \E l \in Learner : Process1bLearnerLoopStep(a, l)
+  <2> PICK acc \in SafeAcceptor, lrn \in Learner :
+            /\ 2a_lrn_loop[acc] = TRUE
+            /\ Process1bLearnerLoopStep(acc, lrn)
       BY <1>4
+  <2> queued_msg[acc] = NoMessage
+      BY DEF 2aLearnerLoopSpec
   <2> USE DEF Process1bLearnerLoopStep
   <2> acc \in Acceptor BY DEF Acceptor
   <2> acc = A BY DEF Send
@@ -1785,7 +1879,7 @@ PROOF
   <2> m2 \in Message BY DEF TypeOK
   <2> PICK m0 \in recent_msgs[A] :
             \A m \in SentBy(A) : m \in Tran(m0)
-      BY DEF RecentMsgsSafeAcceptorSpec, SentBy
+      BY DEF SafeAcceptorOwnMessagesRefsSpec, SentBy
   <2> m0 \in Tran(m2) BY Message_ref_Tran
   <2> QED BY Tran_trans DEF SentBy
 <1>5. CASE \E a \in SafeAcceptor : Process1bLearnerLoopDone(a)
@@ -1800,8 +1894,9 @@ PROOF
   <2> PICK acc \in FakeAcceptor : FakeSend2a(acc)
       BY <1>8
   <2> QED BY AcceptorAssumption DEF FakeSend2a, Send
-<1> QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, <1>7, <1>8
-        DEF Next, AcceptorProcessAction, Process1bLearnerLoop, FakeAcceptorAction
+<1> QED BY <1>1, <1>2, <1>q, <1>3, <1>4, <1>5, <1>6, <1>7, <1>8
+        DEF Next, AcceptorProcessAction, Process1bLearnerLoop,
+            FakeAcceptorAction
 
 LEMMA MsgsSafeAcceptorSpecImpliesCaughtSpec ==
     ASSUME TypeOK, KnownMsgsSpec, MsgsSafeAcceptorSpec
@@ -2108,6 +2203,8 @@ PROOF
       BY <1>1 DEF ProposerSendAction, Send1a, Safety
 <1>2. CASE \E a \in SafeAcceptor : \E m \in msgs : Process1a(a, m)
       BY <1>2 DEF Process1a, Safety
+<1>q. CASE \E a \in SafeAcceptor : Process1b(a, queued_msg[a])
+      BY <1>q DEF Process1b, Safety
 <1>3. CASE \E a \in SafeAcceptor : \E m \in msgs : Process1b(a, m)
       BY <1>3 DEF Process1b, Safety
 <1>4. CASE \E a \in SafeAcceptor : \E l \in Learner : Process1bLearnerLoopStep(a, l)
@@ -2147,7 +2244,7 @@ PROOF
   <2>10. QED OBVIOUS
 <1>8. CASE FakeAcceptorAction
       BY <1>8 DEF FakeAcceptorAction, FakeSend1b, FakeSend2a, Safety
-<1>9. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, <1>7, <1>8
+<1>9. QED BY <1>1, <1>2, <1>q, <1>3, <1>4, <1>5, <1>6, <1>7, <1>8
           DEF Next, AcceptorProcessAction, Process1bLearnerLoop, LearnerAction
 
 FullSafetyInvariant ==
