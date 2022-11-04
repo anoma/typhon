@@ -2249,8 +2249,11 @@ PROOF
 
 FullSafetyInvariant ==
     /\ TypeOK
+    /\ RecentMsgsSpec
     /\ KnownMsgsSpec
-    /\ RecentMsgsSafeAcceptorSpec
+    /\ QueuedMsgSpec1
+    /\ 2aLearnerLoopSpec
+    /\ SafeAcceptorOwnMessagesRefsSpec
     /\ MsgsSafeAcceptorSpec
     /\ DecisionSpec
     /\ Safety
@@ -2258,11 +2261,25 @@ FullSafetyInvariant ==
 LEMMA TypeOKInit == Init => TypeOK
 PROOF BY DEF Init, TypeOK
 
+LEMMA RecentMsgsSpecInit == Init => RecentMsgsSpec
+PROOF BY DEF Init, RecentMsgsSpec, Acceptor
+
 LEMMA KnownMsgsSpecInit == Init => KnownMsgsSpec
 PROOF BY DEF Init, KnownMsgsSpec, Acceptor
 
-LEMMA RecentMsgsSafeAcceptorSpecInit == Init => RecentMsgsSafeAcceptorSpec
-PROOF BY DEF Init, RecentMsgsSafeAcceptorSpec, SentBy
+LEMMA QueuedMsgSpecInit == Init => QueuedMsgSpec1
+PROOF BY DEF Init, QueuedMsgSpec1, Acceptor
+
+LEMMA 2aLearnerLoopSpecInit == Init => 2aLearnerLoopSpec
+PROOF BY DEF Init, 2aLearnerLoopSpec, Acceptor
+
+LEMMA SafeAcceptorOwnMessagesRefsSpecInit ==
+    Init => SafeAcceptorOwnMessagesRefsSpec
+PROOF BY DEF Init, SafeAcceptorOwnMessagesRefsSpec, SentBy
+
+LEMMA RecentMsgsUniquePreviousMessageSpecInit ==
+    Init => RecentMsgsUniquePreviousMessageSpec
+PROOF BY DEF Init, RecentMsgsUniquePreviousMessageSpec, SentBy, Acceptor
 
 LEMMA MsgsSafeAcceptorSpecInit == Init => MsgsSafeAcceptorSpec
 PROOF BY DEF Init, MsgsSafeAcceptorSpec
@@ -2275,8 +2292,11 @@ PROOF BY DEF Init, Safety
 
 LEMMA FullSafetyInvariantInit == Init => FullSafetyInvariant
 PROOF BY TypeOKInit,
+         RecentMsgsSpecInit,
          KnownMsgsSpecInit,
-         RecentMsgsSafeAcceptorSpecInit,
+         QueuedMsgSpecInit,
+         2aLearnerLoopSpecInit,
+         SafeAcceptorOwnMessagesRefsSpecInit,
          MsgsSafeAcceptorSpecInit,
          DecisionSpecInit, SafetyInit
       DEF FullSafetyInvariant
@@ -2288,8 +2308,11 @@ PROOF
 <1>1. CASE Next
       BY <1>1,
          TypeOKInvariant,
-         MsgsSafeAcceptorSpecImpliesCaughtSpec,
+         RecentMsgsSpecInvariant,
          KnownMsgsSpecInvariant,
+         QueuedMsgSpecInvariant,
+         2aLearnerLoopSpecInvariant,
+         MsgsSafeAcceptorSpecImpliesCaughtSpec,
          RecentMsgsSafeAcceptorSpecInvariant,
          MsgsSafeAcceptorSpecInvariant,
          DecisionSpecInvariant,
@@ -2297,9 +2320,10 @@ PROOF
       DEF FullSafetyInvariant
 <1>2. CASE vars = vars'
       BY <1>2, Isa DEF vars, FullSafetyInvariant, TypeOK,
-          KnownMsgsSpec, Proper, WellFormed,
+          RecentMsgsSpec, KnownMsgsSpec, QueuedMsgSpec1, 2aLearnerLoopSpec,
+          Proper, WellFormed,
           SameBallot, q, Fresh, V, Buried, Con2as, Con, ConByQuorum,
-          RecentMsgsSafeAcceptorSpec, SentBy,
+          SafeAcceptorOwnMessagesRefsSpec, SentBy,
           MsgsSafeAcceptorSpec,
           DecisionSpec, ChosenIn, Known2a,
           Safety
