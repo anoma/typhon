@@ -128,6 +128,7 @@ Tran(m) == UNION {TranBound[n][m] : n \in TranDepthRange}
 -----------------------------------------------------------------------------
 (* Algorithm specification *)
 
+ \* TODO comment
 VARIABLES msgs,
           known_msgs,
           recent_msgs,
@@ -135,7 +136,7 @@ VARIABLES msgs,
           2a_lrn_loop,
           processed_lrns,
           decision,
-          BVal \* TODO comment
+          BVal
 
 Get1a(m) ==
     { x \in Tran(m) :
@@ -528,5 +529,5 @@ CLiveness ==
 
 =============================================================================
 \* Modification History
-\* Last modified Mon Oct 17 16:29:25 CEST 2022 by karbyshev
+\* Last modified Mon Nov 07 13:40:50 CET 2022 by karbyshev
 \* Created Mon Jul 25 14:24:03 CEST 2022 by karbyshev
