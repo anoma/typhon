@@ -1300,7 +1300,7 @@ PROOF
 <1>10. QED BY <1>1, <1>2, <1>3, <1>4, <1>5, <1>6, <1>7, <1>8, <1>9
           DEF Next, AcceptorProcessAction, Process1bLearnerLoop, LearnerAction
 
-LEMMA RecentMsgsSafeAcceptorSpecInvariant ==
+LEMMA SafeAcceptorOwnMessagesRefsSpecInvariant ==
     TypeOK /\ Next /\ 2aLearnerLoopSpec /\
     SafeAcceptorOwnMessagesRefsSpec =>
     SafeAcceptorOwnMessagesRefsSpec'
@@ -2313,7 +2313,7 @@ PROOF
          QueuedMsgSpecInvariant,
          2aLearnerLoopSpecInvariant,
          MsgsSafeAcceptorSpecImpliesCaughtSpec,
-         RecentMsgsSafeAcceptorSpecInvariant,
+         SafeAcceptorOwnMessagesRefsSpecInvariant,
          MsgsSafeAcceptorSpecInvariant,
          DecisionSpecInvariant,
          SafetyStep
@@ -2335,5 +2335,5 @@ PROOF BY PTL, FullSafetyInvariantInit, FullSafetyInvariantNext
 
 =============================================================================
 \* Modification History
-\* Last modified Mon Oct 17 16:25:45 CEST 2022 by karbyshev
+\* Last modified Mon Nov 07 13:33:08 CET 2022 by karbyshev
 \* Created Thu Aug 25 10:12:00 CEST 2022 by karbyshev
