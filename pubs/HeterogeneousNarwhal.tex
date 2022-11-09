@@ -35,6 +35,7 @@
 \newcommand{\aka}[1][]{a.k.a.\xspace}
 \newcommand{\ie}[1][]{\emph{i.e.}, }
 \newcommand{\eg}[1][]{\emph{e.g.}, }
+\newcommand{\fig}[1][]{Fig.~}
 \newcommand{\Learner}{%
   % the set of learners
   \ensuremath{L}
@@ -233,7 +234,7 @@ Roughly, we have two complementary protocols running concurrently:
  : %
  each validator has a unique \emph{primary} and % 
  a number of \emph{workers} % 
- (see Figure~\ref{fig:validators})%
+ (see \fig\ref{fig:validators})%
  . 
 \begin{figure}[htb]
   \centering
@@ -323,8 +324,7 @@ each worker can be assigned a unique \emph{mirror worker}
 on every other validator.
 We shall adopt the convention that
 mirror workers of each other share the same subscript,
-\eg in 
-Fig.~\ref{fig:validators},
+\eg in \fig\ref{fig:validators},
 workers~\(w_2\) and~\(v_2\) are mirror workers of each other.
 Workers are only tasked with “bookkeeping” matters: 
 they keep track of (batches of) transactions,
@@ -483,7 +483,8 @@ Primaries never send messages back to their workers.
   \newcommand{\primaryDistance}{15ex}
   \newcommand{\workerPrimaryDistance}{1ex}
   \newcommand{\workerDistance}{3ex}
-  \footnotesize
+  \scalebox{.9}{%
+  \footnotesize%
   \begin{tikzpicture}[scale=1.2]
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
     % The message passing diagram
@@ -493,12 +494,12 @@ Primaries never send messages back to their workers.
     \foreach \p in {1,...,5} {
       \node[below=\primaryDistance of primaryAnchor,anchor=east] (p\p) 
       at (primaryAnchor) {\ensuremath{\text{primary}_\p}};
-      \draw[->] (p\p) -- ++(10,0);
+      \draw[->] (p\p) -- ++(10.4,0);
       \coordinate (workerAnchor) at ([yshift=-\workerPrimaryDistance]p\p.east);
       \foreach \j in {1,...,2} {
         \node[below=\workerDistance of primaryAnchor,anchor=east] (w\p_\j) 
         at (workerAnchor) {\ensuremath{\text{worker}_{\p,\j}}};
-        \draw[->] (w\p_\j) -- ++(10,0) ;
+        \draw[->] (w\p_\j) -- ++(10.4,0) ;
         \coordinate (workerAnchor) at (w\p_\j.east);
       }
       \coordinate (primaryAnchor) at (p\p.east);
@@ -549,6 +550,10 @@ Primaries never send messages back to their workers.
     \draw[->] (wh1) -- (wh1');
     \node[right=0ex of wh1'] (wh2') {\wh₂};
     \draw[->] (wh2) -- (wh2');
+    % the following should be much later, but ... (single harmless hack)
+    \node[right=1ex of wh2',fill=white] (hd3) {\hd};
+    \foreach \k in {1,2}
+    \draw[dotted,bend right=9ex-3*\k ex] (hd3) to (wh\k'.center);
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % dissemination of worker hashes wh1 and wh2
     \foreach \p in {1,2,4,5} {
@@ -575,19 +580,36 @@ Primaries never send messages back to their workers.
         {}%
       }
     }
-    % collect "foreign" whs into availability votes for a block
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    
-  \end{tikzpicture}
+    % collect "foreign" whs into availability votes for a block
+    \coordinate (ac) at ([xshift=2ex,yshift=2ex]hd1|-p3);
+    \foreach \p in {1,2,4} { % for each "other" validator
+      \node[fill=white] (av\p) at (ac){\hd\makebox[0pt][l]{\ensuremath{{}_{\sim\p}}}};
+      \coordinate (ac) at ([xshift=-1ex,yshift=-1ex]ac);
+    }
+    \foreach \p in {1,2,4} { % for each "other" validator
+      \draw[->] (hd\p) -- (av\p.east);
+    }
+    \node[fill=white] (av3) at (ac){\hd\makebox[0pt][l]{\ensuremath{{}_{\sim3}}}};
+    \draw[->] (hd3) -- (av3);
+    \begin{pgfonlayer}{background}
+      \node[fit={(av3)(av1)([xshift=2ex]av1.north east)},fill=lightgray] (ac3) {};
+    \end{pgfonlayer}
+    % broadcast the availability certificate
+    \foreach \p in {1,...,5} { % for each "other" validator
+      \node (ac\p') at ([xshift=17ex-\p ex]ac|-p\p) {\ac\ensuremath{{}_\p}};
+      \draw[->] ([yshift=2.5ex-\p ex]ac3.east) -- (ac\p'); 
+    }
+  \end{tikzpicture}%
+  }
   \caption{The availability protocol in the genesis round}
   \label{fig:availability-protocol}
 \end{figure}
 
 \section{Primary actions}
 
-
 \subsection{Availability at genesis}
-The pure availability protocol:  genesis actions
+The pure availability protocol: genesis actions
 
 \begin{description}
 \item[Genesis header compilation ({\hd[]})] 
@@ -667,21 +689,27 @@ The pure availability protocol:  genesis actions
   % to trigger such an header request]
 \end{description}
 
+A (partial) execution of the availability protocol at genesis is
+illustrated in \fig\ref{fig:availability-protocol}.
+
+\FloatBarrier
+
 \subsection{Integrity: genesis and generally at once}
 
-The availability signatures 
-are re-used by the integrity protocol. 
+The availability signatures can be re-used by the integrity protocol. 
 By producing a signed header~\(\hdₚ\), 
 the signer also commits to one unique header for 
-the respective validator (and round). 
+the respective validator (and round).
+Thus, correct validators will not sign any other header for
+the respective header creator in the same round. 
 
 
 \begin{description}
 \item[Integrity signing \(\hdₚ\)]
   \tnote{primary ⇒ primary}
-  Signing and sending the header also implies 
-  that (a correct) primary will not sign any other header
-  with the same creator and round number. 
+  Signing and sending the header to the creator implies that 
+  (a correct) primary will not sign any other header
+  of the same creator with the same round number. 
 
 \item[Block aggregation (\bk)]
   \tnote{[primary]}
