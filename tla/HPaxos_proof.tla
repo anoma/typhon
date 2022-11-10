@@ -2,11 +2,6 @@
 EXTENDS HPaxos, Sequences, NaturalsInduction, WellFoundedInduction, TLAPS
 
 -----------------------------------------------------------------------------
-LEMMA NoMessageIsNotAMessage ==
-    NoMessage \notin Message
-PROOF BY NoSetContainsEverything DEF NoMessage, None
-
------------------------------------------------------------------------------
 LEMMA RefCardinalitySpec ==
     /\ RefCardinality \in SUBSET Nat
     /\ RefCardinality # {}
@@ -255,6 +250,19 @@ PROOF
 \*<1>10. QED
 
 -----------------------------------------------------------------------------
+LEMMA NoMessageIsNotAMessage ==
+    NoMessage \notin Message
+PROOF
+<1> DEFINE P(n) == NoMessage \notin MessageRec[n]
+<1> SUFFICES \A n \in Nat : P(n)
+    BY DEF Message, MessageDepthRange
+<1>0. P(0)
+      BY MessageRec_eq0 DEF MessageRec0, NoMessage
+<1>1. ASSUME NEW k \in Nat, P(k) PROVE P(k + 1)
+      BY <1>1, MessageRec_eq1 DEF MessageRec1, NoMessage
+<1>2. HIDE DEF P
+<1>3. QED BY <1>0, <1>1, NatInduction, Isa
+
 LEMMA MessageTypeSpec ==
     ASSUME NEW m \in Message
     PROVE \/ /\ m.type = "1a"
@@ -1186,8 +1194,10 @@ PROOF
   <2> PICK acc \in SafeAcceptor, msg \in msgs : Process1b(acc, msg)
       BY <1>4
   <2> QED BY DEF Process1b, Store, TypeOK
-<1>5. CASE \E a \in SafeAcceptor : \E l \in Learner : Process1bLearnerLoopStep(a, l)
-  <2> PICK acc \in SafeAcceptor, lrn \in Learner : Process1bLearnerLoopStep(acc, lrn)
+<1>5. CASE \E a \in SafeAcceptor : \E l \in Learner :
+            Process1bLearnerLoopStep(a, l)
+  <2> PICK acc \in SafeAcceptor, lrn \in Learner :
+            Process1bLearnerLoopStep(acc, lrn)
       BY <1>5
   <2> QED BY DEF Process1bLearnerLoopStep, Acceptor, Store, TypeOK
 <1>6. CASE \E a \in SafeAcceptor : Process1bLearnerLoopDone(a)
@@ -1232,8 +1242,10 @@ PROOF
   <2> PICK acc \in SafeAcceptor, msg \in msgs : Process1b(acc, msg)
       BY <1>4
   <2> QED BY KnownMsgMonotone DEF Process1b, V, TypeOK
-<1>5. CASE \E a \in SafeAcceptor : \E l \in Learner : Process1bLearnerLoopStep(a, l)
-  <2> PICK acc \in SafeAcceptor, lrn \in Learner : Process1bLearnerLoopStep(acc, lrn)
+<1>5. CASE \E a \in SafeAcceptor : \E l \in Learner :
+            Process1bLearnerLoopStep(a, l)
+  <2> PICK acc \in SafeAcceptor, lrn \in Learner :
+            Process1bLearnerLoopStep(acc, lrn)
       BY <1>5
   <2> QED BY KnownMsgMonotone DEF Process1bLearnerLoopStep, V, TypeOK
 <1>6. CASE \E a \in SafeAcceptor : Process1bLearnerLoopDone(a)
@@ -2335,5 +2347,5 @@ PROOF BY PTL, FullSafetyInvariantInit, FullSafetyInvariantNext
 
 =============================================================================
 \* Modification History
-\* Last modified Mon Nov 07 13:33:08 CET 2022 by karbyshev
+\* Last modified Thu Nov 10 14:51:10 CET 2022 by karbyshev
 \* Created Thu Aug 25 10:12:00 CEST 2022 by karbyshev

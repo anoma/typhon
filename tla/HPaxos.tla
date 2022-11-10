@@ -103,9 +103,7 @@ Message == UNION { MessageRec[n] : n \in MessageDepthRange }
 
 -----------------------------------------------------------------------------
 (* Non-message value *)
-
-None == CHOOSE v : v \notin Message
-NoMessage == None
+NoMessage == [ type |-> "null" ]
 
 -----------------------------------------------------------------------------
 (* Transitive references *)
@@ -332,7 +330,7 @@ ProposerSendAction ==
     \E bal \in Ballot : Send1a(bal)
 
 AcceptorProcessAction ==
-    \E a \in SafeAcceptor:
+    \E a \in SafeAcceptor :
         \/ /\ 2a_lrn_loop[a] = FALSE
            /\ \/ /\ queued_msg[a] # NoMessage
                  /\ Process1b(a, queued_msg[a])
@@ -529,5 +527,5 @@ CLiveness ==
 
 =============================================================================
 \* Modification History
-\* Last modified Mon Nov 07 13:40:50 CET 2022 by karbyshev
+\* Last modified Thu Nov 10 14:50:56 CET 2022 by karbyshev
 \* Created Mon Jul 25 14:24:03 CEST 2022 by karbyshev
