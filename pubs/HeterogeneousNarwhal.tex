@@ -88,6 +88,7 @@
 
 \usepackage{tikz}
 \usetikzlibrary{shapes,positioning,fit,backgrounds}
+\usetikzlibrary{patterns,intersections,calc}
 \newcommand{\qs}[1][~]{\tikz[baseline={([yshift=0pt]theNode.base)}]{\node[rectangle,
 ,double,inner sep=.5pt,outer sep=0pt,fill=black] (theNode){\textcolor{white}{\footnotesize \bf q#1}};}
 }
@@ -126,10 +127,10 @@
 
 %https://tex.stackexchange.com/questions/425098/which-opentype-math-fonts-are-available
 \usepackage{comment}
-\includecomment{comment}
+%\includecomment{comment}
 \begin{document}
 \renewcommand{\todo}[2][]{}
-%\begin{comment}
+\begin{comment}
 \maketitle
 
 \tableofcontents
@@ -161,7 +162,12 @@ different ledgers\endnote{%
 } to ‼[“interact” “directly”].
 \todo{explain “interact” “directly”}
 %\newcommand{\dl}[1][]{\textsc{dl}#1\xspace}(\dl[s])
-
+\todo[inline]{
+  argumentation flaw:
+  if we have a base ledger count of~\(n\), 
+  we will have a quadratic number of chimera chains as well,
+  i.e., (at least) one learner for each chimera chain. 
+}
 \paragraph{Probblem statement%
   \endnote{%
     Paragraph 2:
@@ -337,6 +343,20 @@ Primaries never send messages back to their workers.
 
 \subsection{The pure availability protocol: worker actions}
 \label{sec:base-protocol}
+\todo[inline]{get rid of the broadcast of the availability certificates}
+\todo[inline]{%
+  maybe we need to ``announce'' headers, % 
+  to avoid ``crossing'' of round numbers of learner%
+}
+\todo[inline]{%
+  so, signed qourums are an ``output'' of the integrity protocol,
+  and need to be made available (such that it is possible to create new headers). 
+}
+
+\todo[inline]{%
+  worker hashes also should include an availability certificate %
+  of the header creator's previous header %
+}
 
 \begin{description}
 \item[Transaction collection (\tx{}←)] 
@@ -475,7 +495,7 @@ Primaries never send messages back to their workers.
   }
 \end{description}
 
-%\end{comment}
+
 
 \begin{figure}[htb]
   \centering
@@ -487,7 +507,7 @@ Primaries never send messages back to their workers.
   \footnotesize%
   \begin{tikzpicture}[scale=1.2]
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
-    % The message passing diagram
+    % The message passing diagram of the availability protocol at genesis
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     % first the time lines for primaries and their workers
     \coordinate (primaryAnchor) at (0,0);
@@ -605,8 +625,9 @@ Primaries never send messages back to their workers.
   \caption{The availability protocol in the genesis round}
   \label{fig:availability-protocol}
 \end{figure}
-
+\end{comment}
 \section{Primary actions}
+
 
 \subsection{Availability at genesis}
 The pure availability protocol: genesis actions
@@ -694,10 +715,9 @@ illustrated in \fig\ref{fig:availability-protocol}.
 
 \FloatBarrier
 
-\subsection{Integrity: genesis and generally at once}
-
-The availability signatures can be re-used by the integrity protocol. 
-By producing a signed header~\(\hdₚ\), 
+\subsection{Integrity: the general case at once}
+In the integrity protocol,
+sending a signed header~\(\hdₚ\) to the creator 
 the signer also commits to one unique header for 
 the respective validator (and round).
 Thus, correct validators will not sign any other header for
@@ -713,10 +733,12 @@ the respective header creator in the same round.
 
 \item[Block aggregation (\bk)]
   \tnote{[primary]}
-  Similarly to the generation of availability certificates, 
-  validators will aggregate additional signatures for their block headers 
-  into learner-specific \emph{blocks},  
-  which are headers signed by a learner-specific quorum. 
+  Using the same signature aggregation mechanism that
+  we have used for availability certificates, 
+  validators will aggregate additional signatures (besides the availability signature) for their block headers,  
+  producing learner-specific \emph{blocks}, 
+  which, by definition, 
+  are headers signed by a learner-specific quorum. 
 
 \item[Block broadcast \(\bk\)] 
   \tnote{primary ⇒ primary}
@@ -733,6 +755,116 @@ headers will carry additional information.
 We finish the description of the protocol,
 by filling in the additional data and steps in the typical phase. 
 
+\begin{figure}[htb]
+  \centering
+  \tikzstyle{every node}+=[outer sep=0pt,inner sep=1pt]
+  \newcommand{\primaryDistance}{15ex}
+  \newcommand{\workerPrimaryDistance}{1ex}
+  \newcommand{\workerDistance}{3ex}
+  \scalebox{.8}{%
+    \footnotesize%
+    \begin{tikzpicture}[scale=1,thick]
+      %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
+      % The message passing diagram of the integrity protocol
+      %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
+      \coordinate (primaryAnchor) at (0,0);
+      \foreach \p in {1,...,7} {
+        \node[below=\primaryDistance of primaryAnchor,anchor=east] (p\p) 
+        at (primaryAnchor) {\ensuremath{\text{primary}_\p}};
+        \draw[->] (p\p) -- ++(15,0);
+        \coordinate (primaryAnchor) at (p\p.east);
+      }
+      \begin{pgfonlayer}{background}
+        \foreach \p in {1,...,4}{
+          \node[pattern=dots, pattern color=green!80!black,fit={(p\p)},inner sep=1ex] {};
+        }
+        \foreach \p in {1,3,5,7}{
+          \fill[pattern=north east lines, pattern color=red]
+          (p\p.north east) -- (p\p.south west) -- (p\p.south east) -- cycle;
+        }
+        \foreach \p in {3,...,7}{
+          \fill[pattern=north west lines, pattern color=blue]
+          (p\p.north east) -- (p\p.south west) -- (p\p.north west) -- cycle;
+        }
+      \end{pgfonlayer}
+
+      \node[inner sep = 4ex] (theOrigin) at ([xshift=-3ex]p3.10) {};
+      \foreach \p in {1,...,7} { % for each "other" validator
+        \coordinate (ac\p') at ([xshift=17ex-\p ex]theOrigin|-p\p) ;
+    }
+    \node (ac3') at ([xshift=17ex-3 ex]theOrigin|-p3) {\ac\ensuremath{{}_3}};
+    \draw[->] (theOrigin) -- ([xshift=4ex,yshift=4ex]ac3'); 
+    \coordinate[right=14ex of ac3'] (sigAgg);
+    \foreach \p in {1,2,4} { % for each "other" validator
+      \node[fill=white] (av\p) at (sigAgg){\hd\makebox[0pt][l]{\ensuremath{{}_{\sim\p}}}};
+      \coordinate (sigAgg) at ([xshift=-1ex,yshift=-1ex]sigAgg);
+    }
+    \foreach \p/\y in {1/2,2/1,4/-14} {
+      \node[left=\y ex of ac\p',fill=white] (hd\p') {\hd};
+      \draw[->] (hd\p') -- (av\p);
+    }
+    \begin{pgfonlayer}{background}
+      
+      \node[fit={(av4)([xshift=2ex]av1.north east)([xshift=-2ex]ac3'.west)},pattern=dots,pattern color=green!80!black,draw] (bkGreen) {};
+    \end{pgfonlayer}
+    \foreach \p in {1,...,4} { % for each "green" validator
+      \node[right=25 ex of ac\p'] (bkGreen\p') {\bk};
+      \draw[->] (bkGreen) -- (bkGreen\p'); 
+    }
+    \foreach \p in {5,...,7} {
+      \node[right=35 ex of ac\p',fill=white] (hd\p') {\hd};
+      \draw[->] (hd\p') -- (ac\p');
+    }
+    \coordinate[right=15 ex of bkGreen3'] (sigAgg);
+    \foreach \p in {7,...,5} { % for each "other" validator
+      \node[fill=white] (av\p) at (sigAgg){\hd\makebox[0pt][l]{\ensuremath{{}_{\sim\p}}}};
+      \draw[->] (hd\p') -- ([xshift=1ex,yshift=-.5ex]av\p.south east);
+      \coordinate (sigAgg) at ([xshift=-1ex,yshift=-1ex]sigAgg);
+    }
+      \begin{pgfonlayer}{background}
+        
+        \node[fit={(bkGreen3')([xshift=2ex]av7.north east)(av5)},pattern=north west lines,pattern color=blue,draw] (bkBlue) {};
+      \end{pgfonlayer}
+    \foreach \p in {7,...,3} { % for each "blue" validator
+      \node[right=65 ex of ac\p'] (bkBlue\p') {\bk[blue]\ensuremath{{}_3}};
+      \draw[->] (bkBlue.east) -- (bkBlue\p'); 
+    }
+    \coordinate (top) at (bkBlue3'.east|-p1); 
+    \coordinate (bottom) at (bkBlue3'.east|-p7); 
+    \draw[double,very thick,dotted] ([xshift=1ex,yshift=1ex]top) -- ([xshift=1ex,yshift=-1ex]bottom);
+    \coordinate (sigAgg) at ([xshift=20ex]bkBlue5');
+    \foreach \p in {7,...,4} { % for each "other" blue validator, not 3
+      \node[fill=white] (bk\p) at (sigAgg){\bk[blue]\makebox[0pt][l]{\ensuremath{{}_\p}}};
+      %\draw[->] (bk\p') -- ([xshift=1ex,yshift=-.5ex]av\p.south east);
+      \coordinate (sigAgg) at ([xshift=-1ex,yshift=-1ex]sigAgg);
+      \draw[->] (sigAgg|-p\p) -- (bk\p.south east);
+    }    
+    \begin{pgfonlayer}{background}
+      \node[fit={(bkBlue5')([xshift=2ex]bk7.north east)(bk4.south west)},fill=lightgray] (BlueBlocks) {};
+    \end{pgfonlayer}
+    \foreach \p in {3,...,7} {% for all blue learners
+      \node[draw=blue] (qs\p) at ([xshift=5ex]BlueBlocks.east|-p\p) {\qs[5]};
+      \draw (BlueBlocks.east) -- (qs\p);
+    }
+  \end{tikzpicture}%
+    \todo{for cooler patternage
+      \url{https://tex.stackexchange.com/questions/597172/tikz-set-the-line-width-of-the-pattern}
+    }
+  }
+  \caption[Integrity protocol]{The integrity protocol (fomring the second phase of each round)}%
+  % 
+  \label{fig:integrity-protocol}
+\end{figure}
+\todo[inline]{%
+  blue blocks go to all validators in 
+  %\begin{enumerate}
+  % \item
+  ① the signing quorum
+  % \item
+  ② all validators that are in some blue quorum 
+  %\end{enumerate}
+}
+
 \subsection{Availability: the typical case}
 
 \begin{description}
@@ -741,7 +873,9 @@ by filling in the additional data and steps in the typical phase.
   Once a validator has collected 
   enough new  blocks (for a learner), 
   it signs a learner-specific quorum of such blocks;
-  the result is called a \emph{signed quorum},  for short. 
+  the result is called a \emph{signed quorum},  
+  for short. 
+  All these blocks have to be from the same round. {\color{red} important ‼}
 
   Under certain conditions,
   in particular if there is exceptional delay for a specific learner,
@@ -908,7 +1042,7 @@ to storing all blocks until genesis
     \(\qs_p\):
     \begin{math}
       \begin{array}[c]{@{\rhd}l}
-        [\bk_1 \cdots \bk[red]_k]_{\sim p}
+        [\bk_1 \cdots \bk_\ell]_{\sim p}
       \end{array}
     \end{math}
   }
@@ -940,6 +1074,7 @@ to storing all blocks until genesis
 \printendnotes
 
 \section{food for thought}
+
 \begin{itemize}
 \item
   lots of state is completely independent of each other, 
@@ -950,13 +1085,18 @@ to storing all blocks until genesis
   How do the message graphs of HP
   compare to Narwhal DAGs
 \end{itemize}
+\paragraph{Isaac's thoughts}
+
+\begin{itemize}
+\item message sharing (on the primary level) might be slow
+\item 
+\end{itemize}
 
 \href{%
 https://github.com/anoma/specs/blob/main/src/architecture/consensus/typhon/mempool.md%
 }{the specs}
 
 \section{specific questions}
-
 \begin{itemize}
 \item 
   “availability certificate Availability Certificate: an aggregation of signatures from a Weak Quorum attesting that everything referenced by a particular Header is available. \bf Must include a signature from the Header's primary.”
