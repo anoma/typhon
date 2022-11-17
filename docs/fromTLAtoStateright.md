@@ -18,17 +18,15 @@ and get the “least fix” of the other side.
 
 ## Absolute generalities: `bx` frameworks
 
-There is a whole research field concerning [bi-directional transofmations](https://en.wikipedia.org/wiki/Bidirectional_transformation) of (meta-)models. 
-See, e.g., these [lecture notes](https://link.springer.com/book/10.1007/978-3-319-79108-1).
-We have lenses (also featuring in Juvix), 
-and triple graph grammars, 
-which might actually be useful for
-formal specifications of the system in terms of 
-graph grammars—think Petri nets on steroids.
+There is a whole research field concerning [bi-directional transofmations](https://en.wikipedia.org/wiki/Bidirectional_transformation) of (meta-)models; 
+see, e.g., these [lecture notes](https://link.springer.com/book/10.1007/978-3-319-79108-1).
+Most notably, 
+we have [lenses](https://ncatlab.org/nlab/show/delta+lens) (also featuring in Juvix) 
+and [triple graph grammars](https://de.wikipedia.org/wiki/Tripel-Graph-Grammatik).[^1] 
 In fact, 
-TLA+ specifications can be written in a graph transformation style,
-using pre- and post-conditions 
-(which in turn generalize pre- and post-sets of Petri nets).
+actions in TLA+ specifications can be written in 
+a pre-/post-condition style, 
+mimicking the pre- and post-sets of Petri nets.[^2] 
 
 ## Untyped Sets vs. “actual”  data-types
 As TLA+ does not have any types (since everything is a set), 
@@ -42,7 +40,7 @@ is a (set of) `TypeOK`-predicates.
 The latter specify what it means for a variable do have the proper type. 
 E.g., a certain variable has to be of function type between two (not necessarily constant) sets.
 
-One might be tempted to say that one could just use hash-sets as everything is sets. 
+One might be tempted to say that one could just use hash-sets as everything is a set. 
 However, then one still has to provide types for the elements of those…  
 …and moreover, 
 there are typically more natural choices than hash-sets; 
@@ -84,22 +82,34 @@ via message passing.
 In most protocols, 
 it makes sense to separate out several message “pools”, 
 which are sets consisting of all messages that have been sent. 
+Moreover, 
+actions should only access local state in their pre-codition. 
+Thus, 
+as soon as two TLA+ actions access the same (“slice” of a) variable, 
+the two actions belong to the same actor. 
+This will become clearer by looking at an example. 
 
-
-# The example from [Building Distributed Systems With Stateright](https://www.stateright.rs/title-page.html)
+# Examples 
 
 Let us see how the above generalities look like in 
-some specific examples. 
+some specific examples, namely: 
+
+- the “resource managers” example from [Building Distributed Systems With Stateright](https://www.stateright.rs/title-page.html)
+
+-
 
 ## The “resource managers” example 
-
 
 ### The fixed set of ressource managers
 
 The specification mentions only a set of ressource managers, 
 called `RM`. 
 
-```tla 
+[comment_one]: # https://www.uv.es/wikibase/doc/cas/pandoc_manual_2.7.3.wiki?174
+
+[comment_two]: # https://packagecontrol.io/packages/TLAPlus 
+
+```tla
 CONSTANT RM 
 ```
 
@@ -125,13 +135,17 @@ instead
 ‽
 
 
-## Message “queues” and local state of resource managers
+## Message “queues” vs. local state of resource managers vs. X
 
 In the example, 
 the `TypeOK`-predicate provides some information about
 which state is local to the resource managers.
 
 …
+
+## Actions
+
+
 
 <!--
 
@@ -162,3 +176,10 @@ A buzzword that needs to be dropped again are bi-directional transformations,
 a general idea. 
 It comes in several flavours, 
 e.g., so-called [lenses](https://bryceclarke.github.io/The_Double_Category_Of_Lenses_Phd_Thesis.pdf).
+
+---
+
+[^1]: Triple graph grammars might actually be useful 
+    in that they allow to specify the protocol using [graph transformation](https://en.wikipedia.org/wiki/Graph_rewriting), which vastly generalize [Petri nets](https://en.wikipedia.org/wiki/Petri_net). 
+
+[^2]: There is a subset of TLA+ specifications, which actually mimick simple graph transformation. 
