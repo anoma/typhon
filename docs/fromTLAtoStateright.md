@@ -57,6 +57,9 @@ these can but are not necessarily (partial) functions.
 In stateright, 
 each state comes with a list[^3] of actions 
 where each action has at most one unique “target” state. 
+Thus, 
+stateright-actions are effectively _names_ 
+for transitions in stateright.
 
 ## Differences between TLA+ and stateright 
 
@@ -86,13 +89,108 @@ Stateright provides arbitrary `rust`-function calls.
 For the purpose of translation, 
 going from TLA+ to stateright should in principle be always an option, 
 as soon as the involved sets are finite. 
+
+# Sketching the image of _actor-based_ stateright in TLA+
+
+Even if rust function calls cannot be treated mechanically,
+there are overapproximations of the behaviour of a stateright model if we delimit the part of state 
+that rust-function calls can act on. 
+This is particularly natural for stateright models 
+that follow the actor-based approach, 
+as each function call of an actor _should_ only be able 
+to change the actors state. 
+We can then automatically generate a TLA+ spec (with lots of spurious behaviour). 
+Still, 
+this lets us extract conceptual model of 
+the stateright implementation. 
+In fact, 
+here, we are re-using ideas 
+from the [_ReActor_ Specification Language, §3](https://cs.emis.de/LNI/Proceedings/Proceedings213/127.pdf), 
+which provides TLA+ semantics for 
+(a specific class of) actor systems. 
+For a quick  intro to actors, 
+see e.g., [this blog post](https://bbengfort.github.io/2018/08/actor-model/)
+by Benjamin Bengfort, 
+or [here](https://berb.github.io/diploma-thesis/original/054_actors.html), 
+and many [other ressources](https://en.wikipedia.org/wiki/Actor_model#Further_reading). 
+
+> The Actor Model is a ~~solution~~ [model] for ~~reasoning about~~ concurrency in distributed systems that helps eliminate unnecessary synchronization. In the actor model, we consider our system to be composed of _actors_, computational ~~primitives~~ [processes] that have a private state, can send and receive messages, and perform computations based on those messages. The key [idea] is that a system is composed of many actors and actors do not share memory, they have to communicate with messaging.
+
+
+
+## Types of actors
+
+
+## State of each actor 
+
+
+
+
+```rust
+/// An actor initializes internal state optionally emitting [outputs]; then it waits for incoming
+/// events, responding by updating its internal state and optionally emitting [outputs].
+///
+/// [outputs]: Out
+pub trait Actor: Sized {
+    /// The type of messages sent and received by the actor.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use serde::{Deserialize, Serialize};
+    /// #[derive(Clone, Debug, Eq, Hash, PartialEq)]
+    /// #[derive(Serialize, Deserialize)]
+    /// enum MyActorMsg { Msg1(u64), Msg2(char) }
+    /// ```
+    type Msg: Clone + Debug + Eq + Hash;
+
+    /// The type of state maintained by the actor.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// #[derive(Clone, Debug, Eq, Hash, PartialEq)]
+    /// struct MyActorState { sequencer: u64 }
+    /// ```
+    type State: Clone + Debug + PartialEq + Hash;
+
+    /// Indicates the initial state and commands.
+    fn on_start(&self, id: Id, o: &mut Out<Self>) -> Self::State;
+
+    /// Indicates the next state and commands when a message is received. See [`Out::send`].
+    fn on_msg(
+        &self,
+        id: Id,
+        state: &mut Cow<Self::State>,
+        src: Id,
+        msg: Self::Msg,
+        o: &mut Out<Self>,
+    ) {
+        // no-op by default
+        let _ = id;
+        let _ = state;
+        let _ = src;
+        let _ = msg;
+        let _ = o;
+    }
+
+    /// Indicates the next state and commands when a timeout is encountered. See [`Out::set_timer`].
+    fn on_timeout(&self, id: Id, state: &mut Cow<Self::State>, o: &mut Out<Self>) {
+        // no-op by default
+        let _ = id;
+        let _ = state;
+        let _ = o;
+    }
+}
+```
+
+
 <!--In principle, 
 the TLC model check
 -->
 
 
-
-## Untyped Sets vs. “actual”  data-types
+## Untyped Sets vs. “actual”  data-types 
 As TLA+ does not have any types (since everything is a set), 
 one probably has to add type annotations, 
 which allow to derive the corresponding types in rust. 
@@ -244,7 +342,15 @@ e.g., so-called [lenses](https://bryceclarke.github.io/The_Double_Category_Of_Le
 
 # misc 
 
+## further reading
+
 [rebeca](https://content.iospress.com/articles/fundamenta-informaticae/fi63-4-05)
+
+## food for thought
+
+[Concurrency in vertical vs. horizontal sclaing](https://www.section.io/blog/scaling-horizontally-vs-vertically/) 
+mentions the actor model for vertical scaling. 
+
 
 ---
 
@@ -253,5 +359,5 @@ e.g., so-called [lenses](https://bryceclarke.github.io/The_Double_Category_Of_Le
 
 [^2]: There is a subset of TLA+ specifications, which actually mimick simple graph transformation. 
 
-[^3]: It is a vector, to be precise. 
+[^3]: It is a vector, to be precise.
 
