@@ -11,10 +11,16 @@
 \usepackage{xcolor}
 \newcommand{\nb}[1]{\todo[color=blue!60!black,shadow]{#1}}
 
+\usepackage{newunicodechar}
+\input{UnicodeReplacements.tex}
 \theoremstyle{definition}
 \newtheorem{definition}{Definition}
 \usepackage{amsmath}
-\title{Heterogeneous mempool \DAG[s]}
+\title{%
+  Heterogeneous Narwhal: % 
+  \\
+  a cross-chain mempool \Dag%
+}
 \author{Typhon Team Heliax}
 \date{\today}
 \usepackage{lmodern}
@@ -31,7 +37,9 @@
   \normalmarginpar%
 }
   
-\newcommand{\DAG}[1][]{\textsc{dag}#1\xspace}
+\newcommand{\DAG}[1][]{\textsc{Dag}#1\xspace}
+\newcommand{\Dag}[1][]{\textsc{dag}#1\xspace}
+
 \newcommand{\aka}[1][]{a.k.a.\xspace}
 \newcommand{\ie}[1][]{\emph{i.e.}, }
 \newcommand{\eg}[1][]{\emph{e.g.}, }
@@ -48,7 +56,7 @@
   %\fbox{\color{blue!70!black}!!}%
   {\color{blue!70!black}\ul{#1}}
 }
-\newcommand{\circledX}[1]{\tikz[baseline={(x.south)}]{\node[circle,draw,inner sep=.5pt,outer sep=0pt](x){\tiny #1};}}
+\newcommand{\circledX}[1]{\tikz[baseline={(x.south)}]{\node[circle,draw,inner sep=.3pt,outer sep=0pt,very thin](x){\tiny #1};}}
 \usepackage{newunicodechar}
 %\newunicodechar{}{\ensuremath{}}  
 \newunicodechar{₁}{\ensuremath{{}_1}}
@@ -58,10 +66,10 @@
 \newunicodechar{₅}{\ensuremath{{}_5}}
 \newunicodechar{★}{\ensuremath{*}~}
 \newunicodechar{ }{~}
-\newunicodechar{①}{\circledX 1}
+%\newunicodechar{①}{\circledX 1}
 \newunicodechar{“}{``}
 \newunicodechar{”}{''}
-\newunicodechar{②}{\circledX 2}
+%\newunicodechar{②}{\circledX 2}
 \newunicodechar{ₐ}{\ensuremath{{}_a}}
 \newunicodechar{ₚ}{\ensuremath{{}_p}}
 \newunicodechar{‼}{\rough}
@@ -129,11 +137,48 @@
 \usepackage{comment}
 %\includecomment{comment}
 \begin{document}
-\renewcommand{\todo}[2][]{}
+%\renewcommand{\todo}[2][]{}
 %\begin{comment}
 \maketitle
+\todo{%
+  logging is terminologi borrowed from César Sanchez, 
+  \emph{log-chain}
+}
+
+\begin{abstract}
+  \noindent
+  Block \emph{chains} exhibit linear structure, 
+  resulting from a single reference to \emph{the} previous block.
+  If instead, 
+  each block references several previous blocks 
+  (while avoiding self-referential cycles), 
+  we have a directed acyclic graph (\Dag) of blocks---%
+  a block \Dag if you will.   
+  In fact,
+  \Dag-based consensus algorithms such as
+  \todo{references}, 
+  % 
+  build such block \Dag[s].  
+  Among other things,
+  these protocols build a growing “global” \dag of transaction data such that
+  ① every validator's local view is a sub-\Dag and %
+  ② every node of the “global” \Dag is scheduled for inclusion into a total order of blocks.
+  \Dag \emph{mempool \Dag}, 
+  or mem-\Dag, for short,
+  shall be the term for such “global” \Dag[s]. 
+
+  The paper introduces Heterogeneous Narwhal,
+  a protocol for several interlinked mem-\Dag[s],
+  each one operating under different assumptions. 
+  In principle,
+  this does away with the need for bridges. 
+  We also discuss the issues revolving around
+  the difference between scheduled for inclusion
+  and actual eventual inclusion.
+\end{abstract}
 
 \tableofcontents
+
 \section{Introduction}
 
 \paragraph{Motivation%
@@ -199,7 +244,11 @@ not spending more ressources than complete pair-wise bridging?
 
 
 
-\subsection{Overview}
+\section{Overview}
+\label{sec:overview}
+
+
+
 Roughly, we have two complementary protocols running concurrently: 
 
 \begin{figure}[htb]
@@ -208,7 +257,7 @@ Roughly, we have two complementary protocols running concurrently:
   \begin{tikzpicture}
     \node[draw] (avl) {transaction data};
 
-    \node[draw,right=1ex of avl] (dag) {``causal'' \DAG structure};
+    \node[draw,right=1ex of avl] (dag) {``causal'' \Dag structure};
     \begin{pgfonlayer}{background}
     \node (x) [fill=lightgray,fit=(avl)(dag)] {};
   \end{pgfonlayer}
@@ -754,7 +803,7 @@ for the respective  creator of the header (for the same round).
   to all primaries that belong to some quorum of the respective learner. 
   (Later,
   these will be used as references to 
-  previous blocks in the learner-specific \DAG[s]
+  previous blocks in the learner-specific \Dag[s]
   see \ref{???}) %FIXME reference.
 \end{description}
 
@@ -939,7 +988,7 @@ for the previous header of the same validator and
 \item 
 the sending and checking of signed quorums
 (each of which implements the reference to 
-blocks from the previous round—in a learner-specific \DAG).
+blocks from the previous round—in a learner-specific \Dag).
 \end{enumerate}
 
 As a consequence,
@@ -1323,7 +1372,7 @@ This is seen as follows,
 \item 
 \end{itemize}
 
-\paragraph{learner-specific \DAG structure}
+\paragraph{learner-specific \Dag structure}
 
 \section{Erasure coding}
 The worker that has received a transaction from a client
