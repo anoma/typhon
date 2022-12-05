@@ -150,20 +150,20 @@
   Block \emph{chains} exhibit linear structure, 
   resulting from a single reference to \emph{the} previous block.
   If instead, 
-  each block references several previous blocks 
-  (while avoiding self-referential cycles), 
-  we have a directed acyclic graph (\Dag) of blocks---%
-  a block \Dag if you will.   
+  each block may reference several previous blocks,
+  we can accomodate for a directed acyclic graph (\Dag) of blocks.
   In fact,
   \Dag-based consensus algorithms such as
   \todo{references}, 
   % 
-  build such block \Dag[s].  
-  Among other things,
-  these protocols build a growing “global” \dag of transaction data such that
+  build such “block \Dag[s]”.  
+  These protocols build 
+  a growing “global” \dag of transaction data such that, 
+  among other things,
   ① every validator's local view is a sub-\Dag and %
-  ② every node of the “global” \Dag is scheduled for inclusion into a total order of blocks.
-  \Dag \emph{mempool \Dag}, 
+  ② every node of the “global” \Dag is
+  “logged” for inclusion into a total order of blocks.
+  \emph{Mempool \Dag}, 
   or mem-\Dag, for short,
   shall be the term for such “global” \Dag[s]. 
 
@@ -172,6 +172,9 @@
   each one operating under different assumptions. 
   In principle,
   this does away with the need for bridges. 
+  \todo{%
+    we actually need to explain how we can replace bridges!
+  }
   We also discuss the issues revolving around
   the difference between scheduled for inclusion
   and actual eventual inclusion.
@@ -244,8 +247,39 @@ not spending more ressources than complete pair-wise bridging?
 
 
 
-\section{Overview}
+\section{Overview: mem-\Dag[s], heterogeneity, etc.}
 \label{sec:overview}
+
+\paragraph{Atomic cross-chain swaps}
+\label{sec:atom-trans-across}
+
+\begin{quote}
+  An atomic cross-chain swap is a distributed coordination task where multiple parties exchange assets across multiple blockchains, for example, trading bitcoin for ether.
+
+  An atomic swap protocol guarantees 
+  (1) if all parties conform to the protocol, 
+  then all swaps take place, 
+  (2) if some coalition deviates from the protocol, 
+  then no conforming party ends up worse off, and 
+  (3) no coalition has an incentive to deviate from the protocol.
+  \todo{\href{https://dl.acm.org/doi/10.1145/3212734.3212736}{Atomic Cross-Chain Swaps} }
+\end{quote}
+
+
+
+
+
+
+
+
+
+
+\begin{figure}[htb]
+  \centering
+  \includegraphics[width=.95\linewidth]{./blue_dag.png}
+  \caption{A mem-\Dag (self-references omitted)}
+  \label{fig:blue_dag}
+\end{figure}
 
 
 
