@@ -151,27 +151,28 @@
   resulting from a single reference to \emph{the} previous block.
   If instead, 
   each block may reference several previous blocks,
-  we can accomodate for a directed acyclic graph (\Dag) of blocks.
+  we can build directed acyclic graph (\Dag) of blocks.
   In fact,
-  \Dag-based consensus algorithms such as
-  \todo{references}, 
-  % 
-  build such “block \Dag[s]”.  
+  such “block \Dag[s]” are central to
+  several proposed consensus algorithms such as
+  \todo{references}. 
   These protocols build 
-  a growing “global” \dag of transaction data such that, 
+  a growing “global” \Dag of transaction data such that, 
   among other things,
-  ① every validator's local view is a sub-\Dag and %
+  ① every validator's local view is a sub-\Dag of the “global” \Dag and %
   ② every node of the “global” \Dag is
   “logged” for inclusion into a total order of blocks.
-  \emph{Mempool \Dag}, 
-  or mem-\Dag, for short,
-  shall be the term for such “global” \Dag[s]. 
+  The present paper shall refer to such “global” \Dag[s]
+  as {mempool \Dag[s]}, 
+  or \emph{mem-\Dag[s]}, for short. 
 
-  The paper introduces Heterogeneous Narwhal,
-  a protocol for several interlinked mem-\Dag[s],
-  each one operating under different assumptions. 
+  The paper generalizes 
+  Narwhal's single ledger mem-\Dag to
+  a cross-ledger mem-\Dag, 
+  dubbed Heterogenous Narwhal,  
+  providing the mempool counterpart for Heterogeneous Paxos. 
   In principle,
-  this does away with the need for bridges. 
+  Heterogeneous Narwhal (with Paxos) does away with the need for bridges. 
   \todo{%
     we actually need to explain how we can replace bridges!
   }
@@ -247,14 +248,18 @@ not spending more ressources than complete pair-wise bridging?
 
 
 
-\section{Overview: mem-\Dag[s], heterogeneity, etc.}
+\section{Overview: %
+  mem-\Dag[s], heterogeneity, etc.}
 \label{sec:overview}
 
-\paragraph{Atomic cross-chain swaps}
+\subsection{Atomic cross-chain swaps}
 \label{sec:atom-trans-across}
 
 \begin{quote}
-  An atomic cross-chain swap is a distributed coordination task where multiple parties exchange assets across multiple blockchains, for example, trading bitcoin for ether.
+  An atomic cross-chain swap is 
+  a distributed coordination task 
+  where multiple parties exchange assets across multiple blockchains, 
+  for example, trading bitcoin for ether.
 
   An atomic swap protocol guarantees 
   (1) if all parties conform to the protocol, 
@@ -262,10 +267,112 @@ not spending more ressources than complete pair-wise bridging?
   (2) if some coalition deviates from the protocol, 
   then no conforming party ends up worse off, and 
   (3) no coalition has an incentive to deviate from the protocol.
-  \todo{\href{https://dl.acm.org/doi/10.1145/3212734.3212736}{Atomic Cross-Chain Swaps} }
+  \todo{%
+    \href{https://dl.acm.org/doi/10.1145/3212734.3212736%
+    }{%
+      Atomic Cross-Chain Swaps%
+    } 
+  }
 \end{quote}
 
+\subsection{Let's start in the land of naïveté}
+\label{sec:naivities}
 
+\subsubsection{The impossible}
+\label{sec:impossible-concurrency}
+
+One simple 
+``ideal'' solution for \emph{safe}
+cross-chain swaps is the requirement that
+the two chains have
+``concurrent'' block inclusions
+and blocks refer to each other reciprocally.
+The only downside:
+this cannot be accomplished with references via hash.
+
+\subsubsection{The perfect solution}
+\label{sec:perfect}
+
+To be able to commit 
+a cross-chain transaction,
+one is running a validator on two chains,
+and if it is the case that one proposes 
+a block on both chains,
+one can split up the atomic swap into two transactions,
+
+
+
+
+
+
+
+
+
+
+
+
+
+\subsection{Chimera chains}
+\label{sec:chimera-chains}
+
+\begin{description}
+\item[Requirement candidates]~\\
+  \begin{itemize}
+  \item
+    \emph{absolutism:}
+    if a transfer between two base ledgers is commited
+    in a “healthy” chimera chain, 
+    the transfer is also (essentially) commited in both ledgers
+    \endnote{%
+      Here, the question arises,
+      if a potential roll-back in case of 
+    }
+  \item 
+    \emph{justified absolutism:}
+    a consensus for anchor block selection in a chimera chain
+    needs “double consensus” from both chains 
+    
+  \item
+    \emph{absolutism grounding:}
+    does each anchor block in the chimera chain
+    have also references to blocks in the underlying chain, 
+    “super-supporting” the anchor?
+
+  \item
+    \emph{user authorization:}
+    users may choose to effectively use
+    the chimera chain as a limited bridge,
+    “temporariliy” moving (some of their accounts)
+    to the chimera chain
+    \todo{%
+      what's the difference to the bridge then here?%
+    }
+
+  \end{itemize}
+\end{description}
+
+\subsubsection{On the %
+  \href{https://anoma.net/blog/heterogeneous-paxos-and-multi-chain-atomic-commits/}{%
+    blog post%
+  }
+}
+\label{sec:blog-post-discussion}
+
+\paragraph{\texttt{Shared batch} of transactions}
+now,
+the idea of 
+
+
+\begin{itemize}
+\item 
+  do chimeara chains need to acquire and release “ownership” ?
+
+
+  \begin{itemize}
+  \item 
+  \end{itemize}
+
+\end{itemize}
 
 
 
