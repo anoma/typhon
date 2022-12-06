@@ -1,4 +1,5 @@
 \documentclass{article}
+\usepackage{markdown}
 \usepackage{soulutf8}
 %\renewcommand{\st}[1]{}
 %\usepackage[scale=.75]{geometry}
@@ -138,6 +139,7 @@
 %\includecomment{comment}
 \begin{document}
 %\renewcommand{\todo}[2][]{}
+%\renewcommand{\endnote}[1]{#1}
 %\begin{comment}
 \maketitle
 \todo{%
@@ -205,9 +207,9 @@ is ‼[expensive]. %
 We want to enable
 any number of participants with assets on several
 different ledgers\endnote{%
-- base chains
-- root chains
-- ledgers 
+    - base chains
+    - root chains
+    - ledgers 
 } to ‼[“interact” “directly”].
 \todo{explain “interact” “directly”}
 %\newcommand{\dl}[1][]{\textsc{dl}#1\xspace}(\dl[s])
@@ -293,12 +295,15 @@ this cannot be accomplished with references via hash.
 \subsubsection{The perfect solution}
 \label{sec:perfect}
 
-To be able to commit 
-a cross-chain transaction,
-one is running a validator on two chains,
-and if it is the case that one proposes 
-a block on both chains,
-one can split up the atomic swap into two transactions,
+For cross-chain transaction,
+one can “simply” run a validator on two chains,
+and if it is the case that one 
+can propose a block for each chain, 
+one might as well propose a \emph{combo block}  
+with references to both previous blocks.
+
+
+
 
 
 
@@ -347,7 +352,13 @@ one can split up the atomic swap into two transactions,
     \todo{%
       what's the difference to the bridge then here?%
     }
+  \item
+    \emph{user's ruling:}
+    moving assets into other chains
+    -- e.g., chimera but not necessarily --
+    for atomic settlement on the other chain
 
+    
   \end{itemize}
 \end{description}
 
@@ -358,9 +369,38 @@ one can split up the atomic swap into two transactions,
 }
 \label{sec:blog-post-discussion}
 
+Here is an open list of issues,
+each of which could be in the form of a github issue (to be discussed). 
+
+\paragraph{“As Locks”}
+
+\texttt{chains as holding exclusive locks on state}
+
+this model transfers to “user's rule”
+
+
+
+
+
+\paragraph{one of those statements to ponder about}
+
+\begin{quote}
+  This would allow applications to "move data" to shared chains where atomic commits are possible, and then back. What we need is a specific interface indicating when such moves are safe, when atomicity in batches is preserved, and a way to easily move state from one chain to another.
+\end{quote}
+
+
+\paragraph{best case scenario}
+great
+\begin{markdown}
+  - that is a good example of quorums
+  - dosn't explain why atomic commit is possible
+\end{markdown}
 \paragraph{\texttt{Shared batch} of transactions}
 now,
-the idea of 
+what's a shared batch anyway?
+a batch of transactions in a combo block ?
+
+
 
 
 \begin{itemize}
@@ -1278,11 +1318,12 @@ to storing all blocks until genesis
 
 \bibliographystyle{alpha}
 \bibliography{HN.bib}
-\end{document}
+
 
 \appendix
 \printendnotes
 
+\end{document}
 \section{food for thought}
 
 \begin{itemize}
