@@ -53,9 +53,11 @@
   % trust live
   Q_{#1}%
 }
-\newcommand{\rough}[1][]{%
+\newcommand{\rough}[1][ ]{%
   %\fbox{\color{blue!70!black}!!}%
-  {\color{blue!70!black}\ul{#1}}
+  \ifthenelse{\equal{#1}{ }}%
+  {{\color{red}{\bf!!}}}%
+  {{\color{blue!70!black}\ul{#1}}}%
 }
 \newcommand{\circledX}[1]{\tikz[baseline={(x.south)}]{\node[circle,draw,inner sep=.3pt,outer sep=0pt,very thin](x){\tiny #1};}}
 \usepackage{newunicodechar}
@@ -362,6 +364,128 @@ with references to both previous blocks.
   \end{itemize}
 \end{description}
 
+
+\subsubsection{exerpting the %
+  \href{https://anoma.net/blog/heterogeneous-paxos-and-multi-chain-atomic-commits/}{%
+    blog post%
+  }
+}
+\label{sec:blog-post-excerpts}
+
+\paragraph{The intuitive goal}
+
+combo block
+
+\begin{verbatim}
+    [rb]
+    /  \ 
+  [r]  [b]
+   |    |
+   |    |
+  [r]  [b]
+   |    |
+   |    |
+  [r]  [b]
+   |    |
+\end{verbatim}
+
+s.t.
+
+\begin{quote}
+  both [chains, r\&b,] agree to [unanimously] choose or [jointly] ignore the combo block.
+\end{quote}
+
+\begin{quote}
+  Fortunately, 
+  when there is a lot of overlap between
+  validator sets of different chains, 
+  these assumptions can become very reasonable.
+\end{quote}
+
+\begin{quote}
+  within \emph{same} consensus
+\end{quote}
+\todo{undefined}
+
+\begin{quote}
+  bisimulate
+\end{quote}
+\todo{clashes with bisimulation ‽}
+
+\begin{quote}
+  \textbf{It's Kind of Like a Bridge}
+
+  In some ways, 
+  our Heterogeneous Consensus could create something like 
+  a trusted bridge: 
+  it allows operations across multiple chains,
+  under specific trust assumptions. 
+  Other bridge designs tend to be based on multi-phase commits,
+  so ours will be faster and will not require locking assets.
+\end{quote}
+
+\begin{quote}
+  green quorum is sufficient to make green chain decide on a block without communicating with anyone else
+\end{quote}
+\todo{%
+  now,
+  a quorum suddenly seems independent of the green learner
+ }
+
+ \begin{quote}
+   Note that this would not be a problem if every red quorum had an intersection (featuring an honest participant) with every green quorum: red and green could avoid deciding contradictory things.
+ \end{quote}
+ \todo{check: 
+   there's no global weak quorum
+   and heterogeneous narwhal does not help either ?
+ }
+
+ \begin{quote}
+    Fortunately, we have some promising directions for solving this conundrum.
+  \end{quote}
+  \todo{e.g., ?}
+
+\begin{quote}
+    anyone following only blue transactions or only red transactions will not observe the fork
+\end{quote}
+\todo{unobserved forks: 
+  sounds terrible‼
+}
+
+  \begin{quote}
+  "move state" from, say, the purely blue chain to the blue-green chain when they want to do business with green smart contracts, and then back to the blue chain when they're done.
+\end{quote}
+\todo{
+  how ?
+  this sounds very much like a bridge,
+  and does not solve the game theoretic problem?
+}
+
+\begin{quote}
+  Each piece of state (each smart contract) needs application-specific code to decide which chain holds its lock at which time.
+\end{quote}
+\todo{
+  how to keep track of this ``locking table'' 
+}
+\begin{quote}
+  trusted by chains
+\end{quote}
+
+\begin{quote}
+  the transactions are actually executed together
+\end{quote}
+\todo{
+  well,
+  something like all execution engines do it (eventually?)
+}
+
+\begin{quote}
+  prove what messages are sent
+\end{quote}
+\todo{
+  proving what messages are sent \emph{by whom?}
+  users, validators, others, …
+}
 \subsubsection{On the %
   \href{https://anoma.net/blog/heterogeneous-paxos-and-multi-chain-atomic-commits/}{%
     blog post%
@@ -369,10 +493,129 @@ with references to both previous blocks.
 }
 \label{sec:blog-post-discussion}
 
-Here is an open list of issues,
-each of which could be in the form of a github issue (to be discussed). 
+\paragraph{Could we merge chains into chimera chains?}
 
-\paragraph{“As Locks”}
+in other words,
+why would we at all want to “split” again?
+
+\begin{verbatim}
+  [r]  [b]
+   |    |
+   |    |
+  [r]  [b]
+    \  / 
+    [rb]
+    /  \ 
+  [r]  [b]
+   |    |
+   |    |
+  [r]  [b]
+   |    |
+   |    |
+  [r]  [b]
+   |    |
+\end{verbatim}
+
+\paragraph{random questions}
+
+\subparagraph{not all learners equal, in yet a different way}
+
+there are two very different type of learners:
+\begin{itemize}
+\item end-users: small stake, non-critical
+\item execution engines of validators: high stake, critical
+\end{itemize}
+
+
+
+
+\subparagraph{on immediate finality}
+which finality do we actually need ?
+
+\subparagraph{drawing on eigenlayer functionality?}
+can we
+
+\subparagraph{what about dynamic graphs?}
+all of
+\begin{itemize}
+\item validator sets  
+\item assumptions 
+\item learner sets
+\end{itemize}
+can change
+
+cf.
+\begin{quote}
+   Changing Quorums
+\end{quote}
+
+\subparagraph{who can initiate chimera chains / dynamic graphs?}
+\begin{description}
+\item[rig up] 
+\item[tear down] 
+\end{description}
+
+\subparagraph{%
+  on locks, not really, but ... 
+}
+what about garbage collection trigger 
+for logged mempools
+
+
+
+
+\paragraph{open issues}
+Here is an open list of topics to clarify;
+in principle, 
+these could be in the form of github issues\todo{ (to be discussed)}. 
+
+\subparagraph{certificates for honest behaviour}
+examples, what's missing?
+
+\subparagraph{evidence for dishonest behaviour}
+examples, what's missing?
+
+\subparagraph{garbage collection}
+\begin{itemize}
+\item to do or not to do
+\item how to do / how to avoid 
+\end{itemize}
+
+\subparagraph{It's gonna be better than all bridges out there ‼}
+the connection to bridges has to be spelled out \emph{explicitly},
+in excrutiating detail
+
+\subparagraph{different perspectives}
+the difficulty in describing---and understanding---Tʏᴘʜᴏɴ
+are the different perspectives that one has to keep in mind at each point in mind
+\begin{itemize}
+\item learner(s)
+\item validators / participants / workers
+\item designer
+\item attacker
+\item transaction batches ‽
+\item chains ‽
+\item something else ?
+\end{itemize}
+Thus, for every sentence, 
+one might get it wrong,
+if it is not clear who's perspective we are taking. 
+
+
+\subparagraph{what's shared batch looking like anywy?}
+
+\subparagraph{moving state}
+this is a phrase, 
+which begs the questions
+\begin{itemize}
+\item who is moving the state?
+\item how is state partitioned?
+\end{itemize}
+
+Leaving the capability to move state with the user
+is also an extra task the user must be willing to perform. 
+
+\subparagraph{“As Locks”}
 
 \texttt{chains as holding exclusive locks on state}
 
@@ -382,20 +625,23 @@ this model transfers to “user's rule”
 
 
 
-\paragraph{one of those statements to ponder about}
+\subparagraph{one of those statements to ponder about}
 
 \begin{quote}
   This would allow applications to "move data" to shared chains where atomic commits are possible, and then back. What we need is a specific interface indicating when such moves are safe, when atomicity in batches is preserved, and a way to easily move state from one chain to another.
 \end{quote}
 
 
-\paragraph{best case scenario}
+
+
+
+\subparagraph{best case scenario}
 great
 \begin{markdown}
   - that is a good example of quorums
   - dosn't explain why atomic commit is possible
 \end{markdown}
-\paragraph{\texttt{Shared batch} of transactions}
+\subparagraph{\texttt{Shared batch} of transactions}
 now,
 what's a shared batch anyway?
 a batch of transactions in a combo block ?
