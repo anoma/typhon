@@ -316,7 +316,49 @@ on both chains.
   having quorum-pairs between 
   two chains as the quorum system for the chimera chain 
   of two chains. 
+}\endnote{%
+  for “quorum-pairs” between two chains,
+  explain why it is still much cheaper
+  than having a merged super-chain
 }
+
+\subsubsection{The risky fast track}
+\label{sec:fast-n-furious}
+
+The opposite extreme consists in
+not updating any (liveness) quorums
+and just hoping for “enough” overlap 
+of assumed to be live quorums:
+however,
+it might be the case
+that the intersections do 
+not hold enough honest validators.
+In the extreme,
+none.
+
+\subsubsection{First assessment in view of validator overlap}
+\label{sec:assessment-i}
+
+In view of a large overlap,
+note that both scenarios gain in practicability:
+if every pair of vaildator quorums
+has a large overlap,
+the increase in communication complexity is mitigated.
+Similarly,
+for the fast track, 
+if overlaps are of validator quorums are big enough,
+we have a good chance to have at least 
+one correct validator in their intersection.\endnote{%
+  research question:
+  can we add randomization \emph{orthogonally},
+  i.e.,
+  without changing the original algorithms
+  of heterogeneous narwhal / paxos
+}
+
+
+
+
 
 
 
@@ -1590,6 +1632,11 @@ to storing all blocks until genesis
 
 \end{document}
 \section{food for thought}
+\subsection{new}
+
+
+\subsection{old}
+
 
 \begin{itemize}
 \item
@@ -1611,6 +1658,31 @@ to storing all blocks until genesis
 \href{%
 https://github.com/anoma/specs/blob/main/src/architecture/consensus/typhon/mempool.md%
 }{the specs}
+
+\subsection{very old, but ... very researchy}
+
+\paragraph{is reliable broadcast in narwhal actually even more useful?}
+does Narwhal make consensus easier
+in that it restricts the set of valid values to propose?
+In particular,
+proposals of non-existing blocks are impossible?
+cf. ideas in
+\href{https://www.sciencedirect.com/science/article/pii/089054018790054X}{Asynchronous Byzantine agreement protocols}
+
+
+\paragraph{what can be gained by randomness? at what price?}
+
+well, just for the record,
+this is an interesting venue for (much) more performance,
+which is probably much harder to analyze ... 
+\begin{itemize}
+\item \href{https://link.springer.com/article/10.1007/s10009-020-00603-x}{Verification of randomized consensus algorithms under round-rigid adversaries}
+\item \emph{Randomized Byzantine Generals} Michael O.~Rabin,  1983
+\end{itemize}
+
+
+
+
 
 \section{specific questions}
 \begin{itemize}
