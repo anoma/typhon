@@ -294,15 +294,34 @@ and blocks refer to each other reciprocally.
 The only downside:
 this cannot be accomplished with references via hash.
 
-\subsubsection{The perfect solution}
-\label{sec:perfect}
+\subsubsection{The perfectly safe solution}
+\label{sec:perfectly-safe}
 
-For cross-chain transaction,
-one can “simply” run a validator on two chains,
-and if it is the case that one 
-can propose a block for each chain, 
-one might as well propose a \emph{combo block}  
-with references to both previous blocks.
+An ideal situation for
+scheduling cross-chain transactions
+in a \emph{combo block}  
+is proposing the next ``same'' block on two chains,
+at the same “moment”,
+e.g., if on is running two validators on two different chains,
+which get the right to propose the next block on both chains.
+
+In fact, 
+we can do much better
+in terms of likelihood of getting a common spot
+on both chains.
+\todo{
+  explain in non-technical terms that
+  the same-slot-on-both-chains situation
+  has a very intuitive counterpart in
+  having quorum-pairs between 
+  two chains as the quorum system for the chimera chain 
+  of two chains. 
+}
+
+
+
+
+
 
 
 
