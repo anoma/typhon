@@ -356,25 +356,17 @@ one correct validator in their intersection.\endnote{%
   of heterogeneous narwhal / paxos
 }
 
+\subsubsection{Growing the overlap}
+\label{sec:growing-the-overlap}
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+A natural question is how one could go 
+about getting a bigger overlap between two chains,
+for the sake of additional safety. 
+In fact,
+one could imagine some sort of 
+“auditing” nodes,
+which make it harder for Byzantine validators
+to trigger safety violations \cite[opodis20HPaxos].
 
 
 
@@ -383,22 +375,61 @@ one correct validator in their intersection.\endnote{%
 \subsection{Chimera chains}
 \label{sec:chimera-chains}
 
+\paragraph{Overview}
+
+Starting from a fixed set of base ledgers, 
+each coming with quorum sets,%
+\footnote{%
+  This is a simplifying assumption,
+  which we use only in the exposition.
+  In principle,
+  learners are completely independent entities.
+  They “dictate” which quorums they would trust,  
+  in particular concerning liveness.
+  For safety, %
+  the situation is more intricate. %
+}%
+\todo{explain this}\xspace%
+chimera chains have the following phases:
+\begin{description}
+\item[Summoning] Among other things,
+  the genesis blocks are generated,
+  including links to the blocks 
+  that “summoned” the chimera chain. 
+\item[Bridging]
+\item[Retirement] 
+\end{description}
+
+The chimera chain has dedicated “administrative” transactions,
+e.g., 
+
+
+
+
+
 \begin{description}
 \item[Requirement candidates]~\\
   \begin{itemize}
   \item
     \emph{absolutism:}
-    if a transfer between two base ledgers is commited
-    in a “healthy” chimera chain, 
-    the transfer is also (essentially) commited in both ledgers
+    if 
+    a transfer between two base ledgers is commited in 
+    a “healthy” chimera chain, 
+    then the transfer is also (essentially) commited in both ledgers
     \endnote{%
       Here, the question arises,
       if a potential roll-back in case of 
-    }
+    },
+    i.e., eventually it will go through, unless we've got a “liveness fault”
+    \todo{whatever a liveness fault is}
   \item 
     \emph{justified absolutism:}
-    a consensus for anchor block selection in a chimera chain
-    needs “double consensus” from both chains 
+    each consensus on an anchor block selection in 
+    a chimera chain needs “double consensus” from both chains,
+    i.e., 
+    effectiverly,
+    both chains need to approve the anchor block,
+    which might lead to liveness issues ? 
     
   \item
     \emph{absolutism grounding:}
