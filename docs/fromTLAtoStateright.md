@@ -1,41 +1,44 @@
 ---
-title: "From TLA+ to “stateright” … and back again"
-author: "Tobias Heindel"
+title: "From TLA⁺ to “stateright” … and back again"
+author: ᚦ
 ---
 
 # Generalities
 
 The problem at hand is 
-making
-(formal) specifications “match” 
-their implementation—‍in 
-general, and in 
-particular for [Typhon](https://specs.anoma.net/main/architecture/consensus/typhon.html); 
-the is—_very roughyly_—the underlying L1 of [Anoma](https://anoma.net/),
+“match” (formal) specifications with their implementation—‍‍in general, 
+and in particular for 
+[Typhon](https://specs.anoma.net/main/architecture/consensus/typhon.html); 
+the latter is—_very roughyly_—the 
+underlying L1 of [Anoma](https://anoma.net/),
 developed by [Heliax](https://heliax.dev/)/. 
-The good news is that
-there are approaches that 
-allow to update _either one_ of the two, 
-and get the “least fix” of the other side. 
+The good news is that there are approaches that allow to update 
+_either one_ of the specification and the code, 
+and get candidates for “best fixes” of the other side. 
 
 ## Some theory: `bx` frameworks
 
-There is a whole research field concerning [bi-directional transofmations](https://en.wikipedia.org/wiki/Bidirectional_transformation) of (meta-)models; 
-see, e.g., these [lecture notes](https://link.springer.com/book/10.1007/978-3-319-79108-1).
-Most notably, 
-we have [lenses](https://ncatlab.org/nlab/show/delta+lens) (also featuring in Juvix) 
-and [triple graph grammars](https://de.wikipedia.org/wiki/Tripel-Graph-Grammatik).[^1] 
+There is a whole research field concerning
+[bi-directional transofmations](https://en.wikipedia.org/wiki/Bidirectional_transformation) 
+of (meta-)models 
+(see, e.g., these [lecture notes](https://link.springer.com/book/10.1007/978-3-319-79108-1)).
+Most notably, we have
+[lenses](https://ncatlab.org/nlab/show/delta+lens) (also featuring in Juvix) and 
+[triple graph grammars](https://de.wikipedia.org/wiki/Tripel-Graph-Grammatik).[^1] 
 In fact, 
-actions in TLA+ specifications can be written in 
+actions in TLA⁺ specifications can be written in 
 a pre-/post-condition style, 
 mimicking the pre- and post-sets of Petri nets.[^2] 
 
 
-# Comparison of TLA+ and stateright, general
+# Comparison of TLA⁺ and stateright
 
-We start with short lists of similarities and differences. 
+We start with short lists of similarities and differences.
+Despite being (very) incomplete, 
+the comparison already motivate the challenge 
+that a general bi-directional transformation would face. 
 
-## Similarities between TLA+ and stateright 
+## Similarities between TLA⁺ and stateright 
 
 Both define [transition systems](https://en.wikipedia.org/wiki/Transition_system), 
 and each transition between states is the effect of _actions_. 
@@ -43,70 +46,142 @@ and each transition between states is the effect of _actions_.
 
 ### State
 
-In TLA+, 
+In TLA⁺, 
 the state of the system is described by the “contents” of variables. 
 In stateright, 
 `State` is a type to be provided by any implementation of stateright `Model`-trait. 
 
 ### Actions
 
-In TLA+, 
+In TLA⁺, 
 actions are described by formulæ 
 that describe relations between states; 
-these can but are not necessarily (partial) functions. 
-In stateright, 
-each state comes with a list[^3] of actions 
-where each action has at most one unique “target” state. 
+these relations can be (partial) functions, 
+but nothing requires this. 
+In contrast, 
+stateright enforces that each state has a list[^3] of _actions_,
+each of which has at most one unique “target” state. 
 Thus, 
 stateright-actions are effectively _names_ 
 for transitions in stateright.
 
-## Differences between TLA+ and stateright 
+## Differences between TLA⁺ and stateright 
 
-In TLA+, actions are allowed to be (proper) relations between states. 
-This allows to have very general system specifications 
-with a tree of refinements 
-where leaves would ideally be implementations. 
+In TLA⁺, actions are arbitrary relations on the set of states. 
 In stateright, 
 actions are essentially a proxy for transitions: 
 each action can have at most one effect. 
 
-## “Symmetric differences”: stuff that might cause trouble
+<!-- 
+TLA⁺ allows for rather general system specifications, 
+supplemented with a tree of refinements 
+where leaves would ideally be implementations 
+and paths from the top level spec to the leaves 
+one possibility to gradually add implementation detail to a specification. 
+-->
 
-Each of the two formalism provides functionality  
-the other has not. 
+## “Symmetric difference”: possible causes for issues
 
-### TLA+ extra functionality
+Each of the two frameworks provides some features 
+that the other one lacks. 
 
-TLC provided liveness checking. This feature is at best experimental in stateright. 
+### TLA⁺ extra functionality
+
+TLA⁺ has a “built in” model checker, viz. TLC, 
+which provides liveness checking. 
+This model checking feature is at best experimental in stateright. 
 
 ### Extra functionality of stateright 
 
 Stateright provides arbitrary `rust`-function calls. 
 
+
 ## Summary
 
 For the purpose of translation, 
-going from TLA+ to stateright should in principle be always an option, 
-as soon as the involved sets are finite. 
+going from TLA⁺ to stateright is in theory always possible, 
+as soon as the involved sets are finite;
+however, 
+is it natural?
+In fact, 
+it could be better to have an opposite translation, 
+from stateright `Actor`-implementations 
+to TLA⁺ models. 
 
-# Sketching the image of _actor-based_ stateright in TLA+
 
-Even if rust function calls cannot be treated mechanically,
-there are overapproximations of the behaviour of a stateright model if we delimit the part of state 
-that rust-function calls can act on. 
+# Sketching the _image_ of _actor-based_ stateright in TLA⁺
+
+Even if rust function calls are an obvious challenge,
+in theory, 
+we have valid over-approximations of the behaviour of a stateright model.
+<!--
+This becomes quite natural in the actor model, 
+as function calls should only change the local state of an actor. 
+-->
 This is particularly natural for stateright models 
 that follow the actor-based approach, 
 as each function call of an actor _should_ only be able 
 to change the actors state. 
-We can then automatically generate a TLA+ spec (with lots of spurious behaviour). 
+
+
+The
+[`Actor`-trait](https://docs.rs/stateright/latest/src/stateright/actor.rs.html#243-286)
+(see also the excerpt below)
+in stateright requires that each actor 
+
+- has a specific type of messages it can process (called `Msg`);
+
+- has a state type (called `State`);
+
+- implements the `on_start`-function, 
+  which is called on instances after spawning, 
+  e.g., to initialize the state;
+
+- implements the `on_msg`-function, 
+  which specifies the reactions of an actor to received messages, 
+  such as state changes, sending responses, and setting timers.
+
+```rust
+pub trait Actor: Sized {
+    /// The type of messages sent and received by the actor.
+    type Msg: Clone + Debug + Eq + Hash;
+
+    /// The type of state maintained by the actor.
+    type State: Clone + Debug + PartialEq + Hash;
+
+    /// Indicates the initial state and commands. 
+    fn on_start(&self, id: Id, o: &mut Out<Self>) -> Self::State;
+
+    /// Indicates the next state and commands when a message is received. See [`Out::send`].
+    fn on_msg(&self, id: Id, state: &mut Cow<Self::State>, src: Id, msg: Self::Msg, o: &mut Out<Self>) {
+        // no-op by default
+    }
+
+    /// Indicates the next state and commands when a timeout is encountered. See [`Out::set_timer`].
+    fn on_timeout(&self, id: Id, state: &mut Cow<Self::State>, o: &mut Out<Self>) {
+        // no-op by default
+    }
+}
+```
+
+‼ _explanation for `&mut`s_ ! {begin}
+
+The use of mutable references seems to break 
+the actor model; 
+however, 
+
+‼ _explanation for `&mut`s_ ! {end}
+
+
+
+We can then automatically generate a TLA⁺ spec (with lots of spurious behaviour). 
 Still, 
 this lets us extract conceptual model of 
 the stateright implementation. 
 In fact, 
 here, we are re-using ideas 
-from the [_ReActor_ Specification Language, §3](https://cs.emis.de/LNI/Proceedings/Proceedings213/127.pdf), 
-which provides TLA+ semantics for 
+from the [_ReActor_ Specification Language, §3](https://cs.emis.de/LNI/Proceedings/Proceedings213/127.pdf),
+which provides TLA⁺ semantics for 
 (a specific class of) actor systems. 
 For a quick  intro to actors, 
 see e.g., [this blog post](https://bbengfort.github.io/2018/08/actor-model/)
@@ -191,7 +266,7 @@ the TLC model check
 
 
 ## Untyped Sets vs. “actual”  data-types 
-As TLA+ does not have any types (since everything is a set), 
+As TLA⁺ does not have any types (since everything is a set), 
 one probably has to add type annotations, 
 which allow to derive the corresponding types in rust. 
 A restrictive way to do this is to enforce the type system 
@@ -228,11 +303,11 @@ similary, what about authentication of message senders?
 
 ## The state of the system, as contents of variables
 
-It is non-trivial to divide the state of a TLA+-spec. 
+It is non-trivial to divide the state of a TLA⁺-spec. 
 In fact, 
 [Hewitt states](http://lambda-the-ultimate.org/node/5181?from=200&comments_per_page=200) even claims that
 
-> TLA+ incorrectly treats state as global,
+> TLA⁺ incorrectly treats state as global,
  
 although this [might actually be exaggerated](https://pron.github.io/posts/tlaplus_part1).
 The take away is, 
@@ -247,7 +322,7 @@ which are sets consisting of all messages that have been sent.
 Moreover, 
 actions should only access local state in their pre-codition. 
 Thus, 
-as soon as two TLA+ actions access the same (“slice” of a) variable, 
+as soon as two TLA⁺ actions access the same (“slice” of a) variable, 
 the two actions belong to the same actor. 
 This will become clearer by looking at an example. 
 
@@ -319,13 +394,13 @@ which state is local to the resource managers.
 In the long term, 
 we are looking to map back and forth between
 
-1. a fully formal spec, e.g. in TLA+, in principle executable---model checkable is enough!
+1. a fully formal spec, e.g. in TLA⁺, in principle executable---model checkable is enough!
 
 2. a (protoype) implementation. 
 
 ## model options for the formal spec
 
-There might actually be better modelling languages than TLA+. 
+There might actually be better modelling languages than TLA⁺. 
 One simple example that comes to mid is Communicating Machines
 
 [McScMc: {[…]} Verification of Communicating Machines](https://link.springer.com/chapter/10.1007/978-3-642-28756-5_34)
@@ -338,7 +413,6 @@ A buzzword that needs to be dropped again are bi-directional transformations,
 a general idea. 
 It comes in several flavours, 
 e.g., so-called [lenses](https://bryceclarke.github.io/The_Double_Category_Of_Lenses_Phd_Thesis.pdf).
-
 
 # misc 
 
@@ -357,7 +431,7 @@ mentions the actor model for vertical scaling.
 [^1]: Triple graph grammars might actually be useful 
     in that they allow to specify the protocol using [graph transformation](https://en.wikipedia.org/wiki/Graph_rewriting), which vastly generalize [Petri nets](https://en.wikipedia.org/wiki/Petri_net). 
 
-[^2]: There is a subset of TLA+ specifications, which actually mimick simple graph transformation. 
+[^2]: There is a subset of TLA⁺ specifications, which actually mimick simple graph transformation. 
 
 [^3]: It is a vector, to be precise.
 
