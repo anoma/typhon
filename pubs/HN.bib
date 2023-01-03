@@ -1,3 +1,21 @@
+@inproceedings{podc18Herlihy,
+author = {Herlihy, Maurice},
+title = {Atomic Cross-Chain Swaps},
+year = {2018},
+isbn = {9781450357951},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/3212734.3212736},
+doi = {10.1145/3212734.3212736},
+abstract = {An atomic cross-chain swap is a distributed coordination task where multiple parties exchange assets across multiple blockchains, for example, trading bitcoin for ether.An atomic swap protocol guarantees (1) if all parties conform to the protocol, then all swaps take place, (2) if some coalition deviates from the protocol, then no conforming party ends up worse off, and (3) no coalition has an incentive to deviate from the protocol.A cross-chain swap is modeled as a directed graph D, whose vertexes are parties and whose arcs are proposed asset transfers. For any pair (D, L), where D = (V,A) is a strongly-connected directed graph and L ⊂ V a feedback vertex set for D, we give an atomic cross-chain swap protocol for D, using a form of hashed timelock contracts, where the vertexes in L generate the hashlocked secrets. We show that no such protocol is possible if D is not strongly connected, or if D is strongly connected but L is not a feedback vertex set. The protocol has time complexityO(diam(D)) and space complexity (bits stored on all blockchains) O(|A|2).},
+booktitle = {Proceedings of the 2018 ACM Symposium on Principles of Distributed Computing},
+pages = {245–254},
+numpages = {10},
+keywords = {blockchain, atomic swap},
+location = {Egham, United Kingdom},
+series = {PODC '18}
+}
+
 @InProceedings{opodis20HPaxos,
   author =	{Isaac Sheff and Xinwen Wang and Robbert van Renesse and Andrew C. Myers},
   title =	{{Heterogeneous Paxos}},

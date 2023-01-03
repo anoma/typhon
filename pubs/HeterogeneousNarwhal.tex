@@ -8,25 +8,20 @@
 \usepackage{subfig}
 \usepackage{enotez}
 \setenotez{counter-format=Alph}
-\usepackage{luatodonotes}%\usepackage{todonotes}%
+\usepackage[textsize=footnotesize]{luatodonotes}%\usepackage{todonotes}%
 \usepackage{xcolor}
-\newcommand{\nb}[1]{\todo[color=blue!60!black,shadow]{#1}}
+\newcommand{\nb}[1]{%
+  \todo[color=blue!60!black,shadow]{NB:\\ #1}%
+}
 
 \usepackage{newunicodechar}
 \input{UnicodeReplacements.tex}
 \theoremstyle{definition}
 \newtheorem{definition}{Definition}
 \usepackage{amsmath}
-\title{%
-  Heterogeneous Narwhal: % 
-  \\
-  a cross-chain mempool \Dag%
-}
-\author{Typhon Team Heliax}
-\date{\today}
-\usepackage{lmodern}
-\usepackage[utf8]{inputenc}
-\usepackage[T1]{fontenc}
+% \usepackage[T1]{fontenc}
+% \usepackage{lmodern}
+%\usepackage[utf8]{inputenc}
 \usepackage{xspace}
 % macros
 \newcommand{\tnote}[1]{
@@ -37,10 +32,22 @@
   \tnote{#1}%
   \normalmarginpar%
 }
-  
+
+\newcommand{\base}[1][ ]{%
+  base ledger%
+  \ifthenelse{\equal{#1}{ }}{}{#1}
+}
+\newcommand{\Base}[1][ ]{%
+  Base ledger
+  \ifthenelse{\equal{#1}{ }}{}{#1}
+}
+
+% \dag is defined to produce † unfortunately
 \newcommand{\DAG}[1][]{\textsc{Dag}#1\xspace}
 \newcommand{\Dag}[1][]{\textsc{dag}#1\xspace}
 
+\newcommand{\fifo}{\textsc{fifo}}
+\newcommand{\Fifo}{\textsc{Fifo}}
 \newcommand{\aka}[1][]{a.k.a.\xspace}
 \newcommand{\ie}[1][]{\emph{i.e.}, }
 \newcommand{\eg}[1][]{\emph{e.g.}, }
@@ -125,7 +132,41 @@
     {\node[rectangle,draw,fill=lightgray,inner sep=1.5pt,outer sep=0pt] (theNode){\textcolor{black}{\footnotesize  WH}};}%
   }%
 }
-\newcommand{\tx}[1][]{\tikz[baseline={([yshift=0pt]theNode.base)}]{\node[ellipse,fill=black,inner sep=.5pt,outer sep=0pt] (theNode){\textcolor{white}{\footnotesize \bf TX}};}#1}
+
+\newcommand{\anItemInline}[6][theNode]{%
+  % #1 the name of the node (just in case, remember picture is on)
+  % #2 shape (e.g., ellipse)
+  % #3 fill color (e.g., black)
+  % #4 draw color (e.g., green, or none)
+  % #5 text color (e.g., white)
+  % #6 the actual text (e.g., \bf TX)
+  \tikz[baseline={([yshift=0pt]#1.base)},remember picture]{%
+    \node[#2,fill=#3,draw=#4,inner sep=.5pt,outer sep=0pt] %
+    (#1){%
+      \textcolor{#5}{%
+        \footnotesize #6%
+      }%
+    };%
+  }%
+  % additional “decorations” via another pic, 
+  % (with `remember picture` and `overlay`)
+}
+
+\newcommand{\tx}[1][theTX]{%
+  \anItemInline[#1]%
+  {ellipse}%
+  {black}%
+  {none}%
+  {white}%
+  {\bf TX}%
+}
+% \newcommand{\tx}[1][]{%
+%   \tikz[baseline={([yshift=0pt]theNode.base)}]{%
+%     \node[ellipse,fill=black,inner sep=.5pt,outer sep=0pt] %
+%     (theNode){%
+%       \textcolor{white}{\footnotesize \bf TX\makebox[0pt][l]{\ensuremath{{}_{#1}}}}};%
+%   }%
+% }
 \newcommand{\es}{\tikz[baseline={([yshift=0pt]theNode.base)}]{\node[ellipse,fill=white,draw,thick,inner sep=.5pt,outer sep=0pt] (theNode){\textcolor{black}{\footnotesize TX}};}}
 \newcommand{\rnd}{\ensuremath{\mathrm{rnd}}}
 \newcommand{\cnt}{\ensuremath{\mathrm{cnt}}}
@@ -133,128 +174,92 @@
 % \usepackage[cmintegrals,cmbraces]{newtxmath}
 % \usepackage{ebgaramond-maths}
 % \usepackage{amssymb}
-% \usepackage{fontspec}
+\usepackage{fontspec}
 % \setmainfont{Asana-Math}
 
 %https://tex.stackexchange.com/questions/425098/which-opentype-math-fonts-are-available
 \usepackage{comment}
 %\includecomment{comment}
+\let\oldendnote\endnote
+\renewcommand{\endnote}[2][]{%
+  \marginnote{\oldendnote[#1]{#2}}%
+}
+\title{%
+  Heterogeneous Narwhal: % 
+  \\
+  a cross-chain mempool \Dag%
+}
+\author{Typhon Team Heliax}
+\date{\today}
 \begin{document}
 %\renewcommand{\todo}[2][]{}
 %\renewcommand{\endnote}[1]{#1}
 %\begin{comment}
 \maketitle
-\todo{%
-  logging is terminologi borrowed from César Sanchez, 
-  \emph{log-chain}
-}
 
 \begin{abstract}
   \noindent
-  Block \emph{chains} exhibit linear structure, 
-  resulting from a single reference to \emph{the} previous block.
+  Blockchains exhibit \emph{linear} structure, 
+  resulting from a \emph{single} reference to the previous block.
   If instead, 
-  each block may reference several previous blocks,
-  we can build directed acyclic graph (\Dag) of blocks.
+  each block may reference \emph{several} previous blocks,
+  we can build a \emph{directed acyclic graph} (\Dag) of blocks.
   In fact,
-  such “block \Dag[s]” are central to
-  several proposed consensus algorithms such as
-  \todo{references}. 
+  such “block \Dag[s]” are the basic data structure that
+  several recent consensus algorithms rely on,
+  \eg \Dag-rider, Bullshark, and Narwhal\&Tusk.\footnote{%
+    The respective references are, 
+  }
   These protocols build 
-  a growing “global” \Dag of transaction data such that, 
-  among other things,
+  a growing “global” \Dag of transaction data such that%
+  ---among other things---%
   ① every validator's local view is a sub-\Dag of the “global” \Dag and %
   ② every node of the “global” \Dag is
-  “logged” for inclusion into a total order of blocks.
-  The present paper shall refer to such “global” \Dag[s]
-  as {mempool \Dag[s]}, 
-  or \emph{mem-\Dag[s]}, for short. 
-
-  The paper generalizes 
-  Narwhal's single ledger mem-\Dag to
-  a cross-ledger mem-\Dag, 
-  dubbed Heterogenous Narwhal,  
-  providing the mempool counterpart for Heterogeneous Paxos. 
-  In principle,
-  Heterogeneous Narwhal (with Paxos) does away with the need for bridges. 
-  \todo{%
-    we actually need to explain how we can replace bridges!
+  “logged”\endnote{%
+    Logging is terminology borrowed from César Sanchez:
+    he likes to talk about \emph{log-chain}s,
+    or more verbose “mempool \emph{log system}”
+    cite \href{https://arxiv.org/abs/2206.11845}{%
+    Setchain: Improving Blockchain Scalability
+    with Byzantine Distributed Sets and Barriers}
   }
-  We also discuss the issues revolving around
-  the difference between scheduled for inclusion
-  and actual eventual inclusion.
+  for inclusion into a total order of blocks. 
+  Such “global” \Dag[s] will be the topic of the present paper, 
+  referred to as {Mempool \Dag[s]}, or \emph{mem-\slshape\Dag[s]}, 
+  for short.  
+
+  The paper introduces a cross-ledger mem-\Dag, 
+  generalizing Narwhal's single ledger mem-\Dag;
+  in analogy to Heterogeneous Paxos,
+  we dub it \emph{Heterogenous Narwhal}.   
+  Heterogeneous Narwhal\&Paxos are an alternative for bridges. 
+  \todo{%
+    we actually need to explain how heterogeneous Narwhal is 
+    1. an alternative to bridges
+    2. which benefits / drawback we have, in general
+    3. which parts are “implementation detail”.
+  }
+  We also describe how being scheduled for inclusion
+  should lead to eventual inclusion,
+  and which hurdles need to be taken to achieve this. 
 \end{abstract}
 
 \tableofcontents
-
 \section{Introduction}
 
-\paragraph{Motivation%
-\endnote{%
-  Paragraph 1: Motivation.
-  At a high level, 
-  what is the problem area you are working in and why is it important? 
-  It is important to set the larger context here. 
-  Why is the problem of interest and importance to 
-  the larger community?
-}%
+\todo[inline]{main contribs:\\[\baselineskip]
+  \begin{minipage}{1.0\linewidth}
+    - alternative to bridges (between very different chains ?)\\
+    - merging might be actually a very good thing (for very small chains)\\ 
+    - chimera chains (between big chains)
+  \end{minipage}\\[\baselineskip]
+  In summary,
+  we present a general framwork for building
+  a cross-chain ecosystem of pre-existing and new ledgers.  
 }
-Bridges%
-\st{ suck} %
-have been the source of sorrow in the past. 
-Even if they do work as intended, 
-at best, they connect a single pair of chains. 
-Building bridges between every pair of chains
-is ‼[expensive]. %
-We want to enable
-any number of participants with assets on several
-different ledgers\endnote{%
-    - base chains
-    - root chains
-    - ledgers 
-} to ‼[“interact” “directly”].
-\todo{explain “interact” “directly”}
-%\newcommand{\dl}[1][]{\textsc{dl}#1\xspace}(\dl[s])
-\todo[inline]{
-  argumentation flaw:
-  if we have a base ledger count of~\(n\), 
-  we will have a quadratic number of chimera chains as well,
-  i.e., (at least) one learner for each chimera chain. 
-}
-\paragraph{Probblem statement%
-  \endnote{%
-    Paragraph 2:
-    What is the specific problem considered in this paper? 
-    This paragraph narrows down the topic area of the paper. 
-    In the first paragraph you have established general context and importance.
-    Here you establish specific context and background. 
-  }%
-}
-‼[
-\tt How to enable any number of actors to interact directly
-with moderate ressource consumption and suitable latency, 
-us-ing only a “minimal” number validators on the involved base ledgers.
-%
-]
-The ideal solution would be 
-the atomic execution of a single transaction that
-makes reference to all invovled base ledgers.%
-\footnote{%
-  This assumes counterparty discovery 
-  before the transaction  is crafted.
-}%
-\xspace
-Can we operate a protocol
-that strikes a good compromise between
-the number of validators necessary to order (and execute) transactions,
-not spending more ressources than complete pair-wise bridging?
 
 
-
-
-\section{Overview: %
-  mem-\Dag[s], heterogeneity, etc.}
-\label{sec:overview}
+\section{Motivation / Background / Context}
 
 \subsection{Atomic cross-chain swaps}
 \label{sec:atom-trans-across}
@@ -271,12 +276,7 @@ not spending more ressources than complete pair-wise bridging?
   (2) if some coalition deviates from the protocol, 
   then no conforming party ends up worse off, and 
   (3) no coalition has an incentive to deviate from the protocol.
-  \todo{%
-    \href{https://dl.acm.org/doi/10.1145/3212734.3212736%
-    }{%
-      Atomic Cross-Chain Swaps%
-    } 
-  }
+\hfill\cite{podc18Herlihy} 
 \end{quote}
 
 \subsection{Let's start in the land of naïveté}
@@ -285,30 +285,64 @@ not spending more ressources than complete pair-wise bridging?
 \subsubsection{The impossible}
 \label{sec:impossible-concurrency}
 
-One simple 
-``ideal'' solution for \emph{safe}
-cross-chain swaps is the requirement that
-the two chains have
-``concurrent'' block inclusions
-and blocks refer to each other reciprocally.
-The only downside:
-this cannot be accomplished with references via hash.
+One simple ``ideal'' solution for cross-chain swaps is 
+``concurrent''  inclusion of 
+transactions in two blocks, one on each chain, 
+which refer to each other reciprocally.
+However, 
+this simply cannot be accomplished with hash links.
 
-\subsubsection{The perfectly safe solution}
-\label{sec:perfectly-safe}
+\subsubsection{A seemingly good situation}
+\label{sec:almost-safe}
 
-An ideal situation for
-scheduling cross-chain transactions
-in a \emph{combo block}  
-is proposing the next ``same'' block on two chains,
-at the same “moment”,
-e.g., if on is running two validators on two different chains,
-which get the right to propose the next block on both chains.
+Another naïve approach consists in
+% in a \emph{combo block}  
+% is proposing the next ``same'' block on two chains,
+% at the same “moment”,
+% e.g., if on 
+is running a validator on both involved chains. 
+Whenever the validator has the right to propose 
+the next block on both chains,
+we “simultaneously” propose one transaction on each chain. 
+However,
+we could “loose” the proposal spot,
+\eg if a view change is initiated on one of the two chains.
+\todo{%
+  describe in more detail 
+}
+Even worse,
+it could be that one of the proposals goes through,
+while the other gets “vetoed”.
 
-In fact, 
-we can do much better
-in terms of likelihood of getting a common spot
-on both chains.
+\subsubsection{The envisioned solution: chimera chains}
+\label{sec:envisioned-solution}
+We propose to establish a ledger that records transactions
+that involve two (or more) pre-existing chains%
+---dubbed \emph{chimera chain}. 
+If we want to speak in terms of bridges,
+our envisioned solution combines the ideas of trusted and trustless bridges.
+ \todo[inline]{%
+  add fine print on which bridges might actually do this already:
+  in particular, trustless bridges,
+  see \eg \url{https://ethereum.org/en/bridges/}
+}
+
+The chimera chains orders blocks with cross-chain transactions
+such that inclusion in 
+the chimera chain leads to (eventual) execution in the two \base[s]. 
+The seemingly simple principle for running the chimera chain
+is maximal usage of pre-existing validator sets.
+\endnote{%
+  though additional validators might want to join for 
+  the purpose of bridging for the purpose of chimera chains
+}
+In particular, we want
+\begin{enumerate}
+\item more than a single validator in the intersection of two quorums
+\item a protocol, 
+  that gives these validators the opportunity to propose \emph{combo block}
+  on a chimera chain. 
+\end{enumerate}
 \todo{
   explain in non-technical terms that
   the same-slot-on-both-chains situation
@@ -320,65 +354,18 @@ on both chains.
   for “quorum-pairs” between two chains,
   explain why it is still much cheaper
   than having a merged super-chain
+  (if it is ...)
 }
-
-\subsubsection{The risky fast track}
-\label{sec:fast-n-furious}
-
-The opposite extreme consists in
-not updating any (liveness) quorums
-and just hoping for “enough” overlap 
-of assumed to be live quorums:
-however,
-it might be the case
-that the intersections do 
-not hold enough honest validators.
-In the extreme,
-none.
-
-\subsubsection{First assessment in view of validator overlap}
-\label{sec:assessment-i}
-
-In view of a large overlap,
-note that both scenarios gain in practicability:
-if every pair of vaildator quorums
-has a large overlap,
-the increase in communication complexity is mitigated.
-Similarly,
-for the fast track, 
-if overlaps are of validator quorums are big enough,
-we have a good chance to have at least 
-one correct validator in their intersection.\endnote{%
-  research question:
-  can we add randomization \emph{orthogonally},
-  i.e.,
-  without changing the original algorithms
-  of heterogeneous narwhal / paxos
-}
-
-\subsubsection{Growing the overlap}
-\label{sec:growing-the-overlap}
-
-A natural question is how one could go 
-about getting a bigger overlap between two chains,
-for the sake of additional safety. 
-In fact,
-one could imagine some sort of 
-“auditing” nodes,
-which make it harder for Byzantine validators
-to trigger safety violations \cite[opodis20HPaxos].
-
-
-
 
 
 \subsection{Chimera chains}
 \label{sec:chimera-chains}
 
-\paragraph{Overview}
+% \paragraph{Overview}
 
-Starting from a fixed set of base ledgers, 
-each coming with quorum sets,%
+Assuming a fixed set of \base[s], 
+each of which have a set of quorums
+such that one of them “should” be live at any point in time,%
 \footnote{%
   This is a simplifying assumption,
   which we use only in the exposition.
@@ -392,372 +379,61 @@ each coming with quorum sets,%
 \todo{explain this}\xspace%
 chimera chains have the following phases:
 \begin{description}
-\item[Summoning] Among other things,
+\item[Spawn] %
+  Among other things,
   the genesis blocks are generated,
-  including links to the blocks 
+  including links to the blocks in all \base[s]
   that “summoned” the chimera chain. 
-\item[Bridging]
-\item[Retirement] 
+
+\item[Active]
+  The usual mode of operation,
+  in particular facilitating cross-chain transfers. 
+
+\item[Retire] 
+  Low activity or inconsistencies might call 
+  for retirement of the chimera chain. 
+
+\item[Merge]
+  In principle,
+  the ecosystems of two \base[s] do “completely” merge
+  such that the chimera chain is still performant enough.
+  In fact,
+  this might be a good thing:
+  smaller \base[s] are just joining larger ones.
+  Clearly,
+  there's a trade off,
+  between centralization and usability. 
 \end{description}
 
 The chimera chain has dedicated “administrative” transactions,
-e.g., 
+e.g.,
+for spawing
 
 
 
 
 
-\begin{description}
-\item[Requirement candidates]~\\
-  \begin{itemize}
-  \item
-    \emph{absolutism:}
-    if 
-    a transfer between two base ledgers is commited in 
-    a “healthy” chimera chain, 
-    then the transfer is also (essentially) commited in both ledgers
-    \endnote{%
-      Here, the question arises,
-      if a potential roll-back in case of 
-    },
-    i.e., eventually it will go through, unless we've got a “liveness fault”
-    \todo{whatever a liveness fault is}
-  \item 
-    \emph{justified absolutism:}
-    each consensus on an anchor block selection in 
-    a chimera chain needs “double consensus” from both chains,
-    i.e., 
-    effectiverly,
-    both chains need to approve the anchor block,
-    which might lead to liveness issues ? 
-    
-  \item
-    \emph{absolutism grounding:}
-    does each anchor block in the chimera chain
-    have also references to blocks in the underlying chain, 
-    “super-supporting” the anchor?
 
-  \item
-    \emph{user authorization:}
-    users may choose to effectively use
-    the chimera chain as a limited bridge,
-    “temporariliy” moving (some of their accounts)
-    to the chimera chain
-    \todo{%
-      what's the difference to the bridge then here?%
-    }
-  \item
-    \emph{user's ruling:}
-    moving assets into other chains
-    -- e.g., chimera but not necessarily --
-    for atomic settlement on the other chain
 
-    
-  \end{itemize}
-\end{description}
 
 
-\subsubsection{exerpting the %
-  \href{https://anoma.net/blog/heterogeneous-paxos-and-multi-chain-atomic-commits/}{%
-    blog post%
-  }
-}
-\label{sec:blog-post-excerpts}
 
-\paragraph{The intuitive goal}
 
-combo block
+\section{Overview: %
+  mem-DAGs, heterogeneity, etc.}
+\label{sec:overview}
 
-\begin{verbatim}
-    [rb]
-    /  \ 
-  [r]  [b]
-   |    |
-   |    |
-  [r]  [b]
-   |    |
-   |    |
-  [r]  [b]
-   |    |
-\end{verbatim}
-
-s.t.
-
-\begin{quote}
-  both [chains, r\&b,] agree to [unanimously] choose or [jointly] ignore the combo block.
-\end{quote}
-
-\begin{quote}
-  Fortunately, 
-  when there is a lot of overlap between
-  validator sets of different chains, 
-  these assumptions can become very reasonable.
-\end{quote}
-
-\begin{quote}
-  within \emph{same} consensus
-\end{quote}
-\todo{undefined}
-
-\begin{quote}
-  bisimulate
-\end{quote}
-\todo{clashes with bisimulation ‽}
-
-\begin{quote}
-  \textbf{It's Kind of Like a Bridge}
-
-  In some ways, 
-  our Heterogeneous Consensus could create something like 
-  a trusted bridge: 
-  it allows operations across multiple chains,
-  under specific trust assumptions. 
-  Other bridge designs tend to be based on multi-phase commits,
-  so ours will be faster and will not require locking assets.
-\end{quote}
-
-\begin{quote}
-  green quorum is sufficient to make green chain decide on a block without communicating with anyone else
-\end{quote}
-\todo{%
-  now,
-  a quorum suddenly seems independent of the green learner
- }
-
- \begin{quote}
-   Note that this would not be a problem if every red quorum had an intersection (featuring an honest participant) with every green quorum: red and green could avoid deciding contradictory things.
- \end{quote}
- \todo{check: 
-   there's no global weak quorum
-   and heterogeneous narwhal does not help either ?
- }
-
- \begin{quote}
-    Fortunately, we have some promising directions for solving this conundrum.
-  \end{quote}
-  \todo{e.g., ?}
-
-\begin{quote}
-    anyone following only blue transactions or only red transactions will not observe the fork
-\end{quote}
-\todo{unobserved forks: 
-  sounds terrible‼
-}
-
-  \begin{quote}
-  "move state" from, say, the purely blue chain to the blue-green chain when they want to do business with green smart contracts, and then back to the blue chain when they're done.
-\end{quote}
-\todo{
-  how ?
-  this sounds very much like a bridge,
-  and does not solve the game theoretic problem?
-}
-
-\begin{quote}
-  Each piece of state (each smart contract) needs application-specific code to decide which chain holds its lock at which time.
-\end{quote}
-\todo{
-  how to keep track of this ``locking table'' 
-}
-\begin{quote}
-  trusted by chains
-\end{quote}
-
-\begin{quote}
-  the transactions are actually executed together
-\end{quote}
-\todo{
-  well,
-  something like all execution engines do it (eventually?)
-}
-
-\begin{quote}
-  prove what messages are sent
-\end{quote}
-\todo{
-  proving what messages are sent \emph{by whom?}
-  users, validators, others, …
-}
-\subsubsection{On the %
-  \href{https://anoma.net/blog/heterogeneous-paxos-and-multi-chain-atomic-commits/}{%
-    blog post%
-  }
-}
-\label{sec:blog-post-discussion}
-
-\paragraph{Could we merge chains into chimera chains?}
-
-in other words,
-why would we at all want to “split” again?
-
-\begin{verbatim}
-  [r]  [b]
-   |    |
-   |    |
-  [r]  [b]
-    \  / 
-    [rb]
-    /  \ 
-  [r]  [b]
-   |    |
-   |    |
-  [r]  [b]
-   |    |
-   |    |
-  [r]  [b]
-   |    |
-\end{verbatim}
-
-\paragraph{random questions}
-
-\subparagraph{not all learners equal, in yet a different way}
-
-there are two very different type of learners:
-\begin{itemize}
-\item end-users: small stake, non-critical
-\item execution engines of validators: high stake, critical
-\end{itemize}
-
-
-
-
-\subparagraph{on immediate finality}
-which finality do we actually need ?
-
-\subparagraph{drawing on eigenlayer functionality?}
-can we
-
-\subparagraph{what about dynamic graphs?}
-all of
-\begin{itemize}
-\item validator sets  
-\item assumptions 
-\item learner sets
-\end{itemize}
-can change
-
-cf.
-\begin{quote}
-   Changing Quorums
-\end{quote}
-
-\subparagraph{who can initiate chimera chains / dynamic graphs?}
-\begin{description}
-\item[rig up] 
-\item[tear down] 
-\end{description}
-
-\subparagraph{%
-  on locks, not really, but ... 
-}
-what about garbage collection trigger 
-for logged mempools
-
-
-
-
-\paragraph{open issues}
-Here is an open list of topics to clarify;
-in principle, 
-these could be in the form of github issues\todo{ (to be discussed)}. 
-
-\subparagraph{certificates for honest behaviour}
-examples, what's missing?
-
-\subparagraph{evidence for dishonest behaviour}
-examples, what's missing?
-
-\subparagraph{garbage collection}
-\begin{itemize}
-\item to do or not to do
-\item how to do / how to avoid 
-\end{itemize}
-
-\subparagraph{It's gonna be better than all bridges out there ‼}
-the connection to bridges has to be spelled out \emph{explicitly},
-in excrutiating detail
-
-\subparagraph{different perspectives}
-the difficulty in describing---and understanding---Tʏᴘʜᴏɴ
-are the different perspectives that one has to keep in mind at each point in mind
-\begin{itemize}
-\item learner(s)
-\item validators / participants / workers
-\item designer
-\item attacker
-\item transaction batches ‽
-\item chains ‽
-\item something else ?
-\end{itemize}
-Thus, for every sentence, 
-one might get it wrong,
-if it is not clear who's perspective we are taking. 
-
-
-\subparagraph{what's shared batch looking like anywy?}
-
-\subparagraph{moving state}
-this is a phrase, 
-which begs the questions
-\begin{itemize}
-\item who is moving the state?
-\item how is state partitioned?
-\end{itemize}
-
-Leaving the capability to move state with the user
-is also an extra task the user must be willing to perform. 
-
-\subparagraph{“As Locks”}
-
-\texttt{chains as holding exclusive locks on state}
-
-this model transfers to “user's rule”
-
-
-
-
-
-\subparagraph{one of those statements to ponder about}
-
-\begin{quote}
-  This would allow applications to "move data" to shared chains where atomic commits are possible, and then back. What we need is a specific interface indicating when such moves are safe, when atomicity in batches is preserved, and a way to easily move state from one chain to another.
-\end{quote}
-
-
-
-
-
-\subparagraph{best case scenario}
-great
-\begin{markdown}
-  - that is a good example of quorums
-  - dosn't explain why atomic commit is possible
-\end{markdown}
-\subparagraph{\texttt{Shared batch} of transactions}
-now,
-what's a shared batch anyway?
-a batch of transactions in a combo block ?
-
-
-
-
-\begin{itemize}
-\item 
-  do chimeara chains need to acquire and release “ownership” ?
-
-
-  \begin{itemize}
-  \item 
-  \end{itemize}
-
-\end{itemize}
-
-
-
-
-
-
-
+Recall that mem-\Dag[s] build a \Dag of blocks,
+each referencing a quorum of previous blocks;
+a block in the \Dag can be \emph{committed} 
+(using virtually any consensus algorithm)
+if it is referenced by a weak quorum (from the next “layer” in the \Dag). 
+An example of such a \Dag
+is shown in \fig\ref{fig:blue_dag}. 
+In the present paper,
+we describe a protocol for concurrent building 
+of entangled \Dag[s] for a whole ecosystem of different ledgers,
+in the spirit of a cross-chain world. 
 
 \begin{figure}[htb]
   \centering
@@ -766,9 +442,6 @@ a batch of transactions in a combo block ?
   \label{fig:blue_dag}
 \end{figure}
 
-
-
-Roughly, we have two complementary protocols running concurrently: 
 
 \begin{figure}[htb]
   \centering
@@ -784,22 +457,37 @@ Roughly, we have two complementary protocols running concurrently:
 \end{tikzpicture}\protect\todo{where to put the signed quorums ?!}
   \caption%
   [Interdependence of availability and integrity]%
-  {Illustration of the interdependence of the availability and integrity protocols}
+  {Illustration of 
+    the interdependence of the availability and 
+    integrity protocols}
   \label{fig:availability-n-integrity}
 \end{figure}
+
+
+
+Roughly, we have two complementary protocols running concurrently: 
  \begin{enumerate}
  \item the availability protocol; and
  \item the integrity protocol. 
  \end{enumerate}
  The availability protocol makes sure
- that transaction data is made available as long as necessary.
+ that transaction data is available 
+ as long as necessary;\footnote{%
+   There is some fine print concerning 
+   the conditions under which this is actually the case. 
+ }
+ moreover,
+ the availability protocol 
+ is tasked with keeping available 
+ the \emph{signed headers},
+ \todo[inline]{explain \texttt{signed headers}}
+ which the integrity protocol produces. 
+
  The integrity protocol makes sure that 
  each validator can only produce one block in each of its (local) rounds. 
- However, % 
- the integrity protocol produces additional data, %
- besides transactions, 
- which leads to additional data to be taken care of by the availability protocol.
 
+
+ 
 
 \section{Architecture and communication patterns}
 \label{sec:communication-patterns}
@@ -883,11 +571,11 @@ Let us fix an arbitrary learner graph.
 \begin{definition}[Universal Quorum]
   \label{def:universal-quorum}
   A universal quorum is a set
-  that contains a qourum for each learner,
-  \ie a set \(q\) such that \(q ∈ \Q a\)
-  for all \(a ∈\Learner\). 
+  that contains a qourum for each learner. 
 \end{definition}
-
+\todo{%
+“upward” closure for live quorums seems a “wrong” assumption
+}
 
 
 \section{Worker actions}
@@ -896,18 +584,23 @@ Every validator has the same number of workers.
 Thus,
 each worker can be assigned a unique \emph{mirror worker} 
 on every other validator.
-We shall adopt the convention that
-mirror workers of each other share the same subscript,
-\eg in \fig\ref{fig:validators},
+We shall adopt the convention of using the same subscript
+for mirror workers of each other. % 
+Thus,
+in \fig\ref{fig:validators},
 workers~\(w_2\) and~\(v_2\) are mirror workers of each other.
-Workers are only tasked with “bookkeeping” matters: 
+In the integrity protocol,
+workers are only tasked with “bookkeeping” matters; 
+in particular,
 they keep track of (batches of) transactions,
 their hashes,
 and erasure coding shares;
-they only pass on hashed data and header information 
-to their primaries. 
-Primaries never send messages back to their workers. 
-
+they only pass on hashed data and 
+block header information to their primaries.
+The idea is to keep the network bandwidth usage of primaries 
+as low as possible. 
+For example,
+primaries do not need to send messages back to their workers. 
 
 \subsection{The pure availability protocol: worker actions}
 \label{sec:base-protocol}
@@ -937,13 +630,17 @@ Primaries never send messages back to their workers.
     We share this assumption with Byzantine set consensus \cite{RedBelly}. 
     Transaction fees are one way to avoid flooding attacks,
     making the latter prohibitively expensive. 
+    For example,
+    we might assume a \fifo-buffer
+    although it is more likely
+    a priority queue,
+    based on a combination of fees and
+    quality of service considerations. 
   }
   Transactions should be buffered using reasonably fast memory. 
-  \todo[inline]{When is the buffer %
-  ①\emph{flushed} and/or %
-  ②\emph{emptied} %
-  ?
-  Emptying not a concern in this paper / future work. 
+  \endnote{%
+    This matter should be discussed
+    in the context of \textsc{p2p}. 
   }
 
 \item[Transaction distribution (\tx⇒)]
@@ -1336,7 +1033,7 @@ Thus,
 we can finish the description of the protocol, 
 by filling in the additional data and steps in the typical phase
 of the availability-protocol 
-(see also Figure~\ref{fig:data-structures},
+(see also \fig\ref{fig:data-structures},
 for the difference between headers at genesis and the typical phase). 
 
 \begin{figure}[htb]
@@ -1661,12 +1358,68 @@ to storing all blocks until genesis
 \appendix
 \printendnotes
 
-\end{document}
+
 \section{food for thought}
 \subsection{new}
 
 
+
+\subsubsection{some of Tobias' brainstorming}
+how can we make chimera chains safer?
+
+\begin{description}
+\item[Requirement candidates]~\\
+  \begin{itemize}
+  \item
+    \emph{absolutism:}
+    if 
+    a transfer between two base ledgers is commited in 
+    a “healthy” chimera chain, 
+    then the transfer is also (essentially) commited in both ledgers
+    \endnote{%
+      Here, the question arises,
+      if a potential roll-back in case of 
+    },
+    i.e., eventually it will go through, unless we've got a “liveness fault”
+    \todo{whatever a liveness fault is}
+  \item 
+    \emph{justified absolutism:}
+    each consensus on an anchor block selection in 
+    a chimera chain needs “double consensus” from both chains,
+    i.e., 
+    effectiverly,
+    both chains need to approve the anchor block,
+    which might lead to liveness issues ? 
+    
+  \item
+    \emph{absolutism grounding:}
+    does each anchor block in the chimera chain
+    have also references to blocks in the underlying chain, 
+    “super-supporting” the anchor?
+
+  \item
+    \emph{user authorization:}
+    users may choose to effectively use
+    the chimera chain as a limited bridge,
+    “temporariliy” moving (some of their accounts)
+    to the chimera chain
+    \todo{%
+      what's the difference to the bridge then here?%
+    }
+  \item
+    \emph{user's ruling:}
+    moving assets into other chains
+    -- e.g., chimera but not necessarily --
+    for atomic settlement on the other chain
+
+    
+  \end{itemize}
+\end{description}
+
+
 \subsection{old}
+
+\subsubsection{}
 
 
 \begin{itemize}
@@ -1741,7 +1494,7 @@ isn't it rather a **promise/pledge**
 \begin{verbatim}
 does it make sense to call these learner blocks, possibly even certified learner blocks?
 \end{verbatim}
-\item about \tx[s]: 
+\item about \tx{s}: 
 \begin{verbatim}
   a learner might actually ignore a big chuck of transactions?
 \end{verbatim}
@@ -1922,7 +1675,7 @@ This is seen as follows,
 \item 
 \end{itemize}
 
-\paragraph{learner-specific \Dag structure}
+\paragraph{learner-specific DAG structure}
 
 \section{Erasure coding}
 The worker that has received a transaction from a client
@@ -2002,6 +1755,418 @@ over several learners%
 We assume that each transition carries enough information 
 to instantly deduce which part of the global state is accessed,
 possibly distinguishing between reading and writing. 
+
+\section{Old Intro}
+
+\paragraph{Motivation%
+\endnote{%
+  Paragraph 1: Motivation.
+  At a high level, 
+  what is the problem area you are working in and why is it important? 
+  It is important to set the larger context here. 
+  Why is the problem of interest and importance to 
+  the larger community?
+}%
+}
+Bridges%
+\st{ suck} %
+have been the source of sorrow in the past. 
+Even if they do work as intended, 
+at best, they connect a single pair of chains. 
+Building bridges between every pair of chains
+is ‼[expensive]. %
+Moreover, 
+we want that any number of participants,
+holding assets on several \emph{different} ledgers\endnote{%
+    - base chains
+    - root chains
+    - ledgers 
+} to ‼[“interact” “directly”].
+\todo{explain “interact” “directly”}
+%\newcommand{\dl}[1][]{\textsc{dl}#1\xspace}(\dl[s])
+\todo[inline]{
+  argumentation flaw:
+  if we have a base ledger count of~\(n\), 
+  we will have a quadratic number of chimera chains as well,
+  i.e., (at least) one learner for each chimera chain. 
+}
+\paragraph{Probblem statement%
+  \endnote{%
+    Paragraph 2:
+    What is the specific problem considered in this paper? 
+    This paragraph narrows down the topic area of the paper. 
+    In the first paragraph you have established general context and importance.
+    Here you establish specific context and background. 
+  }%
+}
+‼[
+\tt How to enable any number of actors to interact directly
+with moderate ressource consumption and suitable latency, 
+us-ing only a “minimal” number validators on the involved base ledgers.
+%
+]
+The ideal solution would be 
+the atomic execution of a single transaction that
+makes reference to all invovled base ledgers.%
+\footnote{%
+  This assumes counterparty discovery 
+  before the transaction  is crafted.
+}%
+\xspace
+Can we operate a protocol
+that strikes a good compromise between
+the number of validators necessary to order (and execute) transactions,
+not spending more ressources than complete pair-wise bridging?
+
+{
+  \Huge the above does not cut it
+}
+
+\section{Some ideas for how to explain things}
+
+\subsubsection{The risky fast track}
+\label{sec:fast-n-furious}
+
+The opposite extreme consists in
+not updating any (liveness) quorums
+and just hoping for “enough” overlap 
+of assumed to be live quorums:
+however,
+it might be the case
+that the intersections do 
+not hold enough honest validators.
+In the extreme,
+none.
+
+\subsubsection{First assessment in view of validator overlap}
+\label{sec:assessment-i}
+
+In view of a large overlap,
+note that both scenarios gain in practicability:
+if every pair of vaildator quorums
+has a large overlap,
+the increase in communication complexity is mitigated.
+Similarly,
+for the fast track, 
+if overlaps are of validator quorums are big enough,
+we have a good chance to have at least 
+one correct validator in their intersection.\endnote{%
+  research question:
+  can we add randomization \emph{orthogonally},
+  i.e.,
+  without changing the original algorithms
+  of heterogeneous narwhal / paxos
+}
+
+\subsubsection{Growing the overlap}
+\label{sec:growing-the-overlap}
+
+A natural question is how one could go 
+about getting a bigger overlap between two chains,
+for the sake of additional safety. 
+In fact,
+one could imagine some sort of 
+“auditing” nodes,
+which make it harder for Byzantine validators
+to trigger safety violations \cite[opodis20HPaxos].
+
+
+
+\subsection{Tobias's corner}
+
+\subsubsection{excerpting the %
+  \href{https://anoma.net/blog/heterogeneous-paxos-and-multi-chain-atomic-commits/}{%
+    blog post%
+  }
+}
+\label{sec:blog-post-excerpts}
+
+\paragraph{The intuitive goal}
+
+combo block
+
+\begin{verbatim}
+    [rb]
+    /  \ 
+  [r]  [b]
+   |    |
+   |    |
+  [r]  [b]
+   |    |
+   |    |
+  [r]  [b]
+   |    |
+\end{verbatim}
+
+s.t.
+
+\begin{quote}
+  both [chains, r\&b,] agree to [unanimously] choose or [jointly] ignore the combo block.
+\end{quote}
+
+\begin{quote}
+  Fortunately, 
+  when there is a lot of overlap between
+  validator sets of different chains, 
+  these assumptions can become very reasonable.
+\end{quote}
+
+\begin{quote}
+  within \emph{same} consensus
+\end{quote}
+\todo{undefined}
+
+\begin{quote}
+  bisimulate
+\end{quote}
+\todo{clashes with bisimulation ‽}
+
+\begin{quote}
+  \textbf{It's Kind of Like a Bridge}
+
+  In some ways, 
+  our Heterogeneous Consensus could create something like 
+  a trusted bridge: 
+  it allows operations across multiple chains,
+  under specific trust assumptions. 
+  Other bridge designs tend to be based on multi-phase commits,
+  so ours will be faster and will not require locking assets.
+\end{quote}
+
+\begin{quote}
+  green quorum is sufficient to make green chain decide on a block without communicating with anyone else
+\end{quote}
+\todo{%
+  now,
+  a quorum suddenly seems independent of the green learner
+ }
+
+ \begin{quote}
+   Note that this would not be a problem if every red quorum had an intersection (featuring an honest participant) with every green quorum: red and green could avoid deciding contradictory things.
+ \end{quote}
+ \todo{check: 
+   there's no global weak quorum
+   and heterogeneous narwhal does not help either ?
+ }
+
+ \begin{quote}
+    Fortunately, we have some promising directions for solving this conundrum.
+  \end{quote}
+  \todo{e.g., ?}
+
+\begin{quote}
+    anyone following only blue transactions or only red transactions will not observe the fork
+\end{quote}
+\todo{unobserved forks: 
+  sounds terrible‼
+}
+
+  \begin{quote}
+  "move state" from, say, the purely blue chain to the blue-green chain when they want to do business with green smart contracts, and then back to the blue chain when they're done.
+\end{quote}
+\todo{
+  how ?
+  this sounds very much like a bridge,
+  and does not solve the game theoretic problem?
+}
+
+\begin{quote}
+  Each piece of state (each smart contract) needs application-specific code to decide which chain holds its lock at which time.
+\end{quote}
+\todo{
+  how to keep track of this ``locking table'' 
+}
+\begin{quote}
+  trusted by chains
+\end{quote}
+
+\begin{quote}
+  the transactions are actually executed together
+\end{quote}
+\todo{
+  well,
+  something like all execution engines do it (eventually?)
+}
+
+\begin{quote}
+  prove what messages are sent
+\end{quote}
+\todo{
+  proving what messages are sent \emph{by whom?}
+  users, validators, others, …
+}
+\subsubsection{On the %
+  \href{https://anoma.net/blog/heterogeneous-paxos-and-multi-chain-atomic-commits/}{%
+    blog post%
+  }
+}
+\label{sec:blog-post-discussion}
+
+\paragraph{Could we merge chains into chimera chains?}
+
+in other words,
+why would we at all want to “split” again?
+
+\begin{verbatim}
+  [r]  [b]
+   |    |
+   |    |
+  [r]  [b]
+    \  / 
+    [rb]
+    /  \ 
+  [r]  [b]
+   |    |
+   |    |
+  [r]  [b]
+   |    |
+   |    |
+  [r]  [b]
+   |    |
+\end{verbatim}
+
+\paragraph{random questions}
+
+\subparagraph{not all learners equal, in yet a different way}
+
+there are two very different type of learners:
+\begin{itemize}
+\item end-users: small stake, non-critical
+\item execution engines of validators: high stake, critical
+\end{itemize}
+
+
+
+
+\subparagraph{on immediate finality}
+which finality do we actually need ?
+
+\subparagraph{drawing on eigenlayer functionality?}
+can we
+
+\subparagraph{what about dynamic graphs?}
+all of
+\begin{itemize}
+\item validator sets  
+\item assumptions 
+\item learner sets
+\end{itemize}
+can change
+
+cf.
+\begin{quote}
+   Changing Quorums
+\end{quote}
+
+\subparagraph{who can initiate chimera chains / dynamic graphs?}
+\begin{description}
+\item[rig up] 
+\item[tear down] 
+\end{description}
+
+\subparagraph{%
+  on locks, not really, but ... 
+}
+what about garbage collection trigger 
+for logged mempools
+
+
+
+
+\paragraph{open issues}
+Here is an open list of topics to clarify;
+in principle, 
+these could be in the form of github issues\todo{ (to be discussed)}. 
+
+\subparagraph{certificates for honest behaviour}
+examples, what's missing?
+
+\subparagraph{evidence for dishonest behaviour}
+examples, what's missing?
+
+\subparagraph{garbage collection}
+\begin{itemize}
+\item to do or not to do
+\item how to do / how to avoid 
+\end{itemize}
+
+\subparagraph{It's gonna be better than all bridges out there ‼}
+the connection to bridges has to be spelled out \emph{explicitly},
+in excrutiating detail
+
+\subparagraph{different perspectives}
+the difficulty in describing---and understanding---Tʏᴘʜᴏɴ
+are the different perspectives that one has to keep in mind at each point in mind
+\begin{itemize}
+\item learner(s)
+\item validators / participants / workers
+\item designer
+\item attacker
+\item transaction batches ‽
+\item chains ‽
+\item something else ?
+\end{itemize}
+Thus, for every sentence, 
+one might get it wrong,
+if it is not clear who's perspective we are taking. 
+
+
+\subparagraph{what's shared batch looking like anywy?}
+
+\subparagraph{moving state}
+this is a phrase, 
+which begs the questions
+\begin{itemize}
+\item who is moving the state?
+\item how is state partitioned?
+\end{itemize}
+
+Leaving the capability to move state with the user
+is also an extra task the user must be willing to perform. 
+
+\subparagraph{“As Locks”}
+
+\texttt{chains as holding exclusive locks on state}
+
+this model transfers to “user's rule”
+
+
+
+
+
+\subparagraph{one of those statements to ponder about}
+
+\begin{quote}
+  This would allow applications to "move data" to shared chains where atomic commits are possible, and then back. What we need is a specific interface indicating when such moves are safe, when atomicity in batches is preserved, and a way to easily move state from one chain to another.
+\end{quote}
+
+
+
+
+
+\subparagraph{best case scenario}
+great
+\begin{markdown}
+  - that is a good example of quorums
+  - dosn't explain why atomic commit is possible
+\end{markdown}
+\subparagraph{\texttt{Shared batch} of transactions}
+now,
+what's a shared batch anyway?
+a batch of transactions in a combo block ?
+
+
+
+
+\begin{itemize}
+\item 
+  do chimeara chains need to acquire and release “ownership” ?
+
+  \begin{itemize}
+  \item 
+  \end{itemize}
+
+\end{itemize}
 
 
 \end{document}
