@@ -1,20 +1,24 @@
 ---
-title: "From TLA⁺ to “stateright” … and back again"
+title: "From TLA⁺ to “stateright” … or the other way around"
 author: ᚦ
 ---
 
 # Generalities
 
 The problem at hand is 
-“match” (formal) specifications with their implementation—‍‍in general, 
+“matching” (formal) specifications with their implementation—‍‍in general, 
 and in particular for 
 [Typhon](https://specs.anoma.net/main/architecture/consensus/typhon.html); 
 the latter is—_very roughyly_—the 
 underlying L1 of [Anoma](https://anoma.net/),
-developed by [Heliax](https://heliax.dev/)/. 
+developed by [Heliax](https://heliax.dev/). 
 The good news is that there are approaches that allow to update 
-_either one_ of the specification and the code, 
-and get candidates for “best fixes” of the other side. 
+_either one_ of the specification or the code, 
+which then determines candidates for “best fixes” on the other end. 
+However, 
+even a uni-directional transformation 
+from stateright code to TLA⁺ specifications
+is non-trivial. 
 
 ## Some theory: `bx` frameworks
 
@@ -29,6 +33,23 @@ In fact,
 actions in TLA⁺ specifications can be written in 
 a pre-/post-condition style, 
 mimicking the pre- and post-sets of Petri nets.[^2] 
+
+## Actor model/models and [ᴀᴄᴛᴏʀꜱ](https://dspace.mit.edu/handle/1721.1/6952)
+
+We will give a short review of the actor model, 
+as developped by [Agha](https://dspace.mit.edu/handle/1721.1/6952). 
+Following _op. cit._, each actor is specified by three entities:
+
+1. a finite set of communications sent to other actors;
+2. a new behavior 
+   (which will govern the response to the next communication processed); 
+   and,
+3. a finite set of new actors created.
+
+Interestingly, 
+
+> the behavior of an actor can be _history sensitive_.
+
 
 
 # Comparison of TLA⁺ and stateright
@@ -96,20 +117,26 @@ This model checking feature is at best experimental in stateright.
 Stateright provides arbitrary `rust`-function calls. 
 
 
-## Summary
+## Summary of the comparison of `stateright` and TLA⁺
 
-For the purpose of translation, 
-going from TLA⁺ to stateright is in theory always possible, 
-as soon as the involved sets are finite;
-however, 
-is it natural?
-In fact, 
-it could be better to have an opposite translation, 
-from stateright `Actor`-implementations 
-to TLA⁺ models. 
+Concerning translating formal specifications into code 
+and _vice versa_: 
 
+- going from TLA⁺ to stateright is in theory always possible 
+  (as soon as the involved sets are finite);
 
-# Sketching the _image_ of _actor-based_ stateright in TLA⁺
+- translation  `stateright`-code, i.e., `Actor`-implementations, to TLA⁺ models
+  has to deal with arbitrary rust calls. 
+
+The action of the arbitrary rust calls are of course an issue, 
+which one needs to be aware of. 
+However, 
+the code generation approach is likely to suffer a lot of issues, 
+including the usefulness and performance of the code. 
+We thus approach the _prima facie_ more difficult approach:
+generating TLA⁺ specs from `stateright` code. 
+
+# Sketching the _image_ of _actor-based_ `stateright` in TLA⁺
 
 Even if rust function calls are an obvious challenge,
 in theory, 
@@ -123,7 +150,12 @@ that follow the actor-based approach,
 as each function call of an actor _should_ only be able 
 to change the actors state. 
 
+‼ 
+the `latest` version is `0.29.0` 
+⇒ replace `latest` with `0.29.0` in the code references below and elsewhere
+¡
 
+## Reviewing actors in stateright 
 The
 [`Actor`-trait](https://docs.rs/stateright/latest/src/stateright/actor.rs.html#243-286)
 (see also the excerpt below)
@@ -164,13 +196,87 @@ pub trait Actor: Sized {
 }
 ```
 
-‼ _explanation for `&mut`s_ ! {begin}
+Let us go in more detail over this code, 
+making the connection to the actor model along the way. 
+Each actor implementation must define 
+
+- a static type for message it can send and receive, 
+  namely `Msg`; 
+- a static type for the private state 
+  that the actor can be at any point in time;
+- ‼ how are we “supposed” to use the initialization ¡
+
+
+
+‼ _explanation for `&mut`s_ 
 
 The use of mutable references seems to break 
 the actor model; 
 however, 
 
-‼ _explanation for `&mut`s_ ! {end}
+¡
+
+### Operational semantics of actor models in `stateright`
+
+The operational semantics is in terms of 
+a  labelled transitions system (ʟᴛꜱ), 
+which, roughly, is the least common denominator of TLA⁺ and `stateright`.
+A ʟᴛꜱ consists of
+
+- a set of states, and
+
+- a family of transition relations, which is indexed over 
+
+- a set of labels. 
+
+A _transition_ is an element of some transition relation, 
+i.e., a triple $(x,l,y)$ 
+consisting of 
+
+- $x$, the state in which the transition is enabled;
+- $y$, the state that the transition leads to; and
+- $l$, the transition label $l$.
+
+
+
+
+
+
+#### The state of an actor model in `stateright` 
+
+
+The transition system of an `ActorModel` is defined by the 
+[`next_state`](https://docs.rs/stateright/latest/src/stateright/actor/model.rs.html#241-308). 
+As can be seen from the signature
+```rust
+fn next_state(&self, x: &Self::State, a: Self::Action) -> Option<Self::State>
+```
+it is a function, which maps a state and an action to _the_ next state
+(if the action is enabled). 
+Thus, `stateright` assumes that all transition relations are partial functions. 
+Each action is either 
+1. [message delivery](https://docs.rs/stateright/0.29.0/stateright/actor/enum.ActorModelAction.html#variant.Deliver);
+2. [timeout](https://docs.rs/stateright/0.29.0/stateright/actor/enum.ActorModelAction.html#variant.Timeout); or
+3. [message loss](https://docs.rs/stateright/0.29.0/stateright/actor/enum.ActorModelAction.html#variant.Drop). 
+We now describe 
+how `stateright` handles each of these cases. 
+
+
+#### [Message delivery](https://docs.rs/stateright/latest/src/stateright/actor/model.rs.html#248-287)
+
+The crucial point of message delivery is 
+[calling](https://docs.rs/stateright/latest/src/stateright/actor/model.rs.html#259)
+the receiving actor's `on_msg` function. 
+It is called with a “empty” output signal, 
+i.e., the output is essentially a return value of the `on_msg`-function. 
+Moreover, 
+the actor's state is 
+
+
+
+
+1. https://docs.rs/stateright/0.29.0/stateright/actor/enum.ActorModelAction.html
+
 
 
 
