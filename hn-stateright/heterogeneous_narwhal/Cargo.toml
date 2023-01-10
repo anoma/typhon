@@ -1,0 +1,11 @@
+[package]
+name = "paradigmatic_actor_system"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+env_logger = "0.7"
+serde_json = "1.0"
+stateright = "0.29"
