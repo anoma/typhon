@@ -29,11 +29,16 @@ struct WorkerState;
 #[derive(Clone,Debug,Eq,PartialEq,Hash)]
 struct PrimaryState;
 
+// the state type of clients
+#[derive(Clone,Debug,Eq,PartialEq,Hash)]
+struct ClientState;
+
 // states can be either of a worker or a primary
 #[derive(Clone,Debug,Eq,PartialEq,Hash)]
 enum StateEnum {
     Worker(WorkerState),
     Primary(PrimaryState),
+    Client(ClientState),
 }
 
 use crate::StateEnum::*;
@@ -54,17 +59,22 @@ trait LearnerGraph{
 }
 
 
+type ValidatorID = u64;
+
+type WorkerIndex = u64;
 
 #[derive(Clone)]
 struct WorkerActor{
-    // some immutable information
-    info : (), 
+    // the index of a worker
+    index : WorkerIndex,
+    primary : ValidatorID,
 }
+
 
 #[derive(Clone)]
 struct PrimaryActor{
     // some immutable information
-    info : (), 
+    id : ValidatorID, 
 }
 
 impl Actor for WorkerActor {
