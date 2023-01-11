@@ -1,17 +1,23 @@
-// `main.rs` of heterogeneous narwhal
+// `main.rs` of Heterogeneous Narwhal
 
 use stateright::actor::{*};
-use std::borrow::Cow; // https://doc.rust-lang.org/std/borrow/enum.Cow.html
+// clone-on-write → doc.rust-lang.org/std/borrow/enum.Cow.html
+use std::borrow::Cow; 
+// for spawning actors (locally)
 // use std::net::{SocketAddrV4, Ipv4Addr};
+
+// for learner graphs
+use std::collections::HashMap;
+use std::iter::Iterator;
 
 // Dummy Message Kind
 #[derive(Clone,Debug,Eq,PartialEq,Hash)]
-struct Dummy; // FIXME
+struct DummyMessageType; // PLACEHOLDER
 
 // the enumeration of all possible message types
 #[derive(Clone,Debug,Eq,PartialEq,Hash)]
 enum MessageEnum {
-    SomeKindOfMessage(Dummy), // FIXME
+    SomeKindOfMessage(DummyMessageType), // PLACEHOLDER
 }
 
 use crate::MessageEnum::*;
@@ -31,6 +37,22 @@ enum StateEnum {
 }
 
 use crate::StateEnum::*;
+
+// learnergraph trait
+trait LearnerGraph{
+    type Learner;
+    type Validator;
+
+    fn get_learners(&self) 
+                    -> dyn Iterator<Item = Self::Learner>;
+
+    fn get_quorums(&self) 
+                   -> HashMap<Self::Learner, Self::Validator>;
+
+    fn are_entangled(&self, lrn_one : Self::Learner, lrn_two :Self::Learner)
+                     -> bool;
+}
+
 
 
 #[derive(Clone)]
@@ -58,7 +80,7 @@ impl Actor for WorkerActor {
               src: Id, msg: Self::Msg, o: &mut Out<Self>) {
         match msg {
             _ => { 
-                o.send(src, SomeKindOfMessage(Dummy{}));
+                o.send(src, SomeKindOfMessage(DummyMessageType{}));
             }
         }
     }
@@ -77,7 +99,7 @@ impl Actor for PrimaryActor {
               src: Id, msg: Self::Msg, o: &mut Out<Self>) {
         match msg {
             _ => { 
-                o.send(src, SomeKindOfMessage(Dummy{}));
+                o.send(src, SomeKindOfMessage(DummyMessageType{}));
             }
         }
     }
