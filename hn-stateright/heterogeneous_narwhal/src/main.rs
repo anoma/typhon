@@ -1,13 +1,17 @@
 // `main.rs` of Heterogeneous Narwhal
 
+// all about actors from stateright
 use stateright::actor::{*};
-// clone-on-write → doc.rust-lang.org/std/borrow/enum.Cow.html
-use std::borrow::Cow; 
+
+// this ↑ uses clone-on-write
+// → doc.rust-lang.org/std/borrow/enum.Cow.html
+use std::borrow::Cow;
+
 // for spawning actors (locally)
 // use std::net::{SocketAddrV4, Ipv4Addr};
 
-// for learner graphs
-use std::collections::HashMap;
+// the learner graph trait uses
+use std::collections::{HashMap,HashSet};
 use std::iter::Iterator;
 
 // Dummy Message Kind
@@ -44,6 +48,7 @@ enum StateEnum {
 use crate::StateEnum::*;
 
 // learnergraph trait
+// ... compatible with github.com/isheff/het_paxos_ref
 trait LearnerGraph{
     type Learner;
     type Validator;
@@ -52,9 +57,9 @@ trait LearnerGraph{
                     -> dyn Iterator<Item = Self::Learner>;
 
     fn get_quorums(&self) 
-                   -> HashMap<Self::Learner, Self::Validator>;
+                   -> HashMap<Self::Learner, HashSet<Self::Validator>>;
 
-    fn are_entangled(&self, lrn_one : Self::Learner, lrn_two :Self::Learner)
+    fn are_entangled(&self, learner_a : Self::Learner, learner_b :Self::Learner)
                      -> bool;
 }
 
