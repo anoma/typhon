@@ -49,9 +49,56 @@ impl MessageInfo {
     }
 }
 
+// Caught predicate
+// ----------------
+//
+// Every well-formed message sent by the sender A (except, perhaps, a first message sent by A) must contain a reference to
+// a previous message sent by A. The real (honest) node must always reference its latest previous messages.
+// Hence, all the messages sent by a real node A form a linear history of messages.
+// However, when sending a message m, an adversarial node A may decide to reference not its latest previous message m1 but instead
+// some other its previous message m2. In this case, the observable history of messages originating from A may fork.
+// In general, for each sender A, the history of A-messages (i.e., the messages originating from A) forms a directed acyclic
+// tree-like structure with vertices being messages and edges representing message references.
+// The tree branches at message-vertices referenced by multiple other messages.
+
+// In order to distinguish between the branches, every branch is assigned an index, a natural number starting at 0 and increased by 1
+// for every new detected branch.
+
+// The graph below displays a history of A-messages, with the message m2 referenced by the new message m and
+// transitively referenced by the latest known message m1.
+//
+//      Index 0    ┌──┐
+//   ┌────...──────┤m1│
+//   ▼             └──┘
+// ┌──┐
+// │m2│
+// └──┘
+//   ▲  Index 1    ┌──┐
+//   └─────────────┤m │
+//                 └──┘
+//
+// Once the real node detects the divergence, it does not treat the message sender A as adversarial just yet.
+// The adversarial behavior is _caught_ if the real node receives another message m3, originating from any other node,
+// which transitively references both m and m1.
+//
+//      Index 0    ┌──┐
+//   ┌────...──────┤m1│◄───...───┐
+//   ▼             └──┘          │
+// ┌──┐                         ┌┴─┐
+// │m2│                         │m3│
+// └──┘                         └┬─┘
+//   ▲  Index 1    ┌──┐          │
+//   └─────────────┤m │◄───...───┘
+//                 └──┘
+//
+
+
+// stores indices of messages originating from a fixed node
 #[derive(Debug)]
 struct MessageHistoryTableComponent {
+    // maximal index of tracked history tree branches
     max_index: Index,
+    // maps messages to indices of history branches
     msg_index_map: HashMap<MessageHash, Index>,
 }
 
@@ -117,7 +164,7 @@ impl MessageHistoryTable {
         self.0.get(&acc).unwrap().get_index()
     }
 
-    // input: a well-formed (relative to the correct acceptor state) message
+    // takes as input a well-formed (relative to the correct acceptor state) message
     // TODO improve comment
     fn update_and_get_index(
         &mut self,
