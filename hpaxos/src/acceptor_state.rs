@@ -3,7 +3,8 @@ use std::cmp;
 use std::collections::{HashMap, HashSet};
 use unwrap_or::unwrap_some_or;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+// history branch index
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Index(u64);
 
 impl Index {
@@ -16,36 +17,6 @@ impl Index {
 impl Default for Index {
     fn default() -> Self {
         Self(0)
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct MessageInfo {
-    // raw heterogeneous paxos protocol message
-    msg: HPaxosMessage,
-
-    // message ballot id
-    ballot: BallotId,
-
-    // previous message sent by the same sender
-    // prev: Option<MessageHash>,
-
-    // TODO comment
-    referenced_leaves: HashMap<AcceptorId, Index>,
-    branch_index: Index,
-}
-
-impl MessageInfo {
-    pub fn hash(&self) -> MessageHash {
-        self.msg.hash()
-    }
-
-    pub fn sender(&self) -> Option<AcceptorId> {
-        self.msg.sender()
-    }
-
-    pub fn is_1a(&self) -> Option<BallotId> {
-        self.msg.is_1a()
     }
 }
 
@@ -67,31 +38,30 @@ impl MessageInfo {
 // The graph below displays a history of A-messages, with the message m2 referenced by the new message m and
 // transitively referenced by the latest known message m1.
 //
-//      Index 0    ┌──┐
-//   ┌────...──────┤m1│
-//   ▼             └──┘
+//      Index 0   ┌──┐
+//   ┌────...─────┤m1│
+//   ▼            └──┘
 // ┌──┐
 // │m2│
 // └──┘
-//   ▲  Index 1    ┌──┐
-//   └─────────────┤m │
-//                 └──┘
+//   ▲  Index 1   ┌──┐
+//   └────────────┤m │
+//                └──┘
 //
 // Once the real node detects the divergence, it does not treat the message sender A as adversarial just yet.
 // The adversarial behavior is _caught_ if the real node receives another message m3, originating from any other node,
 // which transitively references both m and m1.
 //
-//      Index 0    ┌──┐
-//   ┌────...──────┤m1│◄───...───┐
-//   ▼             └──┘          │
-// ┌──┐                         ┌┴─┐
-// │m2│                         │m3│
-// └──┘                         └┬─┘
-//   ▲  Index 1    ┌──┐          │
-//   └─────────────┤m │◄───...───┘
-//                 └──┘
+//      Index 0   ┌──┐
+//   ┌────...─────┤m1│◄───...───┐
+//   ▼            └──┘          │
+// ┌──┐                        ┌┴─┐
+// │m2│                        │m3│
+// └──┘                        └┬─┘
+//   ▲  Index 1   ┌──┐          │
+//   └────────────┤m │◄───...───┘
+//                └──┘
 //
-
 
 // stores indices of messages originating from a fixed node
 #[derive(Debug)]
@@ -178,18 +148,94 @@ impl MessageHistoryTable {
 
         // case 1b / 2a
         if let Some((prev_msg_hash, prev_msg_sender)) = prev_msg {
-            // if the previous message (of the sender) exists, `msg` must be known
-
-            // since the previous message is referenced by `msg`, it must have been processed and thus,
-            // a message component for the message sender must exists
+            // If the previous message (of the sender) exists, `msg` must be known.
+            // Since the previous message is referenced by `msg`, it must have been processed and thus,
+            // a message component for the message sender must exists.
             let comp = self.0.get_mut(&prev_msg_sender).unwrap(); // cannot fail
 
             comp.update(msg.hash(), prev_msg_hash)
         } else {
-            // if the previous message (of the sender) does not exist,
-            // the message sender is not known -- create a new component
+            // If the previous message (of the sender) does not exist,
+            // the message sender is not known -- create a new component.
             self.add_component(msg.sender().unwrap(), msg.hash())
         }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum AcceptorStatus {
+    Caught,
+    Uncaught(Index),
+}
+
+#[derive(Debug)]
+struct LocalRefHistoryTable(HashMap<AcceptorId, AcceptorStatus>);
+
+#[derive(Debug)]
+pub struct MessageInfo {
+    // raw heterogeneous paxos protocol message
+    msg: HPaxosMessage,
+
+    // message ballot id
+    ballot: BallotId,
+
+    // previous message sent by the same sender
+    // prev: Option<MessageHash>,
+
+    // TODO comment
+    referenced_leaves: LocalRefHistoryTable,
+    branch_index: Index,
+}
+
+impl MessageInfo {
+    pub fn hash(&self) -> MessageHash {
+        self.msg.hash()
+    }
+
+    pub fn sender(&self) -> Option<AcceptorId> {
+        self.msg.sender()
+    }
+
+    pub fn is_1a(&self) -> Option<BallotId> {
+        self.msg.is_1a()
+    }
+}
+
+// TODO comment
+impl LocalRefHistoryTable {
+    fn new() -> Self {
+        LocalRefHistoryTable(HashMap::<AcceptorId, AcceptorStatus>::new())
+    }
+
+    // TODO comment
+    pub fn join_single(
+        acc: (Self, HashSet<AcceptorId>),
+        (sender, status): (AcceptorId, AcceptorStatus),
+    ) -> (Self, HashSet<AcceptorId>) {
+        let (mut joined_table, mut caught) = acc;
+
+        if let AcceptorStatus::Uncaught(_) = status {
+            if let Some(existing_leaf_status) =
+                joined_table.0.insert(sender.clone(), status.clone())
+            {
+                // If the sender is already contained in the joined table,
+                // check if the existing leaf index agrees with the given index idx.
+                if existing_leaf_status != status {
+                    // in the case of conflict, the sender is caught
+                    caught.insert(sender.clone());
+                    // remove the sender entry from the joined table
+                    joined_table.0.insert(sender, AcceptorStatus::Caught);
+                }
+            }
+        }
+        (joined_table, caught)
+    }
+
+    // TODO comment
+    pub fn join(acc: (Self, HashSet<AcceptorId>), other: &Self) -> (Self, HashSet<AcceptorId>) {
+        other.0.iter().fold(acc, |acc, p| {
+            Self::join_single(acc, (p.0.to_owned(), p.1.to_owned()))
+        })
     }
 }
 
@@ -212,7 +258,7 @@ pub struct AcceptorState {
     // stores branch leaves of 1b / 2a message history per acceptor
     message_history_table: MessageHistoryTable,
 
-    // a set of caught acceptors
+    // a set of acceptors caught in any message
     // Invariant: `caught` is a subset of `known_acceptor_id`
     caught: HashSet<AcceptorId>,
 }
@@ -367,80 +413,34 @@ impl AcceptorState {
     fn compute_joined_referenced_leaves_table(
         &self,
         msg: &HPaxosMessage,
-    ) -> (HashMap<AcceptorId, Index>, HashSet<AcceptorId>) {
+    ) -> (LocalRefHistoryTable, HashSet<AcceptorId>) {
         // assume that `msg` is well-formed
         debug_assert!(
             self.check_refs(msg).is_ok(),
             "the message is not well-formed"
         );
 
-        // 1a messages contain no references -- return empty structures
-        if msg.is_1a().is_some() {
-            return (HashMap::new(), HashSet::new());
-        }
-
-        let mut joined_ref_leaves_table = HashMap::<AcceptorId, Index>::new();
-        let mut new_caught_acceptors = HashSet::<AcceptorId>::new();
-
-        fn update_structures(
-            joined_ref_leaves_table: &mut HashMap<AcceptorId, Index>,
-            caught_acceptors: &mut HashSet<AcceptorId>,
-            acc: AcceptorId,
-            idx: Index,
-        ) {
-            if let Some(joined_leaf_index) =
-                joined_ref_leaves_table.insert(acc.clone(), idx.clone())
-            {
-                // If the sender is already contained in the joined table,
-                // check if the existing leaf index agrees with the given index idx.
-                if idx != joined_leaf_index {
-                    // in the case of conflict, the sender is caught
-                    caught_acceptors.insert(acc.clone());
-                    // remove the sender entry from the joined table
-                    joined_ref_leaves_table.remove(&acc);
-                }
-            }
-        }
-
-        // For the given message `msg`, every message m1 referenced by `msg` is known and hence is itself a well-formed message.
-        // Therefore, each m1 contains a reference to not more than one previous message m2 (of the same sender).
-        // If m1 is a 1b / 2a message, it has already received an index relative to its sender.
-        // Moreover, since m1 is well-formed (contains at most one reference to the sender's previous message),
-        // the index of the message m1 cannot conflict with the index of the message m2.
-
-        // join leaf tables of all the referenced messages
-        for ref_hash in msg.refs() {
-            let ref_msg = self.known_msgs.get(&ref_hash).unwrap();
-
-            // 1a message does not reference any messages -- continue
-            if ref_msg.is_1a().is_some() {
-                continue;
-            }
-
-            // first, process the referenced message itself, if its sender is not yet caught
-            let ref_sender = ref_msg.sender().unwrap(); // cannot fail
-            if !self.is_caught(&ref_sender) && !new_caught_acceptors.contains(&ref_sender) {
-                update_structures(
-                    &mut joined_ref_leaves_table,
-                    &mut new_caught_acceptors,
-                    ref_sender,
-                    ref_msg.branch_index.clone(),
-                );
-            }
-
-            // second, process the reference leaf table of the referenced message, if its sender is not yet caught
-            for (sender, idx) in ref_msg.referenced_leaves.iter() {
-                if !self.is_caught(sender) && !new_caught_acceptors.contains(sender) {
-                    update_structures(
-                        &mut joined_ref_leaves_table,
-                        &mut new_caught_acceptors,
-                        sender.to_owned(),
-                        idx.to_owned(),
+        msg.refs().iter().fold(
+            (LocalRefHistoryTable::new(), HashSet::<AcceptorId>::new()),
+            |acc, ref_hash| {
+                let ref_msg = self.known_msgs.get(ref_hash).unwrap(); // cannot fail
+                if ref_msg.is_1a().is_some() {
+                    acc
+                } else {
+                    let ref_msg_sender = ref_msg.sender().unwrap(); // cannot fail
+                                                                    // process the referenced message itself
+                    let acc = LocalRefHistoryTable::join_single(
+                        acc,
+                        (
+                            ref_msg_sender,
+                            AcceptorStatus::Uncaught(ref_msg.branch_index.clone()),
+                        ),
                     );
+                    // process the reference leaf table of the referenced message
+                    LocalRefHistoryTable::join(acc, &ref_msg.referenced_leaves)
                 }
-            }
-        }
-        (joined_ref_leaves_table, new_caught_acceptors)
+            },
+        )
     }
 
     // compute the previous message, i.e., a unique message referenced by the given well-formed message
