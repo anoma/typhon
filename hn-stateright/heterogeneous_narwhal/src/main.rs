@@ -1,5 +1,7 @@
 // `main.rs` of Heterogeneousp Narwhal
 
+
+
 // all about actors from stateright
 use stateright::actor::{*};
 
@@ -36,13 +38,24 @@ enum MessageEnum {
     SubmitTx(TxData, ClientId), 
     // acknowledgments of transactions by the worker 
     TxAck(TxData, WorkerId),
+    // broadcasting a tx (or its erasure code) to mirror workers
+    TxToAll(TxData, ClientId),
 }
 
 use crate::MessageEnum::*;
 
+const GENESIS_ROUND : u64 = 0;
+
 // the state type of workers
 #[derive(Clone,Debug,Eq,PartialEq,Hash)]
-struct WorkerState;
+struct WorkerState{
+    // the buffer for received transactions
+    tx_buffer : Vec<(TxData, ClientId)>,
+    // a copy of the primary information ()
+    primary : ValidatorId,
+    // round number
+    rnd : u64,
+}
 
 // the state type of primaries
 #[derive(Clone,Debug,Eq,PartialEq,Hash)]
@@ -87,6 +100,8 @@ struct WorkerActor{
     primary : ValidatorId,
     // the ids of workers of the same index, aka mirro workers
     mirror_workers : Vec<Id>,
+    // batch size, how many transactions make a batch
+    batch_size : u64,
 }
 
 
@@ -152,12 +167,37 @@ impl Actor for WorkerActor {
     type State = StateEnum;
 
     fn on_start(&self, _id: Id, _o: &mut Out<Self>) -> Self::State {
-        Worker(WorkerState{}) // default value for one ping pongk
+        Worker(
+            WorkerState{
+                tx_buffer :vec![], 
+                primary: self.primary, 
+                rnd: GENESIS_ROUND,
+            }
+        ) 
     }
 
-    fn on_msg(&self, _id: Id, _state: &mut Cow<Self::State>,
+    fn on_msg(&self, w_id: Id, state: &mut Cow<Self::State>,
               src: Id, msg: Self::Msg, o: &mut Out<Self>) {
         match msg {
+            SubmitTx(tx, client) => {
+                if let Worker(state) = state.to_mut() {
+                    if client != src {
+                        panic!("source not client");
+                    } else {
+                        // push the tx
+                        state.tx_buffer.push((tx, client));
+                        // ack the tx -- afterwards !
+                        o.send(src, TxAck(tx, w_id));
+                        // "broadcast" tx to mirror_workers : Vec<Id>
+                        for k in &self.mirror_workers{
+                            o.send(*k, TxToAll(tx, client));
+                        }
+                    }
+                } else {
+                    // issue 
+                    panic!("Worker state incorrect");
+                }
+            },
             _ => { 
                 // o.send(src, SomeKindOfMessage(DummyMessageType{}));
             }
@@ -182,4 +222,40 @@ impl Actor for PrimaryActor {
             }
         }
     }
+}
+
+// ------- elliptic curve signatures imports (kudos to Daniel) ------
+
+use std::convert::TryFrom;
+use rand::thread_rng;
+use ed25519_consensus::*;
+
+// -- end elliptic curves
+
+fn main(){
+    
+    // ------- elliptic curve signatures example usage (kudos to Daniel) ------
+    let msg = b"ed25519-consensus";
+
+    // Signer's context
+    let (vk_bytes, sig_bytes) = {
+        // Generate a signing key and sign the message
+        let sk = SigningKey::new(thread_rng());
+        let sig = sk.sign(msg);
+
+        // Types can be converted to raw byte arrays with From/Into
+        let sig_bytes: [u8; 64] = sig.into();
+        let vk_bytes: [u8; 32] = VerificationKey::from(&sk).into();
+
+        (vk_bytes, sig_bytes)
+    };
+
+    // Verify the signature
+    assert!(
+        VerificationKey::try_from(vk_bytes)
+            .and_then(|vk| vk.verify(&sig_bytes.into(), msg))
+            .is_ok()
+    );
+
+    // -- end elliptic curves usage
 }
