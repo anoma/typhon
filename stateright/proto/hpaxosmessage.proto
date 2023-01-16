@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package hpaxosmessage;
+
+message Ballot {
+    bytes bal = 1;
+    fixed64 valueHash = 2;
+}
+
+message Signature {
+    bytes raw = 1;
+}
+
+message HashSet {
+    repeated fixed64 hashes = 1;
+}
+
+message HPaxos1a {
+    Ballot ballot = 1;
+    Signature sig = 2;
+}
+
+message HPaxos1b {
+    HashSet hashSet = 1;
+}
+
+message HPaxos2a {
+    HashSet hashSet = 1;
+}
