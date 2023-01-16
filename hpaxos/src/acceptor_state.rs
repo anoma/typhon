@@ -84,7 +84,7 @@ impl MessageHistoryTableComponent {
     }
 
     // returns a current maximal history branch index of the component
-    fn get_index(&self) -> Index {
+    fn get_max_index(&self) -> Index {
         self.max_index.clone()
     }
 
@@ -131,7 +131,7 @@ impl MessageHistoryTable {
         );
         self.0
             .insert(acc.clone(), MessageHistoryTableComponent::new(msg_hash));
-        self.0.get(&acc).unwrap().get_index()
+        self.0.get(&acc).unwrap().get_max_index()
     }
 
     // takes as input a well-formed (relative to the correct acceptor state) message
@@ -164,10 +164,11 @@ impl MessageHistoryTable {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum AcceptorStatus {
-    Caught,
-    Uncaught(Index),
+    Caught,          // the acceptor is caught in a message
+    Uncaught(Index), // the acceptor is not caught and the message can be assigned an index
 }
 
+// for a fixed message, the table stores indices of leafs transitively referenced from the message
 #[derive(Debug)]
 struct LocalRefHistoryTable(HashMap<AcceptorId, AcceptorStatus>);
 
@@ -182,8 +183,10 @@ pub struct MessageInfo {
     // previous message sent by the same sender
     // prev: Option<MessageHash>,
 
-    // TODO comment
+    // local history table
     referenced_leaves: LocalRefHistoryTable,
+
+    // branch index of the message
     branch_index: Index,
 }
 
@@ -312,9 +315,9 @@ impl AcceptorState {
     }
 
     // checks if the acceptor is known to be caught
-    fn is_caught(&self, id: &AcceptorId) -> bool {
-        self.caught.get(id).is_some()
-    }
+    // fn is_caught(&self, id: &AcceptorId) -> bool {
+    //     self.caught.get(id).is_some()
+    // }
 
     // checks if the message contains valid and known references
     // - Well-formed 1a message must not contain any references.
@@ -409,8 +412,7 @@ impl AcceptorState {
 
     // construct joined message history leaves table for all references of the given message,
     // along with a set of caught senders of the conflicting messages
-    // TODO rename if we are not interested in actual leaves, i.e., the most recent messages per each sender
-    fn compute_joined_referenced_leaves_table(
+    fn compute_joined_reference_leaves_table(
         &self,
         msg: &HPaxosMessage,
     ) -> (LocalRefHistoryTable, HashSet<AcceptorId>) {
@@ -428,7 +430,8 @@ impl AcceptorState {
                     acc
                 } else {
                     let ref_msg_sender = ref_msg.sender().unwrap(); // cannot fail
-                                                                    // process the referenced message itself
+
+                    // process the referenced message itself
                     let acc = LocalRefHistoryTable::join_single(
                         acc,
                         (
@@ -490,7 +493,7 @@ impl AcceptorState {
         let msg_ballot = self.compute_msg_ballot(&msg);
 
         let (joined_ref_leaves_table, new_caught_acceptors) =
-            self.compute_joined_referenced_leaves_table(&msg);
+            self.compute_joined_reference_leaves_table(&msg);
 
         // record new caught acceptors
         self.caught.extend(new_caught_acceptors);
