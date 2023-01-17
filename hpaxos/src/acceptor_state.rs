@@ -4,7 +4,7 @@ use std::collections::{HashMap, HashSet};
 use unwrap_or::unwrap_some_or;
 
 // history branch index
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 struct Index(u64);
 
 impl Index {
@@ -163,7 +163,7 @@ impl MessageHistoryTable {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 enum AcceptorStatus {
     Caught,          // the acceptor is caught in a message
     Uncaught(Index), // the acceptor is not caught and the message can be assigned an index
@@ -181,13 +181,6 @@ impl AcceptorStatus {
             },
         }
     }
-
-    // fn join(&self, other: &Self) -> Self {
-    //     match (self.to_owned(), other.to_owned()) {
-    //         (Self::Uncaught(fst), Self::Uncaught(snd)) if fst == snd => Self::Uncaught(fst),
-    //         (_, _) => Self::Caught,
-    //     }
-    // }
 }
 
 // for a fixed message m, the table stores indices of leaves transitively referenced by all
@@ -245,7 +238,7 @@ impl LocalRefHistoryTable {
         } else {
             joined_table.0.insert(sender.to_owned(), status.to_owned());
         }
-        if joined_table.0.get(sender).unwrap().to_owned() == AcceptorStatus::Caught {
+        if let AcceptorStatus::Caught = joined_table.0.get(sender).unwrap().to_owned() {
             caught.insert(sender.clone());
         }
         (joined_table, caught)
