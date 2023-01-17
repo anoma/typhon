@@ -171,10 +171,14 @@ enum AcceptorStatus {
 
 impl AcceptorStatus {
     fn join_mut(&mut self, other: &Self) {
-        match (self.to_owned(), other.to_owned()) {
-            (Self::Caught, _) => {}
-            (Self::Uncaught(fst), Self::Uncaught(snd)) if fst == snd => {}
-            (_, _) => *self = Self::Caught,
+        match self.to_owned() {
+            Self::Caught => {}
+            Self::Uncaught(fst) => match other.to_owned() {
+                Self::Uncaught(snd) if fst == snd => {
+                    // do nothing
+                }
+                _ => *self = Self::Caught,
+            },
         }
     }
 
@@ -229,9 +233,9 @@ impl LocalRefHistoryTable {
         LocalRefHistoryTable(HashMap::<AcceptorId, AcceptorStatus>::new())
     }
 
-    // adds single pair of sender and index into the table
-    pub fn join_single(
-        acc: (Self, HashSet<AcceptorId>),
+    // adds single entry of acceptor / index into the table
+    pub fn add_acceptor(
+        acc: (Self, HashSet<AcceptorId>), // accumulator
         (sender, status): (&AcceptorId, &AcceptorStatus),
     ) -> (Self, HashSet<AcceptorId>) {
         let (mut joined_table, mut caught) = acc;
@@ -249,7 +253,7 @@ impl LocalRefHistoryTable {
 
     // compute joined local reference history table
     pub fn join(acc: (Self, HashSet<AcceptorId>), other: &Self) -> (Self, HashSet<AcceptorId>) {
-        other.0.iter().fold(acc, Self::join_single)
+        other.0.iter().fold(acc, Self::add_acceptor)
     }
 }
 
@@ -443,7 +447,7 @@ impl AcceptorState {
                     let ref_msg_sender = ref_msg.sender().unwrap(); // cannot fail
 
                     // take into account the index of the referenced message itself
-                    let acc = LocalRefHistoryTable::join_single(
+                    let acc = LocalRefHistoryTable::add_acceptor(
                         acc,
                         (
                             &ref_msg_sender,
