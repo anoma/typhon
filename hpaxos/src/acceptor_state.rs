@@ -63,7 +63,7 @@ impl Default for Index {
 //                └──┘
 //
 
-// stores indices of messages originating from a fixed node
+// stores indices of messages originating from a fixed acceptor
 #[derive(Debug)]
 struct MessageHistoryTableComponent {
     // maximal index of tracked history tree branches
@@ -115,6 +115,7 @@ impl MessageHistoryTableComponent {
     }
 }
 
+// stores indices of all known messages per acceptor
 #[derive(Debug)]
 struct MessageHistoryTable(HashMap<AcceptorId, MessageHistoryTableComponent>);
 
@@ -168,7 +169,25 @@ enum AcceptorStatus {
     Uncaught(Index), // the acceptor is not caught and the message can be assigned an index
 }
 
-// for a fixed message, the table stores indices of leafs transitively referenced from the message
+impl AcceptorStatus {
+    fn join_mut(&mut self, other: &Self) {
+        match (self.to_owned(), other.to_owned()) {
+            (Self::Caught, _) => {}
+            (Self::Uncaught(fst), Self::Uncaught(snd)) if fst == snd => {}
+            (_, _) => *self = Self::Caught,
+        }
+    }
+
+    // fn join(&self, other: &Self) -> Self {
+    //     match (self.to_owned(), other.to_owned()) {
+    //         (Self::Uncaught(fst), Self::Uncaught(snd)) if fst == snd => Self::Uncaught(fst),
+    //         (_, _) => Self::Caught,
+    //     }
+    // }
+}
+
+// for a fixed message m, the table stores indices of leaves transitively referenced by all
+// the messages m1 that are directly referenced by m
 #[derive(Debug)]
 struct LocalRefHistoryTable(HashMap<AcceptorId, AcceptorStatus>);
 
@@ -210,35 +229,27 @@ impl LocalRefHistoryTable {
         LocalRefHistoryTable(HashMap::<AcceptorId, AcceptorStatus>::new())
     }
 
-    // TODO comment
+    // adds single pair of sender and index into the table
     pub fn join_single(
         acc: (Self, HashSet<AcceptorId>),
-        (sender, status): (AcceptorId, AcceptorStatus),
+        (sender, status): (&AcceptorId, &AcceptorStatus),
     ) -> (Self, HashSet<AcceptorId>) {
         let (mut joined_table, mut caught) = acc;
 
-        if let AcceptorStatus::Uncaught(_) = status {
-            if let Some(existing_leaf_status) =
-                joined_table.0.insert(sender.clone(), status.clone())
-            {
-                // If the sender is already contained in the joined table,
-                // check if the existing leaf index agrees with the given index idx.
-                if existing_leaf_status != status {
-                    // in the case of conflict, the sender is caught
-                    caught.insert(sender.clone());
-                    // remove the sender entry from the joined table
-                    joined_table.0.insert(sender, AcceptorStatus::Caught);
-                }
-            }
+        if let Some(existing_leaf_status) = joined_table.0.get_mut(sender) {
+            existing_leaf_status.join_mut(status);
+        } else {
+            joined_table.0.insert(sender.to_owned(), status.to_owned());
+        }
+        if joined_table.0.get(sender).unwrap().to_owned() == AcceptorStatus::Caught {
+            caught.insert(sender.clone());
         }
         (joined_table, caught)
     }
 
-    // TODO comment
+    // compute joined local reference history table
     pub fn join(acc: (Self, HashSet<AcceptorId>), other: &Self) -> (Self, HashSet<AcceptorId>) {
-        other.0.iter().fold(acc, |acc, p| {
-            Self::join_single(acc, (p.0.to_owned(), p.1.to_owned()))
-        })
+        other.0.iter().fold(acc, Self::join_single)
     }
 }
 
@@ -315,9 +326,9 @@ impl AcceptorState {
     }
 
     // checks if the acceptor is known to be caught
-    // fn is_caught(&self, id: &AcceptorId) -> bool {
-    //     self.caught.get(id).is_some()
-    // }
+    fn is_caught(&self, id: &AcceptorId) -> bool {
+        self.caught.get(id).is_some()
+    }
 
     // checks if the message contains valid and known references
     // - Well-formed 1a message must not contain any references.
@@ -431,15 +442,15 @@ impl AcceptorState {
                 } else {
                     let ref_msg_sender = ref_msg.sender().unwrap(); // cannot fail
 
-                    // process the referenced message itself
+                    // take into account the index of the referenced message itself
                     let acc = LocalRefHistoryTable::join_single(
                         acc,
                         (
-                            ref_msg_sender,
-                            AcceptorStatus::Uncaught(ref_msg.branch_index.clone()),
+                            &ref_msg_sender,
+                            &AcceptorStatus::Uncaught(ref_msg.branch_index.clone()),
                         ),
                     );
-                    // process the reference leaf table of the referenced message
+                    // process the reference leaves table of the referenced message
                     LocalRefHistoryTable::join(acc, &ref_msg.referenced_leaves)
                 }
             },
