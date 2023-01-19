@@ -429,7 +429,7 @@ fn main(){
         for y in 0..PRIMARY_COUNT
     ];
     
-    let mut primary_actor_vec : Vec<(Id, dyn Actor<Msg = MessageEnum, State = StateEnum>)> = c![
+    let mut primary_actor_vec  = c![
         (primary_ids[y as usize], primaries[y as usize].clone()),
         for y in 0..PRIMARY_COUNT    
     ];
