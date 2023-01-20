@@ -1,5 +1,5 @@
 // `main.rs` of Heterogeneousp Narwhal
-
+use std::fmt::{Debug, Display, Formatter};
 // For hashing, we use
 // these 8 (eight) lines, based on doc.rust-lang.org/std/hash/index.html
 use std::collections::hash_map::DefaultHasher;
@@ -142,7 +142,7 @@ type ClientId = Id;
 // the indices of workers (globally fixed, for all validators)
 type WorkerIndex = u64;
 
-// the enumeration of all possible message types
+// the enumeration of all possible kinds of message 
 #[derive(Clone,Debug,Eq,PartialEq,Hash,Serialize,Deserialize)]
 enum MessageEnum {
     // submissions of transactions by the client/user 
@@ -187,7 +187,7 @@ type ClientState = Vec<WorkerId>;
 
 // states can be either of a worker or a primary
 #[derive(Clone,Debug,Eq,PartialEq,Hash)]
-enum StateEnum {
+enum StateEnum  {
     // every actor has a signing key (seed)
     Worker(WorkerState, [u8; 32]),
     Primary(PrimaryState, [u8; 32]),
@@ -198,7 +198,7 @@ use crate::StateEnum::*;
 
 
 
-#[derive(Clone,Debug)]
+#[derive(Clone,Debug,Eq,PartialEq,Hash,Serialize,Deserialize)]
 struct WorkerActor{
     // the index of a worker
     index : WorkerIndex,
@@ -209,14 +209,14 @@ struct WorkerActor{
 }
 
 
-#[derive(Clone,Debug)]
+#[derive(Clone,Debug,Eq,PartialEq,Hash,Serialize,Deserialize)]
 struct PrimaryActor{
     //
     peer_validators : Vec<Id>,
 }
 
 
-#[derive(Clone,Debug,Eq,PartialEq,Hash)]
+#[derive(Clone,Debug,Eq,PartialEq,Hash,Serialize,Deserialize)]
 struct ClientActor{
     // some immutable information
     /// random_seed : Option<u64>,
@@ -226,6 +226,29 @@ struct ClientActor{
     // new_req : fn(u64) -> u64,
     // the vector of workers to which requests can/will be sent
     known_workers : Vec<WorkerId>,
+}
+
+// The following is a “fixed” version of 
+// stateright's Actor trait
+
+pub trait Wractor: Sized {
+    type Msg: Clone + Debug + Eq + Hash;
+    type State: Clone + Debug + PartialEq + Hash;
+    type Output : Sized ;
+    fn on_start(&self, id: Id, ) -> (Self::State, &mut Vec<Self::Output>);
+
+    fn on_msg(
+        &self, 
+        id: Id, 
+        state: &mut Cow<'_, Self::State>, 
+        src: Id, 
+        msg: Self::Msg,          
+    ) ->  Vec<Self::Output>;
+    fn on_timeout(
+        &self, 
+        id: Id, 
+        state: &mut Cow<'_, Self::State> 
+    ) ->  Vec<Self::Output>;
 }
 
 // the client actor
@@ -297,6 +320,7 @@ impl Actor for WorkerActor {
     fn on_msg(&self, w_id: Id, state: &mut Cow<Self::State>,
               src: Id, msg: Self::Msg, o: &mut Out<Self>) {
         use ed25519_consensus::SigningKey;
+        print!("worker {} got a message {:?}", w_id, msg);
         match msg {
             SubmitTx(tx, client) => {
                 if let Worker(state, key_seed) = state.to_mut() {
@@ -360,7 +384,57 @@ impl Actor for PrimaryActor {
     }
 }
 
+// the enumeration of all possible kinds of actor
+#[derive(Clone,Debug,Eq,PartialEq,Hash,Serialize,Deserialize)]
+enum ActorEnum {
+    Client(ClientActor),
+    Worker(WorkerActor),
+    Primary(PrimaryActor),
+}
+
+// impl Actor for ActorEnum{
+
+//     type Msg = MessageEnum;
+//     type State = StateEnum;
+
+//     fn on_start(&self, id: Id, o: &mut Out<Self>) -> Self::State {
+//         use ActorEnum::*;
+//         match *self {
+//             Client(ref c_act ) => {
+//                 let out : Out<ClientActor> ;//= Out::new() ; 
+//                 let StateEnum::Client(s,k) = c_act.on_start(id, &mut out);
+//                 // "copy" out to o
+//                 StateEnum::Client(s,k)
+//             },
+//             Worker(ref w_act) => {
+//                 let out : Out<WorkerActor> ; //= Out::new() ; 
+//                 let StateEnum::Worker(s,k) = w_act.on_start(id, &mut out);
+//                 // "copy" out to o
+//                     StateEnum::Worker(s,k)
+//             },
+//             Primary(ref p_act) => {
+//                 let out : Out<PrimaryActor> ; //= Out::new() ; 
+//                 let StateEnum::Primary(s,k) = p_act.on_start(id, &mut out);
+//                 // "copy" out to o
+//                 StateEnum::Primary(s,k)
+//             },
+//         }
+//     }
+
+//     fn on_msg(&self, id: Id, _state: &mut Cow<Self::State>,
+//               src: Id, msg: Self::Msg, o: &mut Out<Self>) {
+//         use ActorEnum::*;
+//         match *self {
+//             Client(ClientActor) => {},
+//             Worker(WorkerActor) => {},
+//             Primary(PrimaryActor) => {},
+//         }
+//     }
+// }
+
+
 fn main(){
+    use std::thread;
     //use stateright::actor::spawn;
     use std::net::{SocketAddrV4, Ipv4Addr};
 
@@ -443,7 +517,33 @@ fn main(){
         for y in 0..PRIMARY_COUNT
     ];
 
-    
+    print!("first spawn");
+    thread::spawn(||{
+        spawn(
+            serde_json::to_vec,
+            |bytes| serde_json::from_slice(bytes),
+            client_actor_vec,
+        ).unwrap();
+    });
+    print!("second spawn");
+    thread::spawn(||{
+        spawn(
+            serde_json::to_vec,
+            |bytes| serde_json::from_slice(bytes),
+            primary_actor_vec,
+        ).unwrap();
+    });
+    print!("third spawn is blocking");
+    //thread::spawn(||{
+        spawn(
+            serde_json::to_vec,
+            |bytes| serde_json::from_slice(bytes),
+            worker_actor_vec,
+        ).unwrap();
+    //});                  
+
+
+                  
     // for v in client_actor_vec {
     //     let (id, actor) = &v;
     //     print!("spawning actor {:#?} with id {:?}", actor, id);
