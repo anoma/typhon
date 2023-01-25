@@ -17,4 +17,6 @@ cute = "0.3.0"
 serde_bytes = "0.11.8"
 serde_derive = "^0.9"
 serde-big-array = "0.4.1"
+ambassador = "0.3.5"
+serde_traitobject = "0.2.8"
 

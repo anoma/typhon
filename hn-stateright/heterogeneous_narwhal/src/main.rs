@@ -1,6 +1,9 @@
 // `main.rs` of Heterogeneousp Narwhal
-
+use serde::{Deserialize, Serialize};
 use std::fmt::Debug; // Display, Formatter (...to be added)
+
+// ambassador (see also https://github.com/Heliozoa/impl-enum)
+use ambassador::{delegatable_trait,Delegate}; 
 
 // For hashing, we use
 // these 8 (eight) lines, based on doc.rust-lang.org/std/hash/index.html
@@ -96,10 +99,38 @@ use std::borrow::Cow;
 
 type TxData = u64;
 
-// the type of transaction batches, sent by the client
-type Batch = Vec<TxData>;
+// generic transaction: ‼ using rustc 1.69.0-nightly (5e37043d6 2023-01-22)
+trait Tx<T>: serde_traitobject::Serialize + serde_traitobject::Deserialize {
+    fn get_data(&self) -> T;
+}
 
-use serde::{Deserialize, Serialize};
+// simplest implementation instance
+impl Tx<u64> for u64 {
+    fn get_data(&self) -> u64{
+        *self
+    }
+}
+
+// FIXME: "generic" **and** serializable -- ̈"somehow" ?!
+// #[derive(Serialize, Deserialize)]
+// struct ConcreteTx<T:Serialize + ?Sized + 'static> {
+//     #[serde(with = "serde_traitobject")]
+//     tx_data: T,
+// }
+//
+// impl Tx<u64> for ConcreteTx<u64>{
+//     fn get_data(&self) -> u64{
+//         *self
+//     }
+// }
+
+
+// the type of batches of transactions, collected from clients
+trait Batch<T> {
+    fn get_txs(&self) -> Vec<Box<dyn Tx<T>>>;
+}
+
+
 // worker hash data type
 // serialization matters as in https://crates.io/crates/bincode
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, Hash)]
@@ -210,37 +241,53 @@ struct ClientActor {
     known_workers: Vec<WorkerId>,
 }
 
-// The following is a version of stateright's Actor trait,
-// which easily lifts to an enum of several actors
+// ideally, this _would_ be part of the `Vactor` trait
+// at least it is private 
+enum Outputs<I,M> {
+    Snd(I, M),
+    Cast(M),
+    Timer(usize),
+}
 
-pub trait Wractor: Sized {
+
+
+// The following is based on stateright's Actor trait,
+// which can be lifted to enums via amabassor,
+// which in turn delegates calls to the enum to the respective types
+// the relation to the Actor trait is then given later by
+// TODO: add reference to where the Actor is implemented using Vactor 
+
+#[delegatable_trait] 
+trait Vactor: Sized {
     type Msg: Clone + Debug + Eq + Hash;
     type State: Clone + Debug + PartialEq + Hash;
-    type Output: Clone + Debug + Eq + Hash; // typically same as Msg
-    fn on_start(
+    fn on_start_vec(
         &self,
         id: Id
-    ) -> (Self::State, Vec<Self::Output>);
+    ) -> (Self::State, Vec<Outputs<Id,Self::Msg>>);
 
-    fn on_msg(
+    fn on_msg_vec(
         &self,
         id: Id,
         state: &mut Cow<'_, Self::State>,
         src: Id,
         msg: Self::Msg,
-    ) -> Vec<Self::Output>;
+    ) -> Vec<Outputs<Id,Self::Msg>>;
 
-    fn on_timeout(
+    fn on_timeout_vec(
         &self,
-        id: Id, 
-        state: &mut Cow<'_, Self::State>
-    ) -> Vec<Self::Output>{
+        _id: Id, 
+        _state: &mut Cow<'_, Self::State>
+    ) -> Vec<Outputs<Id,Self::Msg>>{
         Vec::new()
     }
 }
 
-// the client actor 
+// the client actor, directly as an actor 
 // - sends new requests, ideally constantly and uniformly
+// > NB: not easily liftable at the present for stateright (via ambassador)
+// > due to Out<Self> -- to be changed to Out<Self::Msg>
+// > in the signatures of `on_start`, `on_msg`, `on_timeout`
 impl Actor for ClientActor {
     type Msg = MessageEnum;
     type State = StateEnum;
@@ -265,7 +312,7 @@ impl Actor for ClientActor {
         &self,
         id: Id,
         _state: &mut Cow<Self::State>,
-        src: Id,
+        _src: Id,
         msg: Self::Msg,
         o: &mut Out<Self>,
     ) {
@@ -290,59 +337,63 @@ impl Actor for ClientActor {
     }
 }
 
-// the client actor // some but different
-// - sends new requests, ideally constantly and uniformly
-// impl Wractor for ClientActor {
-//     type Msg = MessageEnum;
-//     type State = StateEnum;
-//     type Output = (Option<Id>, MessageEnum);
+impl Vactor for ClientActor {
+    type Msg = MessageEnum;
+    type State = StateEnum;
+    
+    fn on_start_vec(
+        &self,
+        id: Id
+    ) -> (Self::State, Vec<Outputs<Id,Self::Msg>>){
+        print!("start client {}", id);
+        use Outputs::*;
+        use ed25519_consensus::SigningKey;
+        use rand::thread_rng;
+        let key = SigningKey::new(thread_rng()).to_bytes();
+        // send a tx to every work
+        let mut x = 0;
+        let mut o : Vec<Outputs<Id,Self::Msg>> = vec![];
+        for k in &self.known_workers {
+            x = x + 1;
+            o.push(Snd(*k, SubmitTx(x, id)));
+        }
+        // the known workers are the only state of the client
+        // ... so far
+        (Client(self.known_workers.clone(), key),o)
+    }
 
-//     fn on_start(&self, id: Id) -> (Self::State, Vec<Self::Output>) {
-//         let mut o : Vec<Self::Output> = Vec::new();
-//         println!("start client {}", id);
-//         use ed25519_consensus::SigningKey;
-//         use rand::thread_rng;
-//         let key = SigningKey::new(thread_rng()).to_bytes();
-//         // send a tx to every work
-//         let mut x = 0;
-//         for k in &self.known_workers {
-//             x = x + 1;
-//             o.push((Some(*k), SubmitTx(x, id)));
-//         }
-//         // the known workers are the only state of the client
-//         // ... so far
-//         (Client(self.known_workers.clone(), key),o)
-//     }
+    fn on_msg_vec(
+        &self,
+        id: Id,
+        _state: &mut Cow<'_, Self::State>,
+        _src: Id,
+        msg: Self::Msg,
+    ) -> Vec<Outputs<Id,Self::Msg>>
+    {
+        use Outputs::*;
+        match msg {
+            TxAck(tx, worker) => {
+                let new_tx = // this should be "random", but ... 
+                    if tx%2 == 0 {
+                        tx / 2
+                    } else {
+                        3*tx + 1
+                    };
+                use std::{thread, time};
 
-//     fn on_msg(
-//         &self,
-//         id: Id,
-//         _state: &mut Cow<Self::State>,
-//         src: Id,
-//         msg: Self::Msg,
-//     ) -> Vec<Self::Output> {
-//         let mut o : Vec<Self::Output> = Vec::new();
-//         match msg {
-//             TxAck(tx, worker) => {
-//                 let new_tx = // this should be "random", but ... 
-//                     if tx%2 == 0 {
-//                         tx / 2
-//                     } else {
-//                         3*tx + 1
-//                     };
-//                 o.push((Some(worker), SubmitTx(new_tx, id)));
-//                 use std::{thread, time};
+                let ten_millis = time::Duration::from_millis(10);
+                let _now = time::Instant::now();
 
-//                 let ten_millis = time::Duration::from_millis(10);
-//                 let _now = time::Instant::now();
-
-//                 thread::sleep(ten_millis);
-//                 o
-//             }
-//             _ => {o}
-//         }
-//     }
-// }
+                thread::sleep(ten_millis);
+                vec![Snd(worker, SubmitTx(new_tx, id))]
+            }
+            _ => {
+                println!("oops {:?}", self);
+                vec![]
+            }
+        }
+    }
+}
 
 
 impl Actor for WorkerActor {
@@ -415,81 +466,83 @@ impl Actor for WorkerActor {
     }
 }
 
+impl Vactor for WorkerActor {
+    type Msg = MessageEnum;
+    type State = StateEnum;
 
-// // same but different
-// impl Wractor for WorkerActor {
-//     type Msg = MessageEnum;
-//     type State = StateEnum;
-//     type Output = (Option<Id>, MessageEnum);
+    fn on_start_vec(
+        &self,
+        id: Id
+    ) -> (Self::State, Vec<Outputs<Id,Self::Msg>>){
+        print!("start worker {}", id);
+        use ed25519_consensus::SigningKey;
+        use rand::thread_rng;
+        let key_seed = SigningKey::new(thread_rng()).to_bytes();
+        (Worker(
+            WorkerState {
+                tx_buffer: vec![],
+                primary: self.primary,
+                rnd: GENESIS_ROUND,
+                mirrors: self.mirror_workers.clone(),
+            },
+            key_seed,
+        ),vec![])
+    }
 
-//     fn on_start(&self, id: Id) -> (Self::State, Vec<Self::Output>) {
-//         println!("start worker {}", id);
-//         use ed25519_consensus::SigningKey;
-//         use rand::thread_rng;
-//         let key_seed = SigningKey::new(thread_rng()).to_bytes();
-//         (Worker(
-//             WorkerState {
-//                 tx_buffer: vec![],
-//                 primary: self.primary,
-//                 rnd: GENESIS_ROUND,
-//                 mirrors: self.mirror_workers.clone(),
-//             },
-//             key_seed,
-//         ),
-//          Vec::new())
-//     }
+    fn on_msg_vec(
+        &self,
+        w_id: Id,
+        state: &mut Cow<'_, Self::State>,
+        src: Id,
+        msg: Self::Msg,
+    ) -> Vec<Outputs<Id,Self::Msg>> {
+        use Outputs::*;
+        use ed25519_consensus::SigningKey;
+        print!("worker {} got a message {:?}", w_id, msg);
+        match msg {
+            SubmitTx(tx, client) => {
+                let mut o : Vec<Outputs<Id,Self::Msg>> = vec![];
+                if let Worker(state, key_seed) = state.to_mut() {
+                    if client != src {
+                        panic!("source not client");
+                    } else {
+                        // push the tx
+                        state.tx_buffer.push((tx, client));
+                        // ack the tx
+                        o.push(Snd(src, TxAck(tx, w_id))); // optional, but ...
+                        // "broadcast" tx to mirror_workers : Vec<Id>
+                        for k in &state.mirrors {
+                            o.push(Snd(*k, TxToAll(tx, client)));
+                            }
+                            if state.tx_buffer.len() >= BATCH_SIZE {
+                                // create and process batch hash
+                                let w_hash = WorkerHashData {
+                                    hash: hash_of(&state.tx_buffer),
+                                    rnd: state.rnd,
+                                    length: state.tx_buffer.len(),
+                                };
+                                let w_bytes: &[u8] = &bincode::serialize(&w_hash).unwrap();
+                                let key = SigningKey::from(*key_seed);
+                                let sig: WorkerHashSignature = key.sign(w_bytes).to_bytes();
+                                o.push(Snd(state.primary, WorkerHash(w_hash, sig)));
+                                // TODO broadcast
+                            }
+                            o
+                        }
+                    } else {
+                        // issue
+                        panic!("Worker state incorrect");
+                    }
+                }
+                _ => {
+                    println!("oops {:?}", &self);
+                    vec![]
+                    // o.send(src, SomeKindOfMessage(DummyMessageType{}));
+                }
+            }
+        }
+    }
 
-//     fn on_msg(
-//         &self,
-//         w_id: Id,
-//         state: &mut Cow<Self::State>,
-//         src: Id,
-//         msg: Self::Msg,
-//     ) -> Vec<Self::Output>{
-//         let mut o : Vec<Self::Output> = Vec::new();
-//         use ed25519_consensus::SigningKey;
-//         println!("worker {} got a message {:?}", w_id, msg);
-//         match msg {
-//             SubmitTx(tx, client) => {
-//                 if let Worker(state, key_seed) = state.to_mut() {
-//                     if client != src {
-//                         panic!("source not client");
-//                     } else {
-//                         // push the tx
-//                         state.tx_buffer.push((tx, client));
-//                         // ack the tx
-//                         o.push((Some(src), TxAck(tx, w_id))); // optional, but ...
-//                                                       // "broadcast" tx to mirror_workers : Vec<Id>
-//                         for k in &state.mirrors {
-//                             o.push((Some (*k), TxToAll(tx, client)));
-//                         }
-//                         if state.tx_buffer.len() >= BATCH_SIZE {
-//                             // create and process batch hash
-//                             let w_hash = WorkerHashData {
-//                                 hash: hash_of(&state.tx_buffer),
-//                                 rnd: state.rnd,
-//                                 length: state.tx_buffer.len(),
-//                             };
-//                             let w_bytes: &[u8] = &bincode::serialize(&w_hash).unwrap();
-//                             let key = SigningKey::from(*key_seed);
-//                             let sig: WorkerHashSignature = key.sign(w_bytes).to_bytes();
-//                             o.push((Some(state.primary), WorkerHash(w_hash, sig)));
-//                             // TODO broadcast
-//                         }
-//                     }
-//                 } else {
-//                     // issue
-//                     panic!("Worker state incorrect");
-//                 }
-//                 o
-//             }
-//             _ => {
-//                 // o.send(src, SomeKindOfMessage(DummyMessageType{}));
-//                 o
-//             }
-//         }
-//     }
-// }
 
 impl Actor for PrimaryActor {
     type Msg = MessageEnum;
@@ -507,9 +560,9 @@ impl Actor for PrimaryActor {
         &self,
         _id: Id,
         _state: &mut Cow<Self::State>,
-        src: Id,
+        _src: Id,
         msg: Self::Msg,
-        o: &mut Out<Self>,
+        _o: &mut Out<Self>,
     ) {
         match msg {
             _ => {
@@ -519,36 +572,36 @@ impl Actor for PrimaryActor {
     }
 }
 
-// // same but different
-// impl Wractor for PrimaryActor {
-//     type Msg = MessageEnum;
-//     type State = StateEnum;
-//     type Output = (Option<Id>, MessageEnum);
+impl Vactor for PrimaryActor {
+    type Msg = MessageEnum;
+    type State = StateEnum;
 
-//     fn on_start(&self, id: Id, ) -> (Self::State,Vec<Self::Output>) {
-//         println!("start primary {}", id);
-//         use ed25519_consensus::SigningKey;
-//         use rand::thread_rng;
-//         let key_seed = SigningKey::new(thread_rng()).to_bytes();
-//         (Primary(PrimaryState {}, key_seed),Vec::new()) // default value for one ping pongk
-//     }
+    fn on_start_vec(
+        &self,
+        id: Id
+    ) -> (Self::State,Vec<Outputs<Id,Self::Msg>>) {
+        println!("start primary {}", id);
+        use ed25519_consensus::SigningKey;
+        use rand::thread_rng;
+        let key_seed = SigningKey::new(thread_rng()).to_bytes();
+        (Primary(PrimaryState {}, key_seed),vec![]) // default value for one ping pongk
+    }
 
-//     fn on_msg(
-//         &self,
-//         _id: Id,
-//         _state: &mut Cow<Self::State>,
-//         src: Id,
-//         msg: Self::Msg,
-//     ) -> Vec<Self::Output>{
-//         match msg {
-//             _ => {
-//                 Vec::new()
-//                 //o.send(src, SomeKindOfMessage(DummyMessageType{}));
-//             }
-//         }
-//     }
-// }
-
+    fn on_msg_vec(
+        &self,
+        _id: Id,
+        _state: &mut Cow<Self::State>,
+        src: Id,
+        msg: Self::Msg
+    ) -> Vec<Outputs<Id,Self::Msg>> {
+        match msg {
+            _ => {
+                vec![]
+                //o.send(src, SomeKindOfMessage(DummyMessageType{}));
+            }
+        }
+    }
+}
 
 // the enumeration of all possible kinds of actor
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
@@ -558,69 +611,53 @@ enum ActorEnum {
     Primary(PrimaryActor),
 }
 
-// impl Actor for ActorEnum{
+#[derive(Delegate,Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
+#[delegate(Vactor)]
+enum VactorEnum {
+    ClientActor(ClientActor),
+    WorkerActor(WorkerActor),
+    PrimaryActor(PrimaryActor),
+}
 
-//     type Msg = MessageEnum;
-//     type State = StateEnum;
-//     // type Output = (Option<Id>, MessageEnum);
+impl Actor for VactorEnum {
+    type Msg = MessageEnum;
+    type State = StateEnum;
 
-//     fn on_start(&self, id: Id, o: &mut Out<Self>) -> Self::State {
-//         use ActorEnum::*;
-//         match *self {
-//             Client(ref c_act ) => {
-//                 let (s, outs) = c_act.on_start(id);
-//                 for k in outs {
-//                     // "copy" out to o
-//                     match k {
-//                         (Some(i), m) => {o.send(i,m);},
-//                         (None, _) => {panic!("oops, Client “sending” inappropriate outputs")},
-//                     }
-//                 }
-//                 s
-//             },
-//              Worker(ref w_act) => {
-//                  let (s, outs) = w_act.on_start(id);
-//                  for k in outs {
-//                      // "copy" out to o
-//                      match k {
-//                          (Some(i), m) => {o.send(i,m);},
-//                          (None, _) => {panic!("oops, Worker “sending” inappropriate outputs")},
-//                      }
-//                  }
-//                  s
-//              },
-//              Primary(ref p_act) => {
-//                  let (s, outs) = p_act.on_start(id);
-//                  for k in outs {
-//                      // "copy" out to o
-//                      match k {
-//                          (Some(i), m) => {o.send(i,m);},
-//                          (None, _) => {panic!("oops, Worker “sending” inappropriate outputs")},
-//                      }
-//                  }
-//                  s
-//              },
-//          }
-//     }
+    fn on_start(&self, id: Id, o: &mut Out<Self>) -> Self::State {
+        let (s,v) = self.on_start_vec(id);
+        for x in v {
+            match x {
+                Outputs::Snd(i,m) => o.send(i,m),
+                _ => {panic!("not implemented in on_start");}
+            }
+        }
+        s
+    }
+    fn on_msg(
+        &self,
+        id: Id,
+        state: &mut Cow<Self::State>,
+        src: Id,
+        msg: Self::Msg,
+        o: &mut Out<Self>,
+        ) {
+        let v = self.on_msg_vec(id,state,src,msg);
+        for x in v {
+            match x {
+                Outputs::Snd(i,m) => o.send(i,m),
+                _ => {panic!("not implemented in on_msg");}
+            }
+        }
+    }
+}
 
-//     fn on_msg(&self, id: Id, _state: &mut Cow<Self::State>,
-//               src: Id, msg: Self::Msg, o: &mut Out<Self>) {
-//         use ActorEnum::*;
-//         match *self {
-//             Client(ClientActor) => {},
-//             Worker(WorkerActor) => {},
-//             Primary(PrimaryActor) => {},
-//         }
-//     }
-// }
-
-// #[derive(Clone)]
-// struct NarwhalModelCfg {
-//     client_count: usize,
-//     primary_count: usize,
-//     worker_index_count: usize,
-//     network: Network<MessageEnum>,
-// }
+#[derive(Clone)]
+struct NarwhalModelCfg {
+    client_count: usize,
+    primary_count: usize,
+    worker_index_count: usize,
+    network: Network<MessageEnum>,
+}
 
 // impl NarwhalModelCfg {
 //     fn into_model(self) ->
@@ -660,6 +697,7 @@ enum ActorEnum {
 // }
 
 fn main() {
+    // let mut tx_vec : Vec<Box<dyn Tx<u64>>> = vec![Box::new(4)] ;
     use std::thread;
     //use stateright::actor::spawn;
     use std::net::{Ipv4Addr, SocketAddrV4};
@@ -751,85 +789,51 @@ fn main() {
         for y in 0..PRIMARY_COUNT
     ];
 
-    // the following (commented) line runs into the issue of "object safety"
-    // let mut all_actor_vec : Vec<Box<dyn Actor<Msg = MessageEnum, State = StateEnum>>> ;
+    // print!("first spawn");
+    // thread::spawn(|| {
+    //     spawn(
+    //         serde_json::to_vec,
+    //         |bytes| serde_json::from_slice(bytes),
+    //         client_actor_vec,
+    //     )
+    //     .unwrap();
+    // });
+    // print!("second spawn");
+    // thread::spawn(|| {
+    //     spawn(
+    //         serde_json::to_vec,
+    //         |bytes| serde_json::from_slice(bytes),
+    //         primary_actor_vec,
+    //     )
+    //     .unwrap();
+    // });
+    // print!("third spawn is blocking");
 
-    // let mut all_actor_vec : Vec<(Id, ActorEnum)> = Vec::new();
-    // for (i,a) in client_actor_vec {
-    //     all_actor_vec.push((i,ActorEnum::Client(a)));
-    // }
-    // for (i,a) in primary_actor_vec {
-    //     all_actor_vec.push((i,ActorEnum::Primary(a)));
-    // }
-    // for (i,a) in worker_actor_vec {
-    //     all_actor_vec.push((i,ActorEnum::Worker(a)));
-    // }
-
-    // println!("simple spawn");
     // spawn(
     //     serde_json::to_vec,
     //     |bytes| serde_json::from_slice(bytes),
-    //     all_actor_vec,
-    // ).unwrap();
+    //     worker_actor_vec,
+    // )
+    // .unwrap();
 
-    print!("first spawn");
-    thread::spawn(|| {
-        spawn(
-            serde_json::to_vec,
-            |bytes| serde_json::from_slice(bytes),
-            client_actor_vec,
-        )
-        .unwrap();
-    });
-    print!("second spawn");
-    thread::spawn(|| {
-        spawn(
-            serde_json::to_vec,
-            |bytes| serde_json::from_slice(bytes),
-            primary_actor_vec,
-        )
-        .unwrap();
-    });
-    print!("third spawn is blocking");
+    
+    let mut all_vactor_vec : Vec<(Id, VactorEnum)> = Vec::new();
+    for (i,a) in client_actor_vec {
+        all_vactor_vec.push((i,VactorEnum::ClientActor(a)));
+    }
+    for (i,a) in primary_actor_vec {
+        all_vactor_vec.push((i,VactorEnum::PrimaryActor(a)));
+    }
+    for (i,a) in worker_actor_vec {
+        all_vactor_vec.push((i,VactorEnum::WorkerActor(a)));
+    }
 
     spawn(
         serde_json::to_vec,
         |bytes| serde_json::from_slice(bytes),
-        worker_actor_vec,
+        all_vactor_vec,
     )
     .unwrap();
-
-    // for v in client_actor_vec {
-    //     let (id, actor) = &v;
-    //     print!("spawning actor {:#?} with id {:?}", actor, id);
-    //     spawn(
-    //         serde_json::to_vec,
-    //         |bytes| serde_json::from_slice(bytes),
-    //         vec![v],
-    //     ).unwrap();
-    // }
-    // for v in primary_actor_vec {
-    //     let (id, actor) = &v;
-    //     print!("spawning actor {:#?} with id {:?}", actor, id);
-    //     spawn(
-    //         serde_json::to_vec,
-    //         |bytes| serde_json::from_slice(bytes),
-    //         vec![v],
-    //     ).unwrap();
-    // }
-    // for v in worker_actor_vec {
-    //     let (id, actor) = &v;
-    //     print!("spawning actor {:#?} with id {:?}", actor, id);
-    //     spawn(
-    //         serde_json::to_vec,
-    //         |bytes| serde_json::from_slice(bytes),
-    //         vec![v],
-    //     ).unwrap();
-    // }
-
-    // TODO put clients and workers togehter and
-    // make them ping pong
-    // and (dummy) primaries
 
     // "the
     use ed25519_consensus::{SigningKey, VerificationKey};
