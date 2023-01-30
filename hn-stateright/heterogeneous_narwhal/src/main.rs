@@ -1,12 +1,15 @@
 // `main.rs` of the Heterogeneous Narwhal implementation in stateright
+#![feature(inherent_associated_types)]
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug; // Display, Formatter (...to be added)
 
 // ambassador (see also https://github.com/Heliozoa/impl-enum)
+// it is used to “lift” trait implementations on enum items
+// to the whole enum .. possibly repeatedly
 use ambassador::{delegatable_trait, Delegate};
 
-// For hashing, we use
-// these 8 (eight) lines, based on doc.rust-lang.org/std/hash/index.html
+// For hashing, based on doc.rust-lang.org/std/hash/index.html, 
+// we use the following 8 (eight) lines, 
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
@@ -16,7 +19,7 @@ fn hash_of<T: Hash>(t: &T) -> u64 {
     s.finish()
 }
 
-// definition of learner graph
+// the data type of learner graphs
 mod learner_graph {
     // the learner graph trait uses
     use std::collections::{HashMap, HashSet};
@@ -28,41 +31,62 @@ mod learner_graph {
         type Learner;
         type Validator;
 
-        fn get_learners(&self) -> dyn Iterator<Item = Self::Learner>;
+        fn get_learners(
+            &self
+        ) -> dyn Iterator<Item = Self::Learner>;
 
-        fn get_quorums(&self) -> HashMap<Self::Learner, HashSet<Self::Validator>>;
+        fn get_quorums(
+            &self
+        ) -> HashMap<Self::Learner, HashSet<Self::Validator>>;
 
-        fn are_entangled(&self, learner_a: Self::Learner, learner_b: Self::Learner) -> bool;
+        fn are_entangled(
+            &self,
+            learner_a: Self::Learner,
+            learner_b: Self::Learner
+        ) -> bool;
     }
 }
 
+// this module is for the purpose of “faking” a PKI-infrastructure
 mod pki {
     // ------- elliptic curve signatures imports (kudos to Daniel) ------
     use ed25519_consensus::*;
     use rand::thread_rng;
     use std::convert::TryFrom;
+    use std::collections::HashMap;
+    use stateright::actor::Id;
+
 
     pub trait Registry {
-        fn register(&mut self, _: stateright::actor::Id, _: VerificationKey) -> bool;
+        fn register(
+            &mut self,
+            _: Id,
+            _: VerificationKey
+        ) -> bool;
     }
 
-    use std::collections::HashMap;
     pub struct KeyTable {
-        map: HashMap<stateright::actor::Id, VerificationKey>,
+        map: HashMap<Id, VerificationKey>,
     }
 
     impl Registry for KeyTable {
-        fn register(&mut self, id: stateright::actor::Id, vk: VerificationKey) -> bool {
+        fn register(
+            &mut self,
+            id: Id,
+            vk: VerificationKey
+        ) -> bool {
             self.map.insert(id, vk) != None
         }
     }
 
-    fn get_vk(sk: SigningKey) -> VerificationKey {
+    fn get_vk(
+        sk: SigningKey
+    ) -> VerificationKey {
         VerificationKey::from(&sk)
     }
 
     fn private_test_ed25519_consensus() {
-        // ------- elliptic curve signatures example usage
+        // ------- ed25519-consensus signatures example usage
         let msg = b"ed25519-consensus";
 
         // Signer's context
@@ -72,8 +96,10 @@ mod pki {
             let sig = sk.sign(msg);
 
             // Types can be converted to raw byte arrays with From/Into
-            let sig_bytes: [u8; 64] = sig.into();
-            let vk_bytes: [u8; 32] = VerificationKey::from(&sk).into();
+            let sig_bytes: [u8; 64];
+            sig_bytes = sig.into();
+            let vk_bytes: [u8; 32];
+            vk_bytes = VerificationKey::from(&sk).into();
 
             (vk_bytes, sig_bytes)
         };
@@ -82,15 +108,14 @@ mod pki {
         assert!(VerificationKey::try_from(vk_bytes)
             .and_then(|vk| vk.verify(&sig_bytes.into(), msg))
             .is_ok());
-
-        // -- end elliptic curves usage
     }
+    // -- end ed25519-consensus usage
 }
 
 // all about actors from stateright
 use stateright::actor::*;
 
-// this ↑ uses clone-on-write
+// stateright uses clone-on-write for state-changes
 // → doc.rust-lang.org/std/borrow/enum.Cow.html
 use std::borrow::Cow;
 
@@ -252,7 +277,7 @@ enum Outputs<I, M> {
 // which can be lifted to enums via amabassor,
 // which in turn delegates calls to the enum to the respective types
 // the relation to the Actor trait is then given later by
-// the Actor impl for NarwhalActor below
+// the Actor impl for HNActor below
 
 #[delegatable_trait]
 trait Vactor: Sized {
@@ -601,14 +626,14 @@ enum ActorEnum {
 // delegating the function calls to the respective type
 #[derive(Delegate, Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
 #[delegate(Vactor)]
-enum NarwhalActor {
+enum HNActor {
     ClientActor(ClientActor),
     WorkerActor(WorkerActor),
     PrimaryActor(PrimaryActor),
 }
 
-use NarwhalActor::*;
-impl Actor for NarwhalActor {
+use HNActor::*;
+impl Actor for HNActor {
     type Msg = MessageEnum;
     type State = StateEnum;
 
@@ -645,12 +670,14 @@ impl Actor for NarwhalActor {
 }
 
 // in rough analogy to stateright's `examples/paxos.rs`
+// history will simply be state/action pairs 
 #[derive(Clone)]
 struct NarwhalModelCfg {
     worker_index_count: usize,
     primary_count: usize,
     client_count: usize,
-    network: Network<<NarwhalActor as Actor>::Msg>,
+    network: Network<<HNActor as Actor>::Msg>,
+    empty_history: Vec<Envelope<<HNActor as Actor>::Msg>>,
 }
 
 
@@ -693,13 +720,35 @@ impl NarwhalModelCfg {
            if j != primary]
     }
 
+    fn record_msg_in<'a,'b,'c>(
+        _cfg: &'a Self,
+        history: &'b Vec<Envelope<<HNActor as Actor>::Msg>>,
+        env: Envelope<&'c<HNActor as Actor>::Msg>
+    ) -> Option<Vec<Envelope<<HNActor as Actor>::Msg>>> {
+        let mut h = history.clone();
+        let e = env.to_cloned_msg();
+        h.push(e);
+        Some(h)
+    }
+
+    fn record_msg_out<'a,'b,'c>(
+        _cfg: &'a Self,
+        history: &'b Vec<Envelope<<HNActor as Actor>::Msg>>,
+        env: Envelope<&'c<HNActor as Actor>::Msg>
+    ) -> Option<Vec<Envelope<<HNActor as Actor>::Msg>>> {
+        let mut h = history.clone();
+        let e = env.to_cloned_msg();
+        h.push(e);
+        Some(h)
+    }
 
     // The actor ids in models of stateright are essentially hard-coded;
     // they are given by the position the `actors` field  
-    fn into_model(self) -> ActorModel<NarwhalActor, Self, ()> {
-        
+    fn into_model(
+        self
+    ) -> ActorModel<HNActor, Self, Vec<Envelope<<HNActor as Actor>::Msg>>> {
         ActorModel::new(self.clone(), 
-                        () // here will go test(er)s 
+                        vec![] // here will go histories, i.e., sequences of 
         )
         // we **have**add actors in the following order
         // wic = worker_index_count
@@ -736,8 +785,8 @@ impl NarwhalModelCfg {
         //      }
         //      false
         //  })
-        //  .record_msg_in(RegisterMsg::record_returns)
-        //  .record_msg_out(RegisterMsg::record_invocations)
+        .record_msg_in(NarwhalModelCfg::record_msg_in)
+        .record_msg_in(NarwhalModelCfg::record_msg_out)
     }
 }
 
@@ -745,7 +794,7 @@ impl NarwhalModelCfg {
 // from https://docs.rs/stateright/latest/stateright/actor/struct.ActorModel.html
 //
 // pub struct ActorModel<A, C = (), H = ()> where
-//     A: Actor, // ⇐ this will be A = NarwhalActor
+//     A: Actor, // ⇐ this will be A = HNActor
 //     H: Clone + Debug + Hash,  {
 //          pub actors: Vec<A>, // ⇐ that's our array of actors
 //          pub cfg: C, //
@@ -883,15 +932,15 @@ fn main() {
     // )
     // .unwrap();
 
-    let mut all_vactor_vec: Vec<(Id, NarwhalActor)> = Vec::new();
+    let mut all_vactor_vec: Vec<(Id, HNActor)> = Vec::new();
     for (i, a) in client_actor_vec {
-        all_vactor_vec.push((i, NarwhalActor::ClientActor(a)));
+        all_vactor_vec.push((i, HNActor::ClientActor(a)));
     }
     for (i, a) in primary_actor_vec {
-        all_vactor_vec.push((i, NarwhalActor::PrimaryActor(a)));
+        all_vactor_vec.push((i, HNActor::PrimaryActor(a)));
     }
     for (i, a) in worker_actor_vec {
-        all_vactor_vec.push((i, NarwhalActor::WorkerActor(a)));
+        all_vactor_vec.push((i, HNActor::WorkerActor(a)));
     }
 
     spawn(
