@@ -245,12 +245,16 @@ struct WorkerActor {
     primary: ValidatorId,
     // the ids of workers of the same index, aka mirro workers
     mirror_workers: Vec<Id>,
+    // my_expected_id is for debugging
+    my_expected_id: Id
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
 struct PrimaryActor {
-    //
+    // the ids of all (known) peer validators
     peer_validators: Vec<Id>,
+    // my_expected_id is for debugging
+    my_expected_id: Id
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
@@ -263,6 +267,8 @@ struct ClientActor {
     // new_req : fn(u64) -> u64,
     // the vector of workers to which requests can/will be sent
     known_workers: Vec<WorkerId>,
+    // my_expected_id is for debugging
+    my_expected_id: Id
 }
 
 // ideally, this _would_ be part of the `Vactor` trait
@@ -677,7 +683,6 @@ struct NarwhalModelCfg {
     primary_count: usize,
     client_count: usize,
     network: Network<<HNActor as Actor>::Msg>,
-    empty_history: Vec<Envelope<<HNActor as Actor>::Msg>>,
 }
 
 
@@ -703,21 +708,26 @@ impl NarwhalModelCfg {
         client + self.primary_count*(self.worker_index_count+1)
     }
 
+
     fn calculate_known_workers(&self, client: usize) -> Vec<Id> {
-        let range = 0..self.client_count;
-        c![Id::from(self.get_client_idx(i)), for i in range, if i != client]
+        c![Id::from(self.get_worker_idx(i,j)), 
+           for i in 0..self.worker_index_count, 
+           for j in 0..self.primary_count]
     }
 
-    fn calculate_peer_validators(&self, primary: usize) -> Vec<Id> {
+    fn calculate_peer_validators_and_id(&self, primary: usize) -> (Vec<Id>,Id) {
         let range = 0..self.primary_count;
-        c![Id::from(self.get_primary_idx(i)), for i in range, if i != primary]
+        (
+            c![Id::from(self.get_primary_idx(i)), for i in range, if i != primary],
+            self.get_primary_idx(primary).into()
+        )
     }
-    fn calculate_mirror_workers(&self, index: usize, primary: usize) -> Vec<Id> {
-        // let indices = 0..self.worker_index_count;
-        let primaries = 0..self.primary_count;
-        c![Id::from(self.get_worker_idx(index, j)), 
-           for j in primaries,
-           if j != primary]
+    fn calculate_mirror_workers_and_id(&self, index: usize, primary: usize) -> (Vec<Id>,Id) {
+        (c![Id::from(self.get_worker_idx(index, j)), 
+           for j in 0..self.primary_count,
+           if j != primary],
+         self.get_worker_idx(index, primary).into()
+        )
     }
 
     fn record_msg_in<'a,'b,'c>(
@@ -760,17 +770,20 @@ impl NarwhalModelCfg {
             .actors(c![WorkerActor(WorkerActor{ 
                 index: i as u64,
                 primary: Id::from(self.get_primary_idx(j)),
-                mirror_workers: self.calculate_mirror_workers(i,j),
+                mirror_workers: self.calculate_mirror_workers_and_id(i,j).0,
+                my_expected_id: self.calculate_mirror_workers_and_id(i,j).1,
             }),
                        for i in 0..self.worker_index_count,
                        for j in 0..self.primary_count]
             )
             .actors(c![PrimaryActor(PrimaryActor{ 
-                peer_validators: self.calculate_peer_validators(p),
+                peer_validators: self.calculate_peer_validators_and_id(p).0,
+                my_expected_id: self.calculate_peer_validators_and_id(p).1,
             }), for p in 0..self.primary_count]
             )
             .actors(c![ClientActor(ClientActor{ 
                 known_workers: self.calculate_known_workers(c),
+                my_expected_id: self.get_client_idx(c).into(),
             }), for c in 0..self.client_count]
             )           
             .init_network(self.network)
@@ -818,7 +831,7 @@ fn main() {
     use std::net::{Ipv4Addr, SocketAddrV4};
 
     // the port is only required for spawning
-    let port = 3000; // ⇐ _NOT_ part of NarwhalModelCfg
+    let worker_port = 3000; // ⇐ _NOT_ part of NarwhalModelCfg
 
     
 
@@ -829,25 +842,25 @@ fn main() {
     // a bunch of worker IDs
     let worker_ids = c![
         Id::from(SocketAddrV4::new(Ipv4Addr::LOCALHOST,
-                                   port + WORKER_INDEX_COUNT*y + x)
+                                   worker_port + WORKER_INDEX_COUNT*y + x)
         ),
         for x in 0..WORKER_INDEX_COUNT,
         for y in 0..PRIMARY_COUNT
     ];
-    let port = 4000; // hopefully big enough ...
+    let primary_port = 4000; // hopefully big enough ...
     assert!(4000 > 3000 + (WORKER_INDEX_COUNT + 1) * PRIMARY_COUNT);
 
     // and their primaries
     let primary_ids = c![
-        Id::from(SocketAddrV4::new(Ipv4Addr::LOCALHOST, port + y)),
+        Id::from(SocketAddrV4::new(Ipv4Addr::LOCALHOST, primary_port + y)),
         for y in 0..PRIMARY_COUNT
     ];
 
-    let port = 4200;
+    let client_port = 4200;
     assert!(4200 > 4000 + PRIMARY_COUNT);
 
     let client_ids = c![
-        Id::from(SocketAddrV4::new(Ipv4Addr::LOCALHOST, port + y)),
+        Id::from(SocketAddrV4::new(Ipv4Addr::LOCALHOST, client_port + y)),
         for y in 0..CLIENT_COUNT
     ];
     for x in &client_ids {
@@ -858,13 +871,18 @@ fn main() {
 
     // create actor structs:
     let mut clients = c![
-        ClientActor{known_workers:worker_ids.clone()},
-        for _x in 0..CLIENT_COUNT
+        ClientActor{
+            known_workers:worker_ids.clone(),
+            my_expected_id:Id::from(SocketAddrV4::new(Ipv4Addr::LOCALHOST, client_port + y)),
+        },
+        for y in 0..CLIENT_COUNT
     ];
     // create primary structs:
     let mut primaries = c![
-        PrimaryActor{peer_validators : primary_ids.clone()},
-        for _x in 0..PRIMARY_COUNT
+        PrimaryActor{peer_validators : primary_ids.clone(),
+                     my_expected_id: Id::from(SocketAddrV4::new(Ipv4Addr::LOCALHOST, primary_port + y))
+        },
+        for y in 0..PRIMARY_COUNT
     ];
     // create worker structs:
     let mut workers = c![
@@ -875,6 +893,9 @@ fn main() {
                 worker_ids[(WORKER_INDEX_COUNT*z + x) as usize],
                 for z in 0..PRIMARY_COUNT
             ],
+            my_expected_id : Id::from(SocketAddrV4::new(Ipv4Addr::LOCALHOST,
+                                   worker_port + WORKER_INDEX_COUNT*y + x)
+        )
         },
         for x in 0..WORKER_INDEX_COUNT,
         for y in 0..PRIMARY_COUNT
