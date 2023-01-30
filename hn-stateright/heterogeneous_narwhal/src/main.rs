@@ -842,13 +842,16 @@ enum ThisEnum {
     Explore,
 }
 use ThisEnum::*;
-const SUP:ThisEnum = Check; 
-
+// hardcoded choice, so far
+//const SUP:ThisEnum = Check; 
+//const SUP:ThisEnum = Spawn; 
+const SUP:ThisEnum = Explore; 
 
 fn main() {
     // let mut tx_vec : Vec<Box<dyn Tx<u64>>> = vec![Box::new(4)] ;
     match SUP {
         Spawn => {
+            println!(" about to spawn HNarwhal" );
             use std::net::{Ipv4Addr, SocketAddrV4};
 
             // the port is only required for spawning
@@ -1037,7 +1040,24 @@ fn main() {
                 network: network,
             }
             .into_model().checker().threads(num_cpus::get())
-                .spawn_dfs().report(&mut &mut std::io::stdout());
+                .spawn_dfs().report(&mut std::io::stdout());
+        },
+        Explore => {
+            let client_count = 3;
+            let address = String::from("localhost:3000");
+            let network = Network::new_unordered_nonduplicating([]);
+            println!(
+                "Exploring state space for Heterogeneous Narwhal with {} clients on {}.",
+                client_count, address);
+            let model = NarwhalModelCfg {
+                worker_index_count: 3,
+                primary_count: 4,
+                client_count: client_count,
+                network: network,
+            }
+            .into_model();
+            println!("init states {:?}", model.init_states()); 
+            model.checker().threads(num_cpus::get()).serve(address);
         },
         _ => { panic!("noooo, SUP?!") }
     }
