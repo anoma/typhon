@@ -114,6 +114,8 @@ mod pki {
 
 // all about actors from stateright
 use stateright::actor::*;
+use stateright::*;
+
 
 // stateright uses clone-on-write for state-changes
 // → doc.rust-lang.org/std/borrow/enum.Cow.html
@@ -409,7 +411,7 @@ impl Vactor for ClientActor {
                 vec![Snd(worker, SubmitTx(new_tx, id))]
             }
             _ => {
-                println!("oops {:?}", self);
+                println!("oops, message {:?} was sent to me little client {:?}", msg, self);
                 vec![]
             }
         }
@@ -445,7 +447,7 @@ impl Actor for WorkerActor {
         o: &mut Out<Self>,
     ) {
         use ed25519_consensus::SigningKey;
-        print!("worker {} got a message {:?}", w_id, msg);
+        if SUP == Spawn {print!("worker {} got a message {:?}", w_id, msg);}
         match msg {
             SubmitTx(tx, client) => {
                 if let Worker(state, key_seed) = state.to_mut() {
@@ -518,7 +520,7 @@ impl Vactor for WorkerActor {
     ) -> Vec<Outputs<Id, Self::Msg>> {
         use ed25519_consensus::SigningKey;
         use Outputs::*;
-        print!("worker {} got a message {:?}", w_id, msg);
+        if SUP == Spawn {print!("worker {} got a message {:?}", w_id, msg);}
         match msg {
             SubmitTx(tx, client) => {
                 let mut o: Vec<Outputs<Id, Self::Msg>> = vec![];
@@ -555,7 +557,7 @@ impl Vactor for WorkerActor {
                 }
             }
             _ => {
-                println!("oops {:?}", &self);
+                println!("oops, me little client {:?} received Message {:?}", &self, msg);
                 vec![]
                 // o.send(src, SomeKindOfMessage(DummyMessageType{}));
             }
@@ -787,6 +789,13 @@ impl NarwhalModelCfg {
             }), for c in 0..self.client_count]
             )           
             .init_network(self.network)
+            .property(
+                Expectation::Eventually,
+                "trivial progress",
+                |_, state| {
+                    state.history.len()> 10
+                }
+            )
         //  .property(Expectation::Always, "linearizable", |_, state| {
         //      state.history.serialized_history().is_some()
         //  })
@@ -825,182 +834,212 @@ use cute::c; // for “pythonic” vec comprehension
                  // simplest example
 //const SQUARES = c![x*x, for x in 0..10];
 //const EVEN_SQUARES = c![x*x, for x in 0..10, if x % 2 == 0];
+
+#[derive(PartialEq)]
+enum ThisEnum {
+    Check,
+    Spawn,
+    Explore,
+}
+use ThisEnum::*;
+const SUP:ThisEnum = Check; 
+
+
 fn main() {
     // let mut tx_vec : Vec<Box<dyn Tx<u64>>> = vec![Box::new(4)] ;
+    match SUP {
+        Spawn => {
+            use std::net::{Ipv4Addr, SocketAddrV4};
 
-    use std::net::{Ipv4Addr, SocketAddrV4};
+            // the port is only required for spawning
+            let worker_port = 3000; // ⇐ _NOT_ part of NarwhalModelCfg
 
-    // the port is only required for spawning
-    let worker_port = 3000; // ⇐ _NOT_ part of NarwhalModelCfg
+            
 
-    
+            // generate all ids we need
+            const WORKER_INDEX_COUNT: u16 = 10;
+            const PRIMARY_COUNT: u16 = 10;
+            const CLIENT_COUNT: u16 = 4;
+            // a bunch of worker IDs
+            let worker_ids = c![
+                Id::from(SocketAddrV4::new(Ipv4Addr::LOCALHOST,
+                                           worker_port + WORKER_INDEX_COUNT*y + x)
+                ),
+                for x in 0..WORKER_INDEX_COUNT,
+                for y in 0..PRIMARY_COUNT
+            ];
+            let primary_port = 4000; // hopefully big enough ...
+            assert!(4000 > 3000 + (WORKER_INDEX_COUNT + 1) * PRIMARY_COUNT);
 
-    // generate all ids we need
-    const WORKER_INDEX_COUNT: u16 = 10;
-    const PRIMARY_COUNT: u16 = 10;
-    const CLIENT_COUNT: u16 = 4;
-    // a bunch of worker IDs
-    let worker_ids = c![
-        Id::from(SocketAddrV4::new(Ipv4Addr::LOCALHOST,
-                                   worker_port + WORKER_INDEX_COUNT*y + x)
-        ),
-        for x in 0..WORKER_INDEX_COUNT,
-        for y in 0..PRIMARY_COUNT
-    ];
-    let primary_port = 4000; // hopefully big enough ...
-    assert!(4000 > 3000 + (WORKER_INDEX_COUNT + 1) * PRIMARY_COUNT);
+            // and their primaries
+            let primary_ids = c![
+                Id::from(SocketAddrV4::new(Ipv4Addr::LOCALHOST, primary_port + y)),
+                for y in 0..PRIMARY_COUNT
+            ];
 
-    // and their primaries
-    let primary_ids = c![
-        Id::from(SocketAddrV4::new(Ipv4Addr::LOCALHOST, primary_port + y)),
-        for y in 0..PRIMARY_COUNT
-    ];
+            let client_port = 4200;
+            assert!(4200 > 4000 + PRIMARY_COUNT);
 
-    let client_port = 4200;
-    assert!(4200 > 4000 + PRIMARY_COUNT);
+            let client_ids = c![
+                Id::from(SocketAddrV4::new(Ipv4Addr::LOCALHOST, client_port + y)),
+                for y in 0..CLIENT_COUNT
+            ];
+            for x in &client_ids {
+                println!("client  id: `{}` generated", x);
+            }
 
-    let client_ids = c![
-        Id::from(SocketAddrV4::new(Ipv4Addr::LOCALHOST, client_port + y)),
-        for y in 0..CLIENT_COUNT
-    ];
-    for x in &client_ids {
-        println!("client  id: `{}` generated", x);
-    }
+            // now XYZ_ids for ZYZ ∈ {worker,primary,client} are generated
 
-    // now XYZ_ids for ZYZ ∈ {worker,primary,client} are generated
+            // create actor structs:
+            let mut clients = c![
+                ClientActor{
+                    known_workers:worker_ids.clone(),
+                    my_expected_id:Id::from(SocketAddrV4::new(Ipv4Addr::LOCALHOST, client_port + y)),
+                },
+                for y in 0..CLIENT_COUNT
+            ];
+            // create primary structs:
+            let mut primaries = c![
+                PrimaryActor{peer_validators : primary_ids.clone(),
+                             my_expected_id: Id::from(SocketAddrV4::new(Ipv4Addr::LOCALHOST, primary_port + y))
+                },
+                for y in 0..PRIMARY_COUNT
+            ];
+            // create worker structs:
+            let mut workers = c![
+                WorkerActor{
+                    index : x as u64,
+                    primary : primary_ids[x as usize],
+                    mirror_workers : c![
+                        worker_ids[(WORKER_INDEX_COUNT*z + x) as usize],
+                        for z in 0..PRIMARY_COUNT
+                    ],
+                    my_expected_id : Id::from(SocketAddrV4::new(Ipv4Addr::LOCALHOST,
+                                                                worker_port + WORKER_INDEX_COUNT*y + x)
+                    )
+                },
+                for x in 0..WORKER_INDEX_COUNT,
+                for y in 0..PRIMARY_COUNT
+            ];
 
-    // create actor structs:
-    let mut clients = c![
-        ClientActor{
-            known_workers:worker_ids.clone(),
-            my_expected_id:Id::from(SocketAddrV4::new(Ipv4Addr::LOCALHOST, client_port + y)),
+            // let mut primary_actor_vec_dyn : Vec< Box< dyn Actor<Msg = MessageEnum, State = StateEnum>>>  = c![
+            //     // (primary_ids[y as usize],
+            //     primaries[y as usize].clone()
+            //     //)
+            //         ,
+            //     for y in 0..PRIMARY_COUNT
+            // ];
+
+            let mut primary_actor_vec = c![
+                (primary_ids[y as usize], primaries[y as usize].clone()),
+                for y in 0..PRIMARY_COUNT
+            ];
+            let mut client_actor_vec = c![
+                (client_ids[y as usize], clients[y as usize].clone()),
+                for y in 0..CLIENT_COUNT
+            ];
+            let mut worker_actor_vec = c![
+                (worker_ids[(WORKER_INDEX_COUNT*y + x)as usize], workers[(WORKER_INDEX_COUNT*y + x)as usize].clone()),
+                for x in 0..WORKER_INDEX_COUNT,
+                for y in 0..PRIMARY_COUNT
+            ];
+
+            // the hacky version to spawn is by use of several threads
+            // ---------
+            // use std::thread;
+            // print!("first spawn");
+            // thread::spawn(|| {
+            //     spawn(
+            //         serde_json::to_vec,
+            //         |bytes| serde_json::from_slice(bytes),
+            //         client_actor_vec,
+            //     )
+            //     .unwrap();
+            // });
+            // print!("second spawn");
+            // thread::spawn(|| {
+            //     spawn(
+            //         serde_json::to_vec,
+            //         |bytes| serde_json::from_slice(bytes),
+            //         primary_actor_vec,
+            //     )
+            //     .unwrap();
+            // });
+            // print!("third spawn is blocking");
+
+            // spawn(
+            //     serde_json::to_vec,
+            //     |bytes| serde_json::from_slice(bytes),
+            //     worker_actor_vec,
+            // )
+            // .unwrap();
+
+            let mut all_vactor_vec: Vec<(Id, HNActor)> = Vec::new();
+            for (i, a) in client_actor_vec {
+                all_vactor_vec.push((i, HNActor::ClientActor(a)));
+            }
+            for (i, a) in primary_actor_vec {
+                all_vactor_vec.push((i, HNActor::PrimaryActor(a)));
+            }
+            for (i, a) in worker_actor_vec {
+                all_vactor_vec.push((i, HNActor::WorkerActor(a)));
+            }
+
+            spawn(
+                serde_json::to_vec,
+                |bytes| serde_json::from_slice(bytes),
+                all_vactor_vec,
+            )
+                .unwrap();
+
+            // "the
+            use ed25519_consensus::{SigningKey, VerificationKey};
+            use rand::thread_rng;
+
+            let key = SigningKey::new(thread_rng());
+            let key_seed = key.to_bytes();
+            let key_again: SigningKey = SigningKey::from(key_seed);
+            assert!(key.to_bytes() == key_again.to_bytes());
+            print!("⇒yeah, true! key.to_bytes()==key_again.to_bytes() ⇐");
+
+            // ------- elliptic curve signatures example usage
+            let msg = b"ed25519-consensus";
+
+            // Signer's context
+            let (vk_bytes, sig_bytes) = {
+                // Generate a signing key and sign the message
+                let sk = SigningKey::new(thread_rng());
+                let sig = sk.sign(msg);
+
+                // Types can be converted to raw byte arrays with From/Into
+                let sig_bytes: [u8; 64] = sig.into();
+                let vk_bytes: [u8; 32] = VerificationKey::from(&sk).into();
+
+                (vk_bytes, sig_bytes)
+            };
+
+            // Verify the signature
+            assert!(VerificationKey::try_from(vk_bytes)
+                    .and_then(|vk| vk.verify(&sig_bytes.into(), msg))
+                    .is_ok());
+
+            // -- end elliptic curves usage
         },
-        for y in 0..CLIENT_COUNT
-    ];
-    // create primary structs:
-    let mut primaries = c![
-        PrimaryActor{peer_validators : primary_ids.clone(),
-                     my_expected_id: Id::from(SocketAddrV4::new(Ipv4Addr::LOCALHOST, primary_port + y))
+        Check => {
+            let client_count = 3;
+            let network = Network::new_unordered_nonduplicating([]); 
+            println!("Model checking HNarwhal with {} clients.",
+                     client_count);
+            NarwhalModelCfg {
+                worker_index_count: 3,
+                primary_count: 4,
+                client_count: client_count,
+                network: network,
+            }
+            .into_model().checker().threads(num_cpus::get())
+                .spawn_dfs().report(&mut &mut std::io::stdout());
         },
-        for y in 0..PRIMARY_COUNT
-    ];
-    // create worker structs:
-    let mut workers = c![
-        WorkerActor{
-            index : x as u64,
-            primary : primary_ids[x as usize],
-            mirror_workers : c![
-                worker_ids[(WORKER_INDEX_COUNT*z + x) as usize],
-                for z in 0..PRIMARY_COUNT
-            ],
-            my_expected_id : Id::from(SocketAddrV4::new(Ipv4Addr::LOCALHOST,
-                                   worker_port + WORKER_INDEX_COUNT*y + x)
-        )
-        },
-        for x in 0..WORKER_INDEX_COUNT,
-        for y in 0..PRIMARY_COUNT
-    ];
-
-    // let mut primary_actor_vec_dyn : Vec< Box< dyn Actor<Msg = MessageEnum, State = StateEnum>>>  = c![
-    //     // (primary_ids[y as usize],
-    //     primaries[y as usize].clone()
-    //     //)
-    //         ,
-    //     for y in 0..PRIMARY_COUNT
-    // ];
-
-    let mut primary_actor_vec = c![
-        (primary_ids[y as usize], primaries[y as usize].clone()),
-        for y in 0..PRIMARY_COUNT
-    ];
-    let mut client_actor_vec = c![
-        (client_ids[y as usize], clients[y as usize].clone()),
-        for y in 0..CLIENT_COUNT
-    ];
-    let mut worker_actor_vec = c![
-        (worker_ids[(WORKER_INDEX_COUNT*y + x)as usize], workers[(WORKER_INDEX_COUNT*y + x)as usize].clone()),
-        for x in 0..WORKER_INDEX_COUNT,
-        for y in 0..PRIMARY_COUNT
-    ];
-
-    // the hacky version to spawn is by use of several threads
-    // ---------
-    // use std::thread;
-    // print!("first spawn");
-    // thread::spawn(|| {
-    //     spawn(
-    //         serde_json::to_vec,
-    //         |bytes| serde_json::from_slice(bytes),
-    //         client_actor_vec,
-    //     )
-    //     .unwrap();
-    // });
-    // print!("second spawn");
-    // thread::spawn(|| {
-    //     spawn(
-    //         serde_json::to_vec,
-    //         |bytes| serde_json::from_slice(bytes),
-    //         primary_actor_vec,
-    //     )
-    //     .unwrap();
-    // });
-    // print!("third spawn is blocking");
-
-    // spawn(
-    //     serde_json::to_vec,
-    //     |bytes| serde_json::from_slice(bytes),
-    //     worker_actor_vec,
-    // )
-    // .unwrap();
-
-    let mut all_vactor_vec: Vec<(Id, HNActor)> = Vec::new();
-    for (i, a) in client_actor_vec {
-        all_vactor_vec.push((i, HNActor::ClientActor(a)));
-    }
-    for (i, a) in primary_actor_vec {
-        all_vactor_vec.push((i, HNActor::PrimaryActor(a)));
-    }
-    for (i, a) in worker_actor_vec {
-        all_vactor_vec.push((i, HNActor::WorkerActor(a)));
+        _ => { panic!("noooo, SUP?!") }
     }
 
-    spawn(
-        serde_json::to_vec,
-        |bytes| serde_json::from_slice(bytes),
-        all_vactor_vec,
-    )
-    .unwrap();
-
-    // "the
-    use ed25519_consensus::{SigningKey, VerificationKey};
-    use rand::thread_rng;
-
-    let key = SigningKey::new(thread_rng());
-    let key_seed = key.to_bytes();
-    let key_again: SigningKey = SigningKey::from(key_seed);
-    assert!(key.to_bytes() == key_again.to_bytes());
-    print!("⇒yeah, true! key.to_bytes()==key_again.to_bytes() ⇐");
-
-    // ------- elliptic curve signatures example usage
-    let msg = b"ed25519-consensus";
-
-    // Signer's context
-    let (vk_bytes, sig_bytes) = {
-        // Generate a signing key and sign the message
-        let sk = SigningKey::new(thread_rng());
-        let sig = sk.sign(msg);
-
-        // Types can be converted to raw byte arrays with From/Into
-        let sig_bytes: [u8; 64] = sig.into();
-        let vk_bytes: [u8; 32] = VerificationKey::from(&sk).into();
-
-        (vk_bytes, sig_bytes)
-    };
-
-    // Verify the signature
-    assert!(VerificationKey::try_from(vk_bytes)
-        .and_then(|vk| vk.verify(&sig_bytes.into(), msg))
-        .is_ok());
-
-    // -- end elliptic curves usage
 }
