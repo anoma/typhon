@@ -1078,8 +1078,7 @@ fn main() {
                 client_count: client_count,
                 network: network,
             }
-            .into_model()
-                .model.checker().threads(num_cpus::get()).serve(address);
+            .into_model().checker().threads(num_cpus::get()).serve(address);
         },
         _ => { panic!("noooo, SUP?!") }
     }
