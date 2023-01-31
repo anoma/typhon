@@ -124,7 +124,8 @@ use std::borrow::Cow;
 // for spawning actors (locally)
 // use std::net::{SocketAddrV4, Ipv4Addr};
 
-type TxData = u64;
+type TxChunk = u64;
+type TxData = Vec<TxChunk>;
 
 // generic transaction: ‼ using rustc 1.69.0-nightly (5e37043d6 2023-01-22)
 trait Tx<T>: serde_traitobject::Serialize + serde_traitobject::Deserialize {
@@ -385,7 +386,8 @@ impl Vactor for ClientActor {
         let mut o: Vec<Outputs<Id, Self::Msg>> = vec![];
         for k in &self.known_workers {
             x = x + 1;
-            o.push(Snd(*k, SubmitTx(x, id)));
+            o.push(Snd(*k, SubmitTx(
+                vec![x], id)));
         }
         // the known workers are the only state of the client
         // ... so far
@@ -403,10 +405,10 @@ impl Vactor for ClientActor {
         match msg {
             TxAck(tx, worker) => {
                 let new_tx = // this should be "random", but ... 
-                    if tx%2 == 0 {
-                        tx / 2
+                    if tx[0]%2 == 0 {
+                        tx[0] / 2
                     } else {
-                        3*tx + 1
+                        3*tx[0] + 1
                     };
                 use std::{thread, time};
 
@@ -414,7 +416,8 @@ impl Vactor for ClientActor {
                 let _now = time::Instant::now();
 
                 thread::sleep(ten_millis);
-                vec![Snd(worker, SubmitTx(new_tx, id))]
+                vec![Snd(worker, SubmitTx(
+                    vec![new_tx], id))]
             }
             _ => {
                 println!("oops, message {:?} was sent to me little client {:?}", msg, self);
@@ -534,12 +537,12 @@ impl Vactor for WorkerActor {
                         panic!("source not client");
                     } else {
                         // push the tx
-                        state.tx_buffer.push((tx, client));
+                        state.tx_buffer.push((tx.clone(), client));
                         // ack the tx
-                        o.push(Snd(src, TxAck(tx, w_id))); // optional, but ...
+                        o.push(Snd(src, TxAck(tx.clone(), w_id))); // optional, but ...
                                                            // "broadcast" tx to mirror_workers : Vec<Id>
                         for k in &state.mirrors {
-                            o.push(Snd(*k, TxToAll(tx, client)));
+                            o.push(Snd(*k, TxToAll(tx.clone(), client)));
                         }
                         if state.tx_buffer.len() >= BATCH_SIZE {
                             // create and process batch hash
