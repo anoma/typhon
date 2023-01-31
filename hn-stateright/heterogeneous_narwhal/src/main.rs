@@ -1,16 +1,10 @@
 // `main.rs` of the Heterogeneous Narwhal implementation in stateright
 #![feature(inherent_associated_types)]
 use serde::{Deserialize, Serialize};
-use std::fmt::Debug; // Display, Formatter (...to be added)
+use std::fmt::Debug;
 
-
-// ambassador (see also https://github.com/Heliozoa/impl-enum)
-// it is used to “lift” trait implementations on enum items
-// to the whole enum .. possibly repeatedly
-use ambassador::{delegatable_trait, Delegate};
-
-// For hashing, based on doc.rust-lang.org/std/hash/index.html, 
-// we use the following 8 (eight) lines, 
+// For hashing, based on doc.rust-lang.org/std/hash/index.html,
+// we use the following 8 (eight) lines,
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
@@ -32,19 +26,11 @@ mod learner_graph {
         type Learner;
         type Validator;
 
-        fn get_learners(
-            &self
-        ) -> dyn Iterator<Item = Self::Learner>;
+        fn get_learners(&self) -> dyn Iterator<Item = Self::Learner>;
 
-        fn get_quorums(
-            &self
-        ) -> HashMap<Self::Learner, HashSet<Self::Validator>>;
+        fn get_quorums(&self) -> HashMap<Self::Learner, HashSet<Self::Validator>>;
 
-        fn are_entangled(
-            &self,
-            learner_a: Self::Learner,
-            learner_b: Self::Learner
-        ) -> bool;
+        fn are_entangled(&self, learner_a: Self::Learner, learner_b: Self::Learner) -> bool;
     }
 }
 
@@ -53,16 +39,12 @@ mod pki {
     // ------- elliptic curve signatures imports (kudos to Daniel) ------
     use ed25519_consensus::*;
     use rand::thread_rng;
-    use std::convert::TryFrom;
-    use std::collections::HashMap;
     use stateright::actor::Id;
+    use std::collections::HashMap;
+    use std::convert::TryFrom;
 
     pub trait Registry {
-        fn register(
-            &mut self,
-            _: Id,
-            _: VerificationKey
-        ) -> bool;
+        fn register(&mut self, _: Id, _: VerificationKey) -> bool;
     }
 
     pub struct KeyTable {
@@ -70,18 +52,12 @@ mod pki {
     }
 
     impl Registry for KeyTable {
-        fn register(
-            &mut self,
-            id: Id,
-            vk: VerificationKey
-        ) -> bool {
+        fn register(&mut self, id: Id, vk: VerificationKey) -> bool {
             self.map.insert(id, vk) != None
         }
     }
 
-    fn get_vk(
-        sk: SigningKey
-    ) -> VerificationKey {
+    fn get_vk(sk: SigningKey) -> VerificationKey {
         VerificationKey::from(&sk)
     }
 
@@ -116,10 +92,13 @@ mod pki {
 use stateright::actor::*;
 use stateright::*;
 
-
 // stateright uses clone-on-write for state-changes
 // → doc.rust-lang.org/std/borrow/enum.Cow.html
 use std::borrow::Cow;
+
+// ------------------------------------------------------------
+// actual actor model starts here
+// ------------------------------------------------------------
 
 // for spawning actors (locally)
 // use std::net::{SocketAddrV4, Ipv4Addr};
@@ -127,35 +106,8 @@ use std::borrow::Cow;
 type TxChunk = u64;
 type TxData = Vec<TxChunk>;
 
-// generic transaction: ‼ using rustc 1.69.0-nightly (5e37043d6 2023-01-22)
-trait Tx<T>: serde_traitobject::Serialize + serde_traitobject::Deserialize {
-    fn get_data(&self) -> T;
-}
-
-// simplest implementation instance
-impl Tx<u64> for u64 {
-    fn get_data(&self) -> u64 {
-        *self
-    }
-}
-
-// FIXME: "generic" **and** serializable -- ̈"somehow" ?!
-// #[derive(Serialize, Deserialize)]
-// struct ConcreteTx<T:Serialize + ?Sized + 'static> {
-//     #[serde(with = "serde_traitobject")]
-//     tx_data: T,
-// }
-//
-// impl Tx<u64> for ConcreteTx<u64>{
-//     fn get_data(&self) -> u64{
-//         *self
-//     }
-// }
-
-// the type of batches of transactions, collected from clients
-trait Batch<T> {
-    fn get_txs(&self) -> Vec<Box<dyn Tx<T>>>;
-}
+// FIXME: batches "generic" **and** serializable -- ̈"somehow" ?!
+// batch is just a vector of TxData
 
 // worker hash data type
 // serialization matters as in https://crates.io/crates/bincode
@@ -169,15 +121,16 @@ struct WorkerHashData {
     hash: u64,
 }
 
+// the hashing library uses [u8; 64], which makes us use BigArray
 use serde_big_array::BigArray;
 
 // the type of worker hash signatures
 type WorkerHashSignature = [u8; 64];
 
-// the IDs of validators
+// the IDs of validators is a stateright Id
 type ValidatorId = Id;
 
-// the IDs of workers
+// the IDs of workers is a stateright Id
 type WorkerId = Id;
 
 // the IDs of workers
@@ -243,7 +196,7 @@ use crate::StateEnum::*;
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
 struct WorkerActor {
     // key (as seed)
-    key_seed: [u8; 32], 
+    key_seed: [u8; 32],
     // the index of a worker
     index: WorkerIndex,
     // the primary
@@ -257,37 +210,68 @@ struct WorkerActor {
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
 struct PrimaryActor {
     // key (as seed)
-    key_seed: [u8; 32], 
+    key_seed: [u8; 32],
     // the ids of all (known) peer validators
     peer_validators: Vec<Id>,
     // my_expected_id is for debugging
-    my_expected_id: Id
+    my_expected_id: Id,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
 struct ClientActor {
-    // some immutable information
-    // random_seed : Option<u64>,
-    // initial request number
-    // initial_requests : u64,
-    // function for new requests, optionally pseudo-random
-    // new_req : fn(u64) -> u64,
-    //
     // key (as seed)
-    key_seed: [u8; 32], 
+    key_seed: [u8; 32],
     // the vector of workers to which requests can/will be sent
     known_workers: Vec<WorkerId>,
     // my_expected_id is for debugging
-    my_expected_id: Id
+    my_expected_id: Id,
 }
 
+// experiment _delegation_ begin
+#[delegatable_trait]
+pub trait ExampleTrait : Sized {
+    fn do_this (&self, o: &mut Vec<Self>);
+}
+
+#[derive(Clone)]
+struct ExOne;
+#[derive(Clone)]
+struct ExTwo;
+
+
+impl ExampleTrait for ExOne {
+    fn do_this (&self, o: &mut Vec<Self>){
+        o.push(self.clone());
+    }
+}
+impl ExampleTrait for ExTwo {
+    fn do_this (&self, o: &mut Vec<Self>){
+        o.push(self.clone());
+    }
+}
+
+// this of course does not work, because self is changing its meaning
+// #[derive(Delegate,Clone)]
+// #[delegate(ExampleTrait)]
+// enum ExEnum {
+//     ExOne(ExOne),
+//     ExTwo(ExTwo),
+// }
+
+// experiment _delegation_ end
+
 // ideally, this _would_ be part of the `Vactor` trait
-// at least it is private
+// at least it is private 
 enum Outputs<I, M> {
     Snd(I, M),
     Cast(M),
     Timer(usize),
 }
+
+// ambassador (see also https://github.com/Heliozoa/impl-enum)
+// it is used to “lift” trait implementations on enum items
+// to the whole enum .. possibly repeatedly
+use ambassador::{delegatable_trait, Delegate};
 
 // The following is based on stateright's Actor trait,
 // which can be lifted to enums via amabassor,
@@ -318,60 +302,6 @@ trait Vactor: Sized {
     }
 }
 
-// the client actor, directly as an actor
-// - sends new requests, ideally constantly and uniformly
-// > NB: not easily liftable at the present for stateright (via ambassador)
-// > due to Out<Self> -- to be changed to Out<Self::Msg>
-// > in the signatures of `on_start`, `on_msg`, `on_timeout`
-// impl Actor for ClientActor {
-//     type Msg = MessageEnum;
-//     type State = StateEnum;
-
-//     fn on_start(&self, id: Id, o: &mut Out<Self>) -> Self::State {
-//         print!("start client {}", id);
-//         use ed25519_consensus::SigningKey;
-//         use rand::thread_rng;
-//         let key = SigningKey::new(thread_rng()).to_bytes();
-//         // send a tx to every work
-//         let mut x = 0;
-//         for k in &self.known_workers {
-//             x = x + 1;
-//             o.send(*k, SubmitTx(x, id));
-//         }
-//         // the known workers are the only state of the client
-//         // ... so far
-//         Client(self.known_workers.clone(), key)
-//     }
-
-//     fn on_msg(
-//         &self,
-//         id: Id,
-//         _state: &mut Cow<Self::State>,
-//         _src: Id,
-//         msg: Self::Msg,
-//         o: &mut Out<Self>,
-//     ) {
-//         match msg {
-//             TxAck(tx, worker) => {
-//                 let new_tx = // this should be "random", but ... 
-//                     if tx%2 == 0 {
-//                         tx / 2
-//                     } else {
-//                         3*tx + 1
-//                     };
-//                 o.send(worker, SubmitTx(new_tx, id));
-//                 use std::{thread, time};
-
-//                 let ten_millis = time::Duration::from_millis(10);
-//                 let _now = time::Instant::now();
-
-//                 thread::sleep(ten_millis);
-//             }
-//             _ => {}
-//         }
-//     }
-// }
-
 impl Vactor for ClientActor {
     type Msg = MessageEnum;
     type State = StateEnum;
@@ -386,8 +316,7 @@ impl Vactor for ClientActor {
         let mut o: Vec<Outputs<Id, Self::Msg>> = vec![];
         for k in &self.known_workers {
             x = x + 1;
-            o.push(Snd(*k, SubmitTx(
-                vec![x], id)));
+            o.push(Snd(*k, SubmitTx(vec![x], id)));
         }
         // the known workers are the only state of the client
         // ... so far
@@ -416,86 +345,19 @@ impl Vactor for ClientActor {
                 let _now = time::Instant::now();
 
                 thread::sleep(ten_millis);
-                vec![Snd(worker, SubmitTx(
-                    vec![new_tx], id))]
+                vec![Snd(worker, SubmitTx(vec![new_tx], id))]
             }
             _ => {
-                println!("oops, message {:?} was sent to me little client {:?}", msg, self);
+                println!(
+                    "oops, message {:?} was sent to me little client {:?}",
+                    msg, self
+                );
                 vec![]
             }
         }
     }
 }
 
-// impl Actor for WorkerActor {
-//     type Msg = MessageEnum;
-//     type State = StateEnum;
-
-//     fn on_start(&self, id: Id, _o: &mut Out<Self>) -> Self::State {
-//         print!("start worker {}", id);
-//         use ed25519_consensus::SigningKey;
-//         use rand::thread_rng;
-//         let key_seed = SigningKey::new(thread_rng()).to_bytes();
-//         Worker(
-//             WorkerState {
-//                 tx_buffer: vec![],
-//                 primary: self.primary,
-//                 rnd: GENESIS_ROUND,
-//                 mirrors: self.mirror_workers.clone(),
-//             },
-//             key_seed,
-//         )
-//     }
-
-//     fn on_msg(
-//         &self,
-//         w_id: Id,
-//         state: &mut Cow<Self::State>,
-//         src: Id,
-//         msg: Self::Msg,
-//         o: &mut Out<Self>,
-//     ) {
-//         use ed25519_consensus::SigningKey;
-//         if SUP == Spawn {print!("worker {} got a message {:?}", w_id, msg);}
-//         match msg {
-//             SubmitTx(tx, client) => {
-//                 if let Worker(state, key_seed) = state.to_mut() {
-//                     if client != src {
-//                         panic!("source not client");
-//                     } else {
-//                         // push the tx
-//                         state.tx_buffer.push((tx, client));
-//                         // ack the tx
-//                         o.send(src, TxAck(tx, w_id)); // optional, but ...
-//                                                       // "broadcast" tx to mirror_workers : Vec<Id>
-//                         for k in &state.mirrors {
-//                             o.send(*k, TxToAll(tx, client));
-//                         }
-//                         if state.tx_buffer.len() >= BATCH_SIZE {
-//                             // create and process batch hash
-//                             let w_hash = WorkerHashData {
-//                                 hash: hash_of(&state.tx_buffer),
-//                                 rnd: state.rnd,
-//                                 length: state.tx_buffer.len(),
-//                             };
-//                             let w_bytes: &[u8] = &bincode::serialize(&w_hash).unwrap();
-//                             let key = SigningKey::from(*key_seed);
-//                             let sig: WorkerHashSignature = key.sign(w_bytes).to_bytes();
-//                             o.send(state.primary, WorkerHash(w_hash, sig));
-//                             // TODO broadcast
-//                         }
-//                     }
-//                 } else {
-//                     // issue
-//                     panic!("Worker state incorrect");
-//                 }
-//             }
-//             _ => {
-//                 // o.send(src, SomeKindOfMessage(DummyMessageType{}));
-//             }
-//         }
-//     }
-// }
 
 impl Vactor for WorkerActor {
     type Msg = MessageEnum;
@@ -528,7 +390,9 @@ impl Vactor for WorkerActor {
     ) -> Vec<Outputs<Id, Self::Msg>> {
         use ed25519_consensus::SigningKey;
         use Outputs::*;
-        if SUP == Spawn {print!("worker {} got a message {:?}", w_id, msg);}
+        if SUP == Spawn {
+            print!("worker {} got a message {:?}", w_id, msg);
+        }
         match msg {
             SubmitTx(tx, client) => {
                 let mut o: Vec<Outputs<Id, Self::Msg>> = vec![];
@@ -540,7 +404,7 @@ impl Vactor for WorkerActor {
                         state.tx_buffer.push((tx.clone(), client));
                         // ack the tx
                         o.push(Snd(src, TxAck(tx.clone(), w_id))); // optional, but ...
-                                                           // "broadcast" tx to mirror_workers : Vec<Id>
+                                                                   // "broadcast" tx to mirror_workers : Vec<Id>
                         for k in &state.mirrors {
                             o.push(Snd(*k, TxToAll(tx.clone(), client)));
                         }
@@ -565,41 +429,16 @@ impl Vactor for WorkerActor {
                 }
             }
             _ => {
-                println!("oops, me little client {:?} received Message {:?}", &self, msg);
+                println!(
+                    "oops, me little client {:?} received Message {:?}",
+                    &self, msg
+                );
                 vec![]
                 // o.send(src, SomeKindOfMessage(DummyMessageType{}));
             }
         }
     }
 }
-
-// impl Actor for PrimaryActor {
-//     type Msg = MessageEnum;
-//     type State = StateEnum;
-
-//     fn on_start(&self, id: Id, _o: &mut Out<Self>) -> Self::State {
-//         println!("start primary {}", id);
-//         use ed25519_consensus::SigningKey;
-//         use rand::thread_rng;
-//         let key_seed = SigningKey::new(thread_rng()).to_bytes();
-//         Primary(PrimaryState {}, key_seed) // default value for one ping pongk
-//     }
-
-//     fn on_msg(
-//         &self,
-//         _id: Id,
-//         _state: &mut Cow<Self::State>,
-//         _src: Id,
-//         msg: Self::Msg,
-//         _o: &mut Out<Self>,
-//     ) {
-//         match msg {
-//             _ => {
-//                 //o.send(src, SomeKindOfMessage(DummyMessageType{}));
-//             }
-//         }
-//     }
-// }
 
 impl Vactor for PrimaryActor {
     type Msg = MessageEnum;
@@ -685,7 +524,7 @@ impl Actor for HNActor {
 }
 
 // in rough analogy to stateright's `examples/paxos.rs`
-// history will simply be state/action pairs 
+// history will simply be state/action pairs
 #[derive(Clone)]
 struct NarwhalModelCfg {
     worker_index_count: usize,
@@ -693,7 +532,6 @@ struct NarwhalModelCfg {
     client_count: usize,
     network: Network<<HNActor as Actor>::Msg>,
 }
-
 
 // generates a key_seed,
 // using ed25519_consensus::SigningKey rand::thread_rng
@@ -708,27 +546,26 @@ fn fresh_key_seed() -> [u8; 32] {
 }
 
 impl NarwhalModelCfg {
-    // `into_model()` is meant for model checking (or exploration). 
+    // `into_model()` is meant for model checking (or exploration).
     // Ids of actors will actually be assigned implicitly.
     // The id of each actor is induced by the order in which
     // we add actors; the first actor to be added has index 0
-    // (“wrapped” into Id, via `from`). 
+    // (“wrapped” into Id, via `from`).
 
     // 1. workers: 0..wic*pc
-    fn get_worker_idx(&self, index : usize, primary : usize) -> usize{
-        assert!(index < self.worker_index_count); // 0<=index always true 
-        assert!(primary < self.primary_count); // 0<=primary always true 
-        index+primary*self.worker_index_count
+    fn get_worker_idx(&self, index: usize, primary: usize) -> usize {
+        assert!(index < self.worker_index_count); // 0<=index always true
+        assert!(primary < self.primary_count); // 0<=primary always true
+        index + primary * self.worker_index_count
     }
     // 2. primaries: wic*pc..(wic+1)*pc
-    fn get_primary_idx(&self, primary : usize) -> usize{
-        primary + self.primary_count*self.worker_index_count
+    fn get_primary_idx(&self, primary: usize) -> usize {
+        primary + self.primary_count * self.worker_index_count
     }
-    // 3. clients: (wic+1)*pc..(wic+1)*pc+cc        
-    fn get_client_idx(&self, client : usize) -> usize{
-        client + self.primary_count*(self.worker_index_count+1)
+    // 3. clients: (wic+1)*pc..(wic+1)*pc+cc
+    fn get_client_idx(&self, client: usize) -> usize {
+        client + self.primary_count * (self.worker_index_count + 1)
     }
-
 
     fn calculate_known_workers(&self, client: usize) -> Vec<Id> {
         c![Id::from(self.get_worker_idx(i,j)), 
@@ -736,25 +573,26 @@ impl NarwhalModelCfg {
            for j in 0..self.primary_count]
     }
 
-    fn calculate_peer_validators_and_id(&self, primary: usize) -> (Vec<Id>,Id) {
+    fn calculate_peer_validators_and_id(&self, primary: usize) -> (Vec<Id>, Id) {
         let range = 0..self.primary_count;
         (
             c![Id::from(self.get_primary_idx(i)), for i in range, if i != primary],
-            self.get_primary_idx(primary).into()
+            self.get_primary_idx(primary).into(),
         )
     }
-    fn calculate_mirror_workers_and_id(&self, index: usize, primary: usize) -> (Vec<Id>,Id) {
-        (c![Id::from(self.get_worker_idx(index, j)), 
+    fn calculate_mirror_workers_and_id(&self, index: usize, primary: usize) -> (Vec<Id>, Id) {
+        (
+            c![Id::from(self.get_worker_idx(index, j)), 
            for j in 0..self.primary_count,
            if j != primary],
-         self.get_worker_idx(index, primary).into()
+            self.get_worker_idx(index, primary).into(),
         )
     }
 
-    fn record_msg_in<'a,'b,'c>(
+    fn record_msg_in<'a, 'b, 'c>(
         _cfg: &'a Self,
         history: &'b Vec<Envelope<<HNActor as Actor>::Msg>>,
-        env: Envelope<&'c<HNActor as Actor>::Msg>
+        env: Envelope<&'c <HNActor as Actor>::Msg>,
     ) -> Option<Vec<Envelope<<HNActor as Actor>::Msg>>> {
         let mut h = history.clone();
         let e = env.to_cloned_msg();
@@ -762,25 +600,23 @@ impl NarwhalModelCfg {
         Some(h)
     }
 
-    fn record_msg_out<'a,'b,'c>(
+    fn record_msg_out<'a, 'b, 'c>(
         _cfg: &'a Self,
         history: &'b Vec<Envelope<<HNActor as Actor>::Msg>>,
-        env: Envelope<&'c<HNActor as Actor>::Msg>
+        env: Envelope<&'c <HNActor as Actor>::Msg>,
     ) -> Option<Vec<Envelope<<HNActor as Actor>::Msg>>> {
         let mut h = history.clone();
         let e = env.to_cloned_msg();
         h.push(e);
         Some(h)
     }
-    
 
     // The actor ids in models of stateright are essentially hard-coded;
-    // they are given by the position the `actors` field  
-    fn into_model(
-        self
-    ) -> ActorModel<HNActor, Self, Vec<Envelope<<HNActor as Actor>::Msg>>> {
-        ActorModel::new(self.clone(), 
-                        vec![] // here will go histories, i.e., sequences of 
+    // they are given by the position the `actors` field
+    fn into_model(self) -> ActorModel<HNActor, Self, Vec<Envelope<<HNActor as Actor>::Msg>>> {
+        ActorModel::new(
+            self.clone(),
+            vec![], // here will go histories, i.e., sequences of
         )
         // we **have**add actors in the following order
         // wic = worker_index_count
@@ -789,7 +625,7 @@ impl NarwhalModelCfg {
         // 1. workers: 0..wic*pc
         // 2. primaries: wic*pc..(wic+1)*pc
         // 3. clients: (wic+1)*pc..(wic+1)*pc+cc
-            .actors(c![WorkerActor(WorkerActor{ 
+        .actors(c![WorkerActor(WorkerActor{ 
                 index: i as u64,
                 primary: Id::from(self.get_primary_idx(j)),
                 mirror_workers: self.calculate_mirror_workers_and_id(i,j).0,
@@ -797,28 +633,21 @@ impl NarwhalModelCfg {
                 key_seed: fresh_key_seed(),
             }),
                        for i in 0..self.worker_index_count,
-                       for j in 0..self.primary_count]
-            )
-            .actors(c![PrimaryActor(PrimaryActor{ 
+                       for j in 0..self.primary_count])
+        .actors(c![PrimaryActor(PrimaryActor{ 
                 peer_validators: self.calculate_peer_validators_and_id(p).0,
                 my_expected_id: self.calculate_peer_validators_and_id(p).1,
                 key_seed: fresh_key_seed(),
-            }), for p in 0..self.primary_count]
-            )
-            .actors(c![ClientActor(ClientActor{ 
+            }), for p in 0..self.primary_count])
+        .actors(c![ClientActor(ClientActor{ 
                 known_workers: self.calculate_known_workers(c),
                 my_expected_id: self.get_client_idx(c).into(),
                 key_seed: fresh_key_seed(),
-            }), for c in 0..self.client_count]
-            )           
-            .init_network(self.network)
-            .property(
-                Expectation::Eventually,
-                "trivial progress",
-                |_, state| {
-                    state.history.len()> 10
-                }
-            )
+            }), for c in 0..self.client_count])
+        .init_network(self.network)
+        .property(Expectation::Eventually, "trivial progress", |_, state| {
+            state.history.len() > 10
+        })
         //  .property(Expectation::Always, "linearizable", |_, state| {
         //      state.history.serialized_history().is_some()
         //  })
@@ -852,11 +681,10 @@ impl NarwhalModelCfg {
 //          pub within_boundary: fn(cfg: &C, state: &ActorModelState<A, H>) -> bool,
 // }
 
-
 use cute::c; // for “pythonic” vec comprehension
-                 // simplest example
-//const SQUARES = c![x*x, for x in 0..10];
-//const EVEN_SQUARES = c![x*x, for x in 0..10, if x % 2 == 0];
+             // simplest example
+             //const SQUARES = c![x*x, for x in 0..10];
+             //const EVEN_SQUARES = c![x*x, for x in 0..10, if x % 2 == 0];
 
 #[derive(PartialEq)]
 enum ThisEnum {
@@ -866,21 +694,19 @@ enum ThisEnum {
 }
 use ThisEnum::*;
 // hardcoded choice, so far
-//const SUP:ThisEnum = Check; 
-//const SUP:ThisEnum = Spawn; 
-const SUP:ThisEnum = Explore; 
+//const SUP:ThisEnum = Check;
+//const SUP:ThisEnum = Spawn;
+const SUP: ThisEnum = Explore;
 
 fn main() {
     // let mut tx_vec : Vec<Box<dyn Tx<u64>>> = vec![Box::new(4)] ;
     match SUP {
         Spawn => {
-            println!(" about to spawn HNarwhal" );
+            println!(" about to spawn HNarwhal");
             use std::net::{Ipv4Addr, SocketAddrV4};
 
             // the port is only required for spawning
             let worker_port = 3000; // ⇐ _NOT_ part of NarwhalModelCfg
-
-            
 
             // generate all ids we need
             const WORKER_INDEX_COUNT: u16 = 10;
@@ -1019,7 +845,7 @@ fn main() {
                 |bytes| serde_json::from_slice(bytes),
                 all_vactor_vec,
             )
-                .unwrap();
+            .unwrap();
 
             // "the
             use ed25519_consensus::{SigningKey, VerificationKey};
@@ -1049,41 +875,48 @@ fn main() {
 
             // Verify the signature
             assert!(VerificationKey::try_from(vk_bytes)
-                    .and_then(|vk| vk.verify(&sig_bytes.into(), msg))
-                    .is_ok());
+                .and_then(|vk| vk.verify(&sig_bytes.into(), msg))
+                .is_ok());
 
             // -- end elliptic curves usage
-        },
+        }
         Check => {
             let client_count = 3;
-            let network = Network::new_unordered_nonduplicating([]); 
-            println!("Model checking HNarwhal with {} clients.",
-                     client_count);
+            let network = Network::new_unordered_nonduplicating([]);
+            println!("Model checking HNarwhal with {} clients.", client_count);
             NarwhalModelCfg {
                 worker_index_count: 3,
                 primary_count: 4,
                 client_count: client_count,
                 network: network,
             }
-            .into_model().checker().threads(num_cpus::get())
-                .spawn_dfs().report(&mut std::io::stdout());
-        },
+            .into_model()
+            .checker()
+            .threads(num_cpus::get())
+            .spawn_dfs()
+            .report(&mut std::io::stdout());
+        }
         Explore => {
             let client_count = 3;
             let address = String::from("localhost:3000");
             let network = Network::new_unordered_nonduplicating([]);
             println!(
                 "Exploring state space for Heterogeneous Narwhal with {} clients on {}.",
-                client_count, address);
+                client_count, address
+            );
             NarwhalModelCfg {
                 worker_index_count: 3,
                 primary_count: 4,
                 client_count: client_count,
                 network: network,
             }
-            .into_model().checker().threads(num_cpus::get()).serve(address);
-        },
-        _ => { panic!("noooo, SUP?!") }
+            .into_model()
+            .checker()
+            .threads(num_cpus::get())
+            .serve(address);
+        }
+        _ => {
+            panic!("noooo, SUP?!")
+        }
     }
-
 }
