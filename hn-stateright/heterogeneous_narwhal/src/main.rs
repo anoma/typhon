@@ -3,6 +3,7 @@
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug; // Display, Formatter (...to be added)
 
+
 // ambassador (see also https://github.com/Heliozoa/impl-enum)
 // it is used to “lift” trait implementations on enum items
 // to the whole enum .. possibly repeatedly
@@ -55,7 +56,6 @@ mod pki {
     use std::convert::TryFrom;
     use std::collections::HashMap;
     use stateright::actor::Id;
-
 
     pub trait Registry {
         fn register(
@@ -241,6 +241,8 @@ use crate::StateEnum::*;
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
 struct WorkerActor {
+    // key (as seed)
+    key_seed: [u8; 32], 
     // the index of a worker
     index: WorkerIndex,
     // the primary
@@ -248,11 +250,13 @@ struct WorkerActor {
     // the ids of workers of the same index, aka mirro workers
     mirror_workers: Vec<Id>,
     // my_expected_id is for debugging
-    my_expected_id: Id
+    my_expected_id: Id,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
 struct PrimaryActor {
+    // key (as seed)
+    key_seed: [u8; 32], 
     // the ids of all (known) peer validators
     peer_validators: Vec<Id>,
     // my_expected_id is for debugging
@@ -267,6 +271,9 @@ struct ClientActor {
     // initial_requests : u64,
     // function for new requests, optionally pseudo-random
     // new_req : fn(u64) -> u64,
+    //
+    // key (as seed)
+    key_seed: [u8; 32], 
     // the vector of workers to which requests can/will be sent
     known_workers: Vec<WorkerId>,
     // my_expected_id is for debugging
@@ -315,54 +322,54 @@ trait Vactor: Sized {
 // > NB: not easily liftable at the present for stateright (via ambassador)
 // > due to Out<Self> -- to be changed to Out<Self::Msg>
 // > in the signatures of `on_start`, `on_msg`, `on_timeout`
-impl Actor for ClientActor {
-    type Msg = MessageEnum;
-    type State = StateEnum;
+// impl Actor for ClientActor {
+//     type Msg = MessageEnum;
+//     type State = StateEnum;
 
-    fn on_start(&self, id: Id, o: &mut Out<Self>) -> Self::State {
-        print!("start client {}", id);
-        use ed25519_consensus::SigningKey;
-        use rand::thread_rng;
-        let key = SigningKey::new(thread_rng()).to_bytes();
-        // send a tx to every work
-        let mut x = 0;
-        for k in &self.known_workers {
-            x = x + 1;
-            o.send(*k, SubmitTx(x, id));
-        }
-        // the known workers are the only state of the client
-        // ... so far
-        Client(self.known_workers.clone(), key)
-    }
+//     fn on_start(&self, id: Id, o: &mut Out<Self>) -> Self::State {
+//         print!("start client {}", id);
+//         use ed25519_consensus::SigningKey;
+//         use rand::thread_rng;
+//         let key = SigningKey::new(thread_rng()).to_bytes();
+//         // send a tx to every work
+//         let mut x = 0;
+//         for k in &self.known_workers {
+//             x = x + 1;
+//             o.send(*k, SubmitTx(x, id));
+//         }
+//         // the known workers are the only state of the client
+//         // ... so far
+//         Client(self.known_workers.clone(), key)
+//     }
 
-    fn on_msg(
-        &self,
-        id: Id,
-        _state: &mut Cow<Self::State>,
-        _src: Id,
-        msg: Self::Msg,
-        o: &mut Out<Self>,
-    ) {
-        match msg {
-            TxAck(tx, worker) => {
-                let new_tx = // this should be "random", but ... 
-                    if tx%2 == 0 {
-                        tx / 2
-                    } else {
-                        3*tx + 1
-                    };
-                o.send(worker, SubmitTx(new_tx, id));
-                use std::{thread, time};
+//     fn on_msg(
+//         &self,
+//         id: Id,
+//         _state: &mut Cow<Self::State>,
+//         _src: Id,
+//         msg: Self::Msg,
+//         o: &mut Out<Self>,
+//     ) {
+//         match msg {
+//             TxAck(tx, worker) => {
+//                 let new_tx = // this should be "random", but ... 
+//                     if tx%2 == 0 {
+//                         tx / 2
+//                     } else {
+//                         3*tx + 1
+//                     };
+//                 o.send(worker, SubmitTx(new_tx, id));
+//                 use std::{thread, time};
 
-                let ten_millis = time::Duration::from_millis(10);
-                let _now = time::Instant::now();
+//                 let ten_millis = time::Duration::from_millis(10);
+//                 let _now = time::Instant::now();
 
-                thread::sleep(ten_millis);
-            }
-            _ => {}
-        }
-    }
-}
+//                 thread::sleep(ten_millis);
+//             }
+//             _ => {}
+//         }
+//     }
+// }
 
 impl Vactor for ClientActor {
     type Msg = MessageEnum;
@@ -371,9 +378,8 @@ impl Vactor for ClientActor {
     fn on_start_vec(&self, id: Id) -> (Self::State, Vec<Outputs<Id, Self::Msg>>) {
         print!("start client {}", id);
         use ed25519_consensus::SigningKey;
-        use rand::thread_rng;
         use Outputs::*;
-        let key = SigningKey::new(thread_rng()).to_bytes();
+        let key = self.key_seed;
         // send a tx to every work
         let mut x = 0;
         let mut o: Vec<Outputs<Id, Self::Msg>> = vec![];
@@ -418,75 +424,75 @@ impl Vactor for ClientActor {
     }
 }
 
-impl Actor for WorkerActor {
-    type Msg = MessageEnum;
-    type State = StateEnum;
+// impl Actor for WorkerActor {
+//     type Msg = MessageEnum;
+//     type State = StateEnum;
 
-    fn on_start(&self, id: Id, _o: &mut Out<Self>) -> Self::State {
-        print!("start worker {}", id);
-        use ed25519_consensus::SigningKey;
-        use rand::thread_rng;
-        let key_seed = SigningKey::new(thread_rng()).to_bytes();
-        Worker(
-            WorkerState {
-                tx_buffer: vec![],
-                primary: self.primary,
-                rnd: GENESIS_ROUND,
-                mirrors: self.mirror_workers.clone(),
-            },
-            key_seed,
-        )
-    }
+//     fn on_start(&self, id: Id, _o: &mut Out<Self>) -> Self::State {
+//         print!("start worker {}", id);
+//         use ed25519_consensus::SigningKey;
+//         use rand::thread_rng;
+//         let key_seed = SigningKey::new(thread_rng()).to_bytes();
+//         Worker(
+//             WorkerState {
+//                 tx_buffer: vec![],
+//                 primary: self.primary,
+//                 rnd: GENESIS_ROUND,
+//                 mirrors: self.mirror_workers.clone(),
+//             },
+//             key_seed,
+//         )
+//     }
 
-    fn on_msg(
-        &self,
-        w_id: Id,
-        state: &mut Cow<Self::State>,
-        src: Id,
-        msg: Self::Msg,
-        o: &mut Out<Self>,
-    ) {
-        use ed25519_consensus::SigningKey;
-        if SUP == Spawn {print!("worker {} got a message {:?}", w_id, msg);}
-        match msg {
-            SubmitTx(tx, client) => {
-                if let Worker(state, key_seed) = state.to_mut() {
-                    if client != src {
-                        panic!("source not client");
-                    } else {
-                        // push the tx
-                        state.tx_buffer.push((tx, client));
-                        // ack the tx
-                        o.send(src, TxAck(tx, w_id)); // optional, but ...
-                                                      // "broadcast" tx to mirror_workers : Vec<Id>
-                        for k in &state.mirrors {
-                            o.send(*k, TxToAll(tx, client));
-                        }
-                        if state.tx_buffer.len() >= BATCH_SIZE {
-                            // create and process batch hash
-                            let w_hash = WorkerHashData {
-                                hash: hash_of(&state.tx_buffer),
-                                rnd: state.rnd,
-                                length: state.tx_buffer.len(),
-                            };
-                            let w_bytes: &[u8] = &bincode::serialize(&w_hash).unwrap();
-                            let key = SigningKey::from(*key_seed);
-                            let sig: WorkerHashSignature = key.sign(w_bytes).to_bytes();
-                            o.send(state.primary, WorkerHash(w_hash, sig));
-                            // TODO broadcast
-                        }
-                    }
-                } else {
-                    // issue
-                    panic!("Worker state incorrect");
-                }
-            }
-            _ => {
-                // o.send(src, SomeKindOfMessage(DummyMessageType{}));
-            }
-        }
-    }
-}
+//     fn on_msg(
+//         &self,
+//         w_id: Id,
+//         state: &mut Cow<Self::State>,
+//         src: Id,
+//         msg: Self::Msg,
+//         o: &mut Out<Self>,
+//     ) {
+//         use ed25519_consensus::SigningKey;
+//         if SUP == Spawn {print!("worker {} got a message {:?}", w_id, msg);}
+//         match msg {
+//             SubmitTx(tx, client) => {
+//                 if let Worker(state, key_seed) = state.to_mut() {
+//                     if client != src {
+//                         panic!("source not client");
+//                     } else {
+//                         // push the tx
+//                         state.tx_buffer.push((tx, client));
+//                         // ack the tx
+//                         o.send(src, TxAck(tx, w_id)); // optional, but ...
+//                                                       // "broadcast" tx to mirror_workers : Vec<Id>
+//                         for k in &state.mirrors {
+//                             o.send(*k, TxToAll(tx, client));
+//                         }
+//                         if state.tx_buffer.len() >= BATCH_SIZE {
+//                             // create and process batch hash
+//                             let w_hash = WorkerHashData {
+//                                 hash: hash_of(&state.tx_buffer),
+//                                 rnd: state.rnd,
+//                                 length: state.tx_buffer.len(),
+//                             };
+//                             let w_bytes: &[u8] = &bincode::serialize(&w_hash).unwrap();
+//                             let key = SigningKey::from(*key_seed);
+//                             let sig: WorkerHashSignature = key.sign(w_bytes).to_bytes();
+//                             o.send(state.primary, WorkerHash(w_hash, sig));
+//                             // TODO broadcast
+//                         }
+//                     }
+//                 } else {
+//                     // issue
+//                     panic!("Worker state incorrect");
+//                 }
+//             }
+//             _ => {
+//                 // o.send(src, SomeKindOfMessage(DummyMessageType{}));
+//             }
+//         }
+//     }
+// }
 
 impl Vactor for WorkerActor {
     type Msg = MessageEnum;
@@ -495,8 +501,7 @@ impl Vactor for WorkerActor {
     fn on_start_vec(&self, id: Id) -> (Self::State, Vec<Outputs<Id, Self::Msg>>) {
         print!("start worker {}", id);
         use ed25519_consensus::SigningKey;
-        use rand::thread_rng;
-        let key_seed = SigningKey::new(thread_rng()).to_bytes();
+        let key_seed = self.key_seed;
         (
             Worker(
                 WorkerState {
@@ -565,33 +570,33 @@ impl Vactor for WorkerActor {
     }
 }
 
-impl Actor for PrimaryActor {
-    type Msg = MessageEnum;
-    type State = StateEnum;
+// impl Actor for PrimaryActor {
+//     type Msg = MessageEnum;
+//     type State = StateEnum;
 
-    fn on_start(&self, id: Id, _o: &mut Out<Self>) -> Self::State {
-        println!("start primary {}", id);
-        use ed25519_consensus::SigningKey;
-        use rand::thread_rng;
-        let key_seed = SigningKey::new(thread_rng()).to_bytes();
-        Primary(PrimaryState {}, key_seed) // default value for one ping pongk
-    }
+//     fn on_start(&self, id: Id, _o: &mut Out<Self>) -> Self::State {
+//         println!("start primary {}", id);
+//         use ed25519_consensus::SigningKey;
+//         use rand::thread_rng;
+//         let key_seed = SigningKey::new(thread_rng()).to_bytes();
+//         Primary(PrimaryState {}, key_seed) // default value for one ping pongk
+//     }
 
-    fn on_msg(
-        &self,
-        _id: Id,
-        _state: &mut Cow<Self::State>,
-        _src: Id,
-        msg: Self::Msg,
-        _o: &mut Out<Self>,
-    ) {
-        match msg {
-            _ => {
-                //o.send(src, SomeKindOfMessage(DummyMessageType{}));
-            }
-        }
-    }
-}
+//     fn on_msg(
+//         &self,
+//         _id: Id,
+//         _state: &mut Cow<Self::State>,
+//         _src: Id,
+//         msg: Self::Msg,
+//         _o: &mut Out<Self>,
+//     ) {
+//         match msg {
+//             _ => {
+//                 //o.send(src, SomeKindOfMessage(DummyMessageType{}));
+//             }
+//         }
+//     }
+// }
 
 impl Vactor for PrimaryActor {
     type Msg = MessageEnum;
@@ -600,8 +605,7 @@ impl Vactor for PrimaryActor {
     fn on_start_vec(&self, id: Id) -> (Self::State, Vec<Outputs<Id, Self::Msg>>) {
         println!("start primary {}", id);
         use ed25519_consensus::SigningKey;
-        use rand::thread_rng;
-        let key_seed = SigningKey::new(thread_rng()).to_bytes();
+        let key_seed = self.key_seed;
         (Primary(PrimaryState {}, key_seed), vec![]) // default value for one ping pongk
     }
 
@@ -688,6 +692,18 @@ struct NarwhalModelCfg {
 }
 
 
+// generates a key_seed,
+// using ed25519_consensus::SigningKey rand::thread_rng
+fn fresh_key_seed() -> [u8; 32] {
+    use ed25519_consensus::SigningKey;
+    use rand::thread_rng;
+    let key = SigningKey::new(thread_rng());
+    let key_seed = key.to_bytes();
+    let key_again: SigningKey = SigningKey::from(key_seed);
+    assert!(key.to_bytes() == key_again.to_bytes());
+    key_seed
+}
+
 impl NarwhalModelCfg {
     // `into_model()` is meant for model checking (or exploration). 
     // Ids of actors will actually be assigned implicitly.
@@ -753,6 +769,7 @@ impl NarwhalModelCfg {
         h.push(e);
         Some(h)
     }
+    
 
     // The actor ids in models of stateright are essentially hard-coded;
     // they are given by the position the `actors` field  
@@ -774,6 +791,7 @@ impl NarwhalModelCfg {
                 primary: Id::from(self.get_primary_idx(j)),
                 mirror_workers: self.calculate_mirror_workers_and_id(i,j).0,
                 my_expected_id: self.calculate_mirror_workers_and_id(i,j).1,
+                key_seed: fresh_key_seed(),
             }),
                        for i in 0..self.worker_index_count,
                        for j in 0..self.primary_count]
@@ -781,11 +799,13 @@ impl NarwhalModelCfg {
             .actors(c![PrimaryActor(PrimaryActor{ 
                 peer_validators: self.calculate_peer_validators_and_id(p).0,
                 my_expected_id: self.calculate_peer_validators_and_id(p).1,
+                key_seed: fresh_key_seed(),
             }), for p in 0..self.primary_count]
             )
             .actors(c![ClientActor(ClientActor{ 
                 known_workers: self.calculate_known_workers(c),
                 my_expected_id: self.get_client_idx(c).into(),
+                key_seed: fresh_key_seed(),
             }), for c in 0..self.client_count]
             )           
             .init_network(self.network)
@@ -898,13 +918,15 @@ fn main() {
                 ClientActor{
                     known_workers:worker_ids.clone(),
                     my_expected_id:Id::from(SocketAddrV4::new(Ipv4Addr::LOCALHOST, client_port + y)),
+                    key_seed: fresh_key_seed(),
                 },
                 for y in 0..CLIENT_COUNT
             ];
             // create primary structs:
             let mut primaries = c![
                 PrimaryActor{peer_validators : primary_ids.clone(),
-                             my_expected_id: Id::from(SocketAddrV4::new(Ipv4Addr::LOCALHOST, primary_port + y))
+                             my_expected_id: Id::from(SocketAddrV4::new(Ipv4Addr::LOCALHOST, primary_port + y)),
+                             key_seed: fresh_key_seed(),
                 },
                 for y in 0..PRIMARY_COUNT
             ];
@@ -919,7 +941,8 @@ fn main() {
                     ],
                     my_expected_id : Id::from(SocketAddrV4::new(Ipv4Addr::LOCALHOST,
                                                                 worker_port + WORKER_INDEX_COUNT*y + x)
-                    )
+                    ),
+                    key_seed: fresh_key_seed(),
                 },
                 for x in 0..WORKER_INDEX_COUNT,
                 for y in 0..PRIMARY_COUNT
@@ -1049,15 +1072,14 @@ fn main() {
             println!(
                 "Exploring state space for Heterogeneous Narwhal with {} clients on {}.",
                 client_count, address);
-            let model = NarwhalModelCfg {
+            NarwhalModelCfg {
                 worker_index_count: 3,
                 primary_count: 4,
                 client_count: client_count,
                 network: network,
             }
-            .into_model();
-            println!("init states {:?}", model.init_states()); 
-            model.checker().threads(num_cpus::get()).serve(address);
+            .into_model()
+                .model.checker().threads(num_cpus::get()).serve(address);
         },
         _ => { panic!("noooo, SUP?!") }
     }
