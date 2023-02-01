@@ -1,12 +1,13 @@
-// -----------------------------------------------------------------------------
-// `main.rs` of the Heterogeneous Narwhal implementation in stateright
-// -----------------------------------------------------------------------------
-#![feature(inherent_associated_types)]
+// -------------------------------------------------------
+// The Heterogeneous Narwhal implementation in stateright
+// -------------------------------------------------------
+// #![feature(inherent_associated_types)]
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 
-// For hashing, based on doc.rust-lang.org/std/hash/index.html,
-// we use the following 8 (eight) lines,
+// For hashing,
+// based on doc.rust-lang.org/std/hash/index.html,
+// we use the following 8 (eight) lines:
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 
@@ -36,59 +37,59 @@ mod learner_graph {
     }
 }
 
-// this module is for the purpose of “faking” a PKI-infrastructure
-mod pki {
-    // ------- elliptic curve signatures imports (kudos to Daniel) ------
-    use ed25519_consensus::*;
-    use rand::thread_rng;
-    use stateright::actor::Id;
-    use std::collections::HashMap;
-    use std::convert::TryFrom;
+// // this module is for the purpose of “faking” a PKI-infrastructure
+// mod pki {
+//     // ------- elliptic curve signatures imports (kudos to Daniel) ------
+//     use ed25519_consensus::*;
+//     use rand::thread_rng;
+//     use stateright::actor::Id;
+//     use std::collections::HashMap;
+//     use std::convert::TryFrom;
 
-    pub trait Registry {
-        fn register(&mut self, _: Id, _: VerificationKey) -> bool;
-    }
+//     pub trait Registry {
+//         fn register(&mut self, _: Id, _: VerificationKey) -> bool;
+//     }
 
-    pub struct KeyTable {
-        map: HashMap<Id, VerificationKey>,
-    }
+//     pub struct KeyTable {
+//         map: HashMap<Id, VerificationKey>,
+//     }
 
-    impl Registry for KeyTable {
-        fn register(&mut self, id: Id, vk: VerificationKey) -> bool {
-            self.map.insert(id, vk) != None
-        }
-    }
+//     impl Registry for KeyTable {
+//         fn register(&mut self, id: Id, vk: VerificationKey) -> bool {
+//             self.map.insert(id, vk) != None
+//         }
+//     }
 
-    fn get_vk(sk: SigningKey) -> VerificationKey {
-        VerificationKey::from(&sk)
-    }
+//     fn get_vk(sk: SigningKey) -> VerificationKey {
+//         VerificationKey::from(&sk)
+//     }
 
-    fn private_test_ed25519_consensus() {
-        // ------- ed25519-consensus signatures example usage
-        let msg = b"ed25519-consensus";
+//     fn private_test_ed25519_consensus() {
+//         // ------- ed25519-consensus signatures example usage
+//         let msg = b"ed25519-consensus";
 
-        // Signer's context
-        let (vk_bytes, sig_bytes) = {
-            // Generate a signing key and sign the message
-            let sk = SigningKey::new(thread_rng());
-            let sig = sk.sign(msg);
+//         // Signer's context
+//         let (vk_bytes, sig_bytes) = {
+//             // Generate a signing key and sign the message
+//             let sk = SigningKey::new(thread_rng());
+//             let sig = sk.sign(msg);
 
-            // Types can be converted to raw byte arrays with From/Into
-            let sig_bytes: [u8; 64];
-            sig_bytes = sig.into();
-            let vk_bytes: [u8; 32];
-            vk_bytes = VerificationKey::from(&sk).into();
+//             // Types can be converted to raw byte arrays with From/Into
+//             let sig_bytes: [u8; 64];
+//             sig_bytes = sig.into();
+//             let vk_bytes: [u8; 32];
+//             vk_bytes = VerificationKey::from(&sk).into();
 
-            (vk_bytes, sig_bytes)
-        };
+//             (vk_bytes, sig_bytes)
+//         };
 
-        // Verify the signature
-        assert!(VerificationKey::try_from(vk_bytes)
-            .and_then(|vk| vk.verify(&sig_bytes.into(), msg))
-            .is_ok());
-    }
-    // -- end ed25519-consensus usage
-}
+//         // Verify the signature
+//         assert!(VerificationKey::try_from(vk_bytes)
+//             .and_then(|vk| vk.verify(&sig_bytes.into(), msg))
+//             .is_ok());
+//     }
+//     // -- end ed25519-consensus usage
+// }
 
 // all about actors from stateright
 use stateright::actor::*;
@@ -98,9 +99,9 @@ use stateright::*;
 // → doc.rust-lang.org/std/borrow/enum.Cow.html
 use std::borrow::Cow;
 
-// -----------------------------------------------------------------------------
+// -------------------------------
 // actual actor model starts here
-// -----------------------------------------------------------------------------
+// -------------------------------
 
 // for spawning actors (locally)
 // use std::net::{SocketAddrV4, Ipv4Addr};
@@ -195,6 +196,7 @@ enum StateEnum {
 
 use crate::StateEnum::*;
 
+// WorkerActor holds the static information about actors
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
 struct WorkerActor {
     // key (as seed)
@@ -209,65 +211,72 @@ struct WorkerActor {
     my_expected_id: Id,
 }
 
+// PrimaryActor holds the static information about primaries
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
 struct PrimaryActor {
-    // key (as seed)
+    // key (as seed) -- NB: this needs to be fixed before `on_start`
     key_seed: [u8; 32],
     // the ids of all (known) peer validators
     peer_validators: Vec<Id>,
-    // my_expected_id is for debugging
+    // my_expected_id (for debugging)
     my_expected_id: Id,
 }
 
+// ClientActor holds the static information about clients
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
 struct ClientActor {
-    // key (as seed)
+    // key (as seed) -- NB: this needs to be fixed before `on_start`
     key_seed: [u8; 32],
     // the vector of workers to which requests can/will be sent
     known_workers: Vec<WorkerId>,
-    // my_expected_id is for debugging
+    // my_expected_id (for debugging)
     my_expected_id: Id,
 }
 
-// experiment _delegation_ begin
-#[delegatable_trait]
-pub trait ExampleTrait : Sized {
-    fn do_this (&self, o: &mut Vec<Self>);
-}
-
-#[derive(Clone)]
-struct ExOne;
-#[derive(Clone)]
-struct ExTwo;
-
-
-impl ExampleTrait for ExOne {
-    fn do_this (&self, o: &mut Vec<Self>){
-        o.push(self.clone());
-    }
-}
-impl ExampleTrait for ExTwo {
-    fn do_this (&self, o: &mut Vec<Self>){
-        o.push(self.clone());
-    }
-}
-
-// this of course does not work, because self is changing its meaning
-// #[derive(Delegate,Clone)]
-// #[delegate(ExampleTrait)]
-// enum ExEnum {
-//     ExOne(ExOne),
-//     ExTwo(ExTwo),
+// -----------------------------------------------------------------------------
+// // experiment _delegation_ begin
+// -----------------------------------------------------------------------------
+// #[delegatable_trait]
+// pub trait ExampleTrait : Sized {
+//     fn do_this (&self, o: &mut Vec<Self>);
 // }
 
-// experiment _delegation_ end
+// #[derive(Clone)]
+// struct ExOne;
+// #[derive(Clone)]
+// struct ExTwo;
+
+
+// impl ExampleTrait for ExOne {
+//     fn do_this (&self, o: &mut Vec<Self>){
+//         o.push(self.clone());
+//     }
+// }
+// impl ExampleTrait for ExTwo {
+//     fn do_this (&self, o: &mut Vec<Self>){
+//         o.push(self.clone());
+//     }
+// }
+
+// // this of course does not work, because self is changing its meaning
+// // #[derive(Delegate,Clone)]
+// // #[delegate(ExampleTrait)]
+// // enum ExEnum {
+// //     ExOne(ExOne),
+// //     ExTwo(ExTwo),
+// // }
+// -----------------------------------------------------------------------------
+// // experiment _delegation_ end
+// -----------------------------------------------------------------------------
+
+
 
 // ideally, this _would_ be part of the `Vactor` trait
-// at least it is private 
+// ... at least it is private -- even though not clean either [error E0445]
 enum Outputs<I, M> {
     Snd(I, M),
-    Cast(M),
-    Timer(usize),
+    //Cast(M),
+    //Timer(usize),
 }
 
 // ambassador (see also https://github.com/Heliozoa/impl-enum)
@@ -315,8 +324,10 @@ trait Vactor: Sized {
 }
 
 impl ClientActor{
+
+    // a function for generating the next tx
     fn next_tx(tx : TxData) -> TxChunk {
-        // this should be "random", but ... 
+        // could be "random", but, to keep things simple for the moment:
                     if tx[0]%2 == 0 {
                         tx[0] / 2
                     } else {
@@ -325,6 +336,7 @@ impl ClientActor{
     }
 }
 
+// the client's behaviour: on_start_vec, on_msg_vec
 impl Vactor for ClientActor {
     type Msg = MessageEnum;
     type State = StateEnum;
@@ -343,7 +355,7 @@ impl Vactor for ClientActor {
             x = x + 1;
             &self.send(*k, TxReq(vec![x], id), &mut o);
         }
-
+        
         let res = (client_state, o);
         res
     }
@@ -355,17 +367,18 @@ impl Vactor for ClientActor {
         _src: Id,
         msg: Self::Msg,
     ) -> Vec<Outputs<Id, Self::Msg>> {
-        use Outputs::*;
         match msg {
             TxAck(ref tx, ref worker) => {
-                let new_tx = Self::next_tx(tx.to_vec());
+                // wait some to keep output rate civilized
                 use std::{thread, time};
-
-                let ten_millis = time::Duration::from_millis(10);
-                let _now = time::Instant::now();
-
-                thread::sleep(ten_millis);
-                vec![Snd(*worker, TxReq(vec![new_tx], id))]
+                let hundred_millis = time::Duration::from_millis(100);
+                thread::sleep(hundred_millis);
+                
+                // send the new transaction
+                let new_tx = Self::next_tx(tx.to_vec());
+                let mut o = vec![]; 
+                self.send(*worker, TxReq(vec![new_tx], id), &mut o);
+                o
             }
             _ => {
                 println!(
@@ -379,9 +392,56 @@ impl Vactor for ClientActor {
 }
 
 // the behaviour of workers, according to the spec
-// 
 impl WorkerActor {
-    
+    fn process_tx_req(
+        &self,
+        src: Id,
+        client: ClientId,
+        tx: TxData,
+        ack: <WorkerActor as Vactor>::Msg,
+        state: &mut WorkerState,
+        key_seed: [u8; 32],
+    ) -> Vec<Outputs<Id, <WorkerActor as Vactor>::Msg>> {
+        let mut o = vec![];
+        if client != src {
+            panic!("source of transaction request is not the client");
+        } else {
+            // push the tx to the worker's buffer
+            state.tx_buffer.push((tx.clone(), client));
+            // ack the tx, optional, but nice to have 
+            assert!(client == src); // always true, just double checking
+            self.send(client, ack, &mut o); 
+
+            // "broadcast" tx to mirror_workers : Vec<Id>
+            self.send_(
+                self.mirror_workers.clone(),
+                TxToAll(tx.clone(), client),
+                &mut o
+            );
+
+            // check if we can finish a batch
+            if state.tx_buffer.len() >= BATCH_SIZE {
+                // create and process batch hash
+                let w_hash = WorkerHashData {
+                    hash: hash_of(&state.tx_buffer),
+                    rnd: state.rnd,
+                    length: state.tx_buffer.len(),
+                };
+                let w_bytes: &[u8] = &bincode::serialize(&w_hash).unwrap();
+                use ed25519_consensus::SigningKey;
+                let key = SigningKey::from(key_seed);
+                let sig: WorkerHashSignature = key.sign(w_bytes).to_bytes();
+                // notify primary that a new batch hash is out
+                self.send(
+                    state.primary,
+                    WorkerHash(w_hash, sig),
+                    &mut o
+                );
+                // TODO broadcast (batch hashes to workers)
+            }
+            o
+        }
+    }
 }
 
 
@@ -418,54 +478,39 @@ impl Vactor for WorkerActor {
         src: Id,
         msg: Self::Msg,
     ) -> Vec<Outputs<Id, Self::Msg>> {
-        use ed25519_consensus::SigningKey;
-        use Outputs::*;
         if cfg!(debug_assertions) {         
             println!("Worker {} got a message {:?}", w_id, msg);
         }
+        // check if state is proper
+        let mut worker_state : &mut WorkerState;
+        let key_seed : [u8; 32];
+        if let Worker(ref mut s, k) = state.to_mut() {
+            worker_state = s;
+            key_seed = *k;
+            // ok
+        } else {
+            // issue
+            panic!("Worker state incorrect");
+        }
+        // choose the action to perform according to the message variant
         match msg {
             TxReq(tx, client) => {
-                // self.process_tx_req(tx, client);
-                let mut o: Vec<Outputs<Id, Self::Msg>> = vec![];
-                if let Worker(state, key_seed) = state.to_mut() {
-                    if client != src {
-                        panic!("source not client");
-                    } else {
-                        // push the tx
-                        state.tx_buffer.push((tx.clone(), client));
-                        // ack the tx
-                        o.push(Snd(src, TxAck(tx.clone(), w_id))); // optional, but ...
-                                                                   // "broadcast" tx to mirror_workers : Vec<Id>
-                        for k in &state.mirrors {
-                            o.push(Snd(*k, TxToAll(tx.clone(), client)));
-                        }
-                        if state.tx_buffer.len() >= BATCH_SIZE {
-                            // create and process batch hash
-                            let w_hash = WorkerHashData {
-                                hash: hash_of(&state.tx_buffer),
-                                rnd: state.rnd,
-                                length: state.tx_buffer.len(),
-                            };
-                            let w_bytes: &[u8] = &bincode::serialize(&w_hash).unwrap();
-                            let key = SigningKey::from(*key_seed);
-                            let sig: WorkerHashSignature = key.sign(w_bytes).to_bytes();
-                            o.push(Snd(state.primary, WorkerHash(w_hash, sig)));
-                            // TODO broadcast
-                        }
-                        o
-                    }
-                } else {
-                    // issue
-                    panic!("Worker state incorrect");
-                }
+                let msg = TxAck(tx.clone(), w_id);
+                self.process_tx_req(
+                    src,
+                    client,
+                    tx,
+                    msg,
+                    &mut worker_state,
+                    key_seed
+                )
             }
             _ => {
                 println!(
                     "oops, me little client {:?} received Message {:?}",
                     &self, msg
                 );
-                vec![]
-                // o.send(src, SomeKindOfMessage(DummyMessageType{}));
+                vec![] 
             }
         }
     }
@@ -477,7 +522,6 @@ impl Vactor for PrimaryActor {
 
     fn on_start_vec(&self, id: Id) -> (Self::State, Vec<Outputs<Id, Self::Msg>>) {
         println!("start primary {}", id);
-        use ed25519_consensus::SigningKey;
         let key_seed = self.key_seed;
         (Primary(PrimaryState {}, key_seed), vec![]) // default value for one ping pongk
     }
@@ -486,7 +530,7 @@ impl Vactor for PrimaryActor {
         &self,
         _id: Id,
         _state: &mut Cow<Self::State>,
-        src: Id,
+        _src: Id,
         msg: Self::Msg,
     ) -> Vec<Outputs<Id, Self::Msg>> {
         match msg {
@@ -598,9 +642,9 @@ impl NarwhalModelCfg {
         client + self.primary_count * (self.worker_index_count + 1)
     }
 
-    fn calculate_known_workers(&self, client: usize) -> Vec<Id> {
-        c![Id::from(self.get_worker_idx(i,j)), 
-           for i in 0..self.worker_index_count, 
+    fn calculate_known_workers(&self) -> Vec<Id> {
+        c![Id::from(self.get_worker_idx(i,j)),
+           for i in 0..self.worker_index_count,
            for j in 0..self.primary_count]
     }
 
@@ -671,7 +715,7 @@ impl NarwhalModelCfg {
                 key_seed: fresh_key_seed(),
             }), for p in 0..self.primary_count])
         .actors(c![ClientActor(ClientActor{ 
-                known_workers: self.calculate_known_workers(c),
+                known_workers: self.calculate_known_workers(),
                 my_expected_id: self.get_client_idx(c).into(),
                 key_seed: fresh_key_seed(),
             }), for c in 0..self.client_count])
@@ -774,7 +818,7 @@ fn main() {
             // now XYZ_ids for ZYZ ∈ {worker,primary,client} are generated
 
             // create actor structs:
-            let mut clients = c![
+            let clients = c![
                 ClientActor{
                     known_workers:worker_ids.clone(),
                     my_expected_id:Id::from(SocketAddrV4::new(Ipv4Addr::LOCALHOST, client_port + y)),
@@ -783,7 +827,7 @@ fn main() {
                 for y in 0..CLIENT_COUNT
             ];
             // create primary structs:
-            let mut primaries = c![
+            let primaries = c![
                 PrimaryActor{peer_validators : primary_ids.clone(),
                              my_expected_id: Id::from(SocketAddrV4::new(Ipv4Addr::LOCALHOST, primary_port + y)),
                              key_seed: fresh_key_seed(),
@@ -791,7 +835,7 @@ fn main() {
                 for y in 0..PRIMARY_COUNT
             ];
             // create worker structs:
-            let mut workers = c![
+            let workers = c![
                 WorkerActor{
                     index : x as u64,
                     primary : primary_ids[x as usize],
@@ -816,15 +860,15 @@ fn main() {
             //     for y in 0..PRIMARY_COUNT
             // ];
 
-            let mut primary_actor_vec = c![
+            let  primary_actor_vec = c![
                 (primary_ids[y as usize], primaries[y as usize].clone()),
                 for y in 0..PRIMARY_COUNT
             ];
-            let mut client_actor_vec = c![
+            let  client_actor_vec = c![
                 (client_ids[y as usize], clients[y as usize].clone()),
                 for y in 0..CLIENT_COUNT
             ];
-            let mut worker_actor_vec = c![
+            let  worker_actor_vec = c![
                 (worker_ids[(WORKER_INDEX_COUNT*y + x)as usize], workers[(WORKER_INDEX_COUNT*y + x)as usize].clone()),
                 for x in 0..WORKER_INDEX_COUNT,
                 for y in 0..PRIMARY_COUNT
@@ -912,14 +956,14 @@ fn main() {
             // -- end elliptic curves usage
         }
         Check => {
-            let client_count = 3;
-            let network = Network::new_unordered_nonduplicating([]);
-            println!("Model checking HNarwhal with {} clients.", client_count);
+            let c_count = 3;
+            let nw = Network::new_unordered_nonduplicating([]);
+            println!("Model checking HNarwhal with {} clients.", c_count);
             NarwhalModelCfg {
-                worker_index_count: 3,
+                worker_index_count: 2,
                 primary_count: 4,
-                client_count: client_count,
-                network: network,
+                client_count: c_count,
+                network: nw,
             }
             .into_model()
             .checker()
@@ -928,26 +972,26 @@ fn main() {
             .report(&mut std::io::stdout());
         }
         Explore => {
-            let client_count = 3;
+            let c_count = 3;
             let address = String::from("localhost:3000");
-            let network = Network::new_unordered_nonduplicating([]);
+            let nw = Network::new_unordered_nonduplicating([]);
             println!(
                 "Exploring state space for Heterogeneous Narwhal with {} clients on {}.",
-                client_count, address
+                c_count, address
             );
             NarwhalModelCfg {
-                worker_index_count: 3,
+                worker_index_count: 2,
                 primary_count: 4,
-                client_count: client_count,
-                network: network,
+                client_count: c_count,
+                network: nw,
             }
             .into_model()
             .checker()
             .threads(num_cpus::get())
             .serve(address);
         }
-        _ => {
-            panic!("noooo, SUP?!")
-        }
+        // _ => {
+        //     panic!("noooo, SUP?!")
+        // }
     }
 }
