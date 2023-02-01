@@ -1,4 +1,6 @@
+// -----------------------------------------------------------------------------
 // `main.rs` of the Heterogeneous Narwhal implementation in stateright
+// -----------------------------------------------------------------------------
 #![feature(inherent_associated_types)]
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
@@ -96,9 +98,9 @@ use stateright::*;
 // → doc.rust-lang.org/std/borrow/enum.Cow.html
 use std::borrow::Cow;
 
-// ------------------------------------------------------------
+// -----------------------------------------------------------------------------
 // actual actor model starts here
-// ------------------------------------------------------------
+// -----------------------------------------------------------------------------
 
 // for spawning actors (locally)
 // use std::net::{SocketAddrV4, Ipv4Addr};
@@ -107,7 +109,7 @@ type TxChunk = u64;
 type TxData = Vec<TxChunk>;
 
 // FIXME: batches "generic" **and** serializable -- ̈"somehow" ?!
-// batch is just a vector of TxData
+// right now, a batch is just a vector of TxData
 
 // worker hash data type
 // serialization matters as in https://crates.io/crates/bincode
@@ -139,12 +141,12 @@ type ClientId = Id;
 // the indices of workers (globally fixed, for all validators)
 type WorkerIndex = u64;
 
-// the enumeration of all possible kinds of messages,
-// “internal to HN”
+// the enumeration of all possible kinds of messages
+//
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
 enum MessageEnum {
-    // submissions of transactions by the client/user
-    SubmitTx(TxData, ClientId),
+    // transaction requests, sent by the client/user
+    TxReq(TxData, ClientId),
     // acknowledgments of transactions by the worker
     TxAck(TxData, WorkerId),
     // broadcasting a tx (or its erasure code) to mirror workers
@@ -275,14 +277,24 @@ use ambassador::{delegatable_trait, Delegate};
 
 // The following is based on stateright's Actor trait,
 // which can be lifted to enums via amabassor,
-// which in turn delegates calls to the enum to the respective types
+// as opposed the present Actor trait -- cf. experiement above. 
+// Ambassador delegates calls to the enum to the respective types
 // the relation to the Actor trait is then given later by
-// the Actor impl for HNActor below
+// the Actor impl for HNActor below.
 
 #[delegatable_trait]
 trait Vactor: Sized {
     type Msg: Clone + Debug + Eq + Hash;
     type State: Clone + Debug + PartialEq + Hash;
+
+    fn send(&self, id : Id, m : Self::Msg, o : &mut Vec<Outputs<Id, Self::Msg>>){
+        o.push(Outputs::Snd(id, m));
+    }
+    fn send_(&self, ids : Vec<Id>, m : Self::Msg, o : &mut Vec<Outputs<Id, Self::Msg>>){
+        for i in ids {
+            self.send(i, m.clone(), o);
+        }
+    }
     fn on_start_vec(&self, id: Id) -> (Self::State, Vec<Outputs<Id, Self::Msg>>);
 
     fn on_msg_vec(
@@ -302,25 +314,38 @@ trait Vactor: Sized {
     }
 }
 
+impl ClientActor{
+    fn next_tx(tx : TxData) -> TxChunk {
+        // this should be "random", but ... 
+                    if tx[0]%2 == 0 {
+                        tx[0] / 2
+                    } else {
+                        3*tx[0] + 1
+                    }
+    }
+}
+
 impl Vactor for ClientActor {
     type Msg = MessageEnum;
     type State = StateEnum;
 
     fn on_start_vec(&self, id: Id) -> (Self::State, Vec<Outputs<Id, Self::Msg>>) {
-        print!("start client {}", id);
-        use ed25519_consensus::SigningKey;
-        use Outputs::*;
+        if cfg!(debug_assertions) {
+            print!("Start client {}", id);
+        }
         let key = self.key_seed;
-        // send a tx to every work
+        let client_state = Client(self.known_workers.clone(), key);
+        let mut o = vec![]; 
+
+        // send a different tx to every worker, to get started
         let mut x = 0;
-        let mut o: Vec<Outputs<Id, Self::Msg>> = vec![];
         for k in &self.known_workers {
             x = x + 1;
-            o.push(Snd(*k, SubmitTx(vec![x], id)));
+            &self.send(*k, TxReq(vec![x], id), &mut o);
         }
-        // the known workers are the only state of the client
-        // ... so far
-        (Client(self.known_workers.clone(), key), o)
+
+        let res = (client_state, o);
+        res
     }
 
     fn on_msg_vec(
@@ -332,20 +357,15 @@ impl Vactor for ClientActor {
     ) -> Vec<Outputs<Id, Self::Msg>> {
         use Outputs::*;
         match msg {
-            TxAck(tx, worker) => {
-                let new_tx = // this should be "random", but ... 
-                    if tx[0]%2 == 0 {
-                        tx[0] / 2
-                    } else {
-                        3*tx[0] + 1
-                    };
+            TxAck(ref tx, ref worker) => {
+                let new_tx = Self::next_tx(tx.to_vec());
                 use std::{thread, time};
 
                 let ten_millis = time::Duration::from_millis(10);
                 let _now = time::Instant::now();
 
                 thread::sleep(ten_millis);
-                vec![Snd(worker, SubmitTx(vec![new_tx], id))]
+                vec![Snd(*worker, TxReq(vec![new_tx], id))]
             }
             _ => {
                 println!(
@@ -358,29 +378,39 @@ impl Vactor for ClientActor {
     }
 }
 
+// the behaviour of workers, according to the spec
+// 
+impl WorkerActor {
+    
+}
+
+
+
 
 impl Vactor for WorkerActor {
     type Msg = MessageEnum;
     type State = StateEnum;
 
-    fn on_start_vec(&self, id: Id) -> (Self::State, Vec<Outputs<Id, Self::Msg>>) {
-        print!("start worker {}", id);
-        use ed25519_consensus::SigningKey;
-        let key_seed = self.key_seed;
-        (
-            Worker(
-                WorkerState {
-                    tx_buffer: vec![],
-                    primary: self.primary,
-                    rnd: GENESIS_ROUND,
-                    mirrors: self.mirror_workers.clone(),
-                },
-                key_seed,
-            ),
-            vec![],
-        )
+    fn on_start_vec(
+        &self, id: Id
+    ) -> (Self::State, Vec<Outputs<Id, Self::Msg>>) {
+        if cfg!(debug_assertions) { 
+            println!("Starting worker {}", id); 
+        }
+        let worker_state = WorkerState {
+            tx_buffer: vec![], // empty transaction buffer
+            primary: self.primary, // copy the primary
+            rnd: GENESIS_ROUND, // start at genesis
+            mirrors: self.mirror_workers.clone(), // copy mirror_workers
+        };
+        let state = Worker(
+            worker_state,
+            self.key_seed, // copy key
+        );
+        (state,vec![])
     }
 
+    // reacting to received messages
     fn on_msg_vec(
         &self,
         w_id: Id,
@@ -390,11 +420,12 @@ impl Vactor for WorkerActor {
     ) -> Vec<Outputs<Id, Self::Msg>> {
         use ed25519_consensus::SigningKey;
         use Outputs::*;
-        if SUP == Spawn {
-            print!("worker {} got a message {:?}", w_id, msg);
+        if cfg!(debug_assertions) {         
+            println!("Worker {} got a message {:?}", w_id, msg);
         }
         match msg {
-            SubmitTx(tx, client) => {
+            TxReq(tx, client) => {
+                // self.process_tx_req(tx, client);
                 let mut o: Vec<Outputs<Id, Self::Msg>> = vec![];
                 if let Worker(state, key_seed) = state.to_mut() {
                     if client != src {
