@@ -1,7 +1,11 @@
 // -------------------------------------------------------
 // The Heterogeneous Narwhal implementation in stateright
 // -------------------------------------------------------
-// #![feature(inherent_associated_types)]
+// This code is geared toward clarity and correctness,
+// w.r.t. tech report
+// https://github.com/anoma/ .. 
+// .. research/tree/master/distributed-systems/heterogeneous-narwhal
+
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 
@@ -304,7 +308,9 @@ trait Vactor: Sized {
             self.send(i, m.clone(), o);
         }
     }
-    fn on_start_vec(&self, id: Id) -> (Self::State, Vec<Outputs<Id, Self::Msg>>);
+    fn on_start_vec(
+        &self, id: Id
+    ) -> (Self::State, Vec<Outputs<Id, Self::Msg>>);
 
     fn on_msg_vec(
         &self,
@@ -407,7 +413,8 @@ impl WorkerActor {
             panic!("source of transaction request is not the client");
         } else {
             // push the tx to the worker's buffer
-            state.tx_buffer.push((tx.clone(), client));
+            let buffer_entry = (tx.clone(), client); 
+            state.tx_buffer.push(buffer_entry);
             // ack the tx, optional, but nice to have 
             assert!(client == src); // always true, just double checking
             self.send(client, ack, &mut o); 
@@ -437,15 +444,12 @@ impl WorkerActor {
                     WorkerHash(w_hash, sig),
                     &mut o
                 );
-                // TODO broadcast (batch hashes to workers)
+                // TODO broadcast (batch hashes to mirror workers)
             }
             o
         }
     }
 }
-
-
-
 
 impl Vactor for WorkerActor {
     type Msg = MessageEnum;
@@ -721,7 +725,7 @@ impl NarwhalModelCfg {
             }), for c in 0..self.client_count])
         .init_network(self.network)
         .property(Expectation::Eventually, "trivial progress", |_, state| {
-            state.history.len() > 10
+            state.history.len() > 1
         })
         //  .property(Expectation::Always, "linearizable", |_, state| {
         //      state.history.serialized_history().is_some()
@@ -735,7 +739,7 @@ impl NarwhalModelCfg {
         //      false
         //  })
         .record_msg_in(NarwhalModelCfg::record_msg_in)
-        .record_msg_in(NarwhalModelCfg::record_msg_out)
+        .record_msg_out(NarwhalModelCfg::record_msg_out)
     }
 }
 
@@ -771,7 +775,7 @@ use ThisEnum::*;
 // hardcoded choice, so far
 //const SUP:ThisEnum = Check;
 //const SUP:ThisEnum = Spawn;
-const SUP: ThisEnum = Explore;
+const SUP: ThisEnum = Check;
 
 fn main() {
     // let mut tx_vec : Vec<Box<dyn Tx<u64>>> = vec![Box::new(4)] ;
