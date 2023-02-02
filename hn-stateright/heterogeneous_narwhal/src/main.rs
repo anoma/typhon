@@ -6,7 +6,7 @@
 // https://github.com/anoma/ .. 
 // .. research/tree/master/distributed-systems/heterogeneous-narwhal
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize,Serialize};
 use std::fmt::Debug;
 
 // For hashing,
@@ -33,11 +33,19 @@ mod learner_graph {
         type Learner;
         type Validator;
 
-        fn get_learners(&self) -> dyn Iterator<Item = Self::Learner>;
+        fn get_learners(
+            &self
+        ) -> dyn Iterator<Item = Self::Learner>;
 
-        fn get_quorums(&self) -> HashMap<Self::Learner, HashSet<Self::Validator>>;
+        fn get_quorums(
+            &self
+        ) -> HashMap<Self::Learner, HashSet<Self::Validator>>;
 
-        fn are_entangled(&self, learner_a: Self::Learner, learner_b: Self::Learner) -> bool;
+        fn are_entangled(
+            &self,
+            learner_a: Self::Learner,
+            learner_b: Self::Learner
+        ) -> bool;
     }
 }
 
@@ -156,11 +164,16 @@ enum MessageEnum {
     TxAck(TxData, WorkerId),
     // broadcasting a tx (or its erasure code) to mirror workers
     TxToAll(TxData, ClientId),
-    // Worker Hash / referencing a batch of transactions
-    WorkerHash(
+    // Worker Hash (to the primary)
+    WorkerHx(
         WorkerHashData,
         #[serde(with = "BigArray")] WorkerHashSignature,
-    ), //
+    ), 
+    // Worker Hash (broadcast to mirror workers)
+    WHxToAll(
+        WorkerHashData,
+        #[serde(with = "BigArray")] WorkerHashSignature,
+    ),
 }
 
 use crate::MessageEnum::*;
@@ -426,6 +439,7 @@ impl WorkerActor {
                 &mut o
             );
 
+
             // check if we can finish a batch
             if state.tx_buffer.len() >= BATCH_SIZE {
                 // create and process batch hash
@@ -438,13 +452,22 @@ impl WorkerActor {
                 use ed25519_consensus::SigningKey;
                 let key = SigningKey::from(key_seed);
                 let sig: WorkerHashSignature = key.sign(w_bytes).to_bytes();
+
                 // notify primary that a new batch hash is out
+                // aka worker hash provision
                 self.send(
                     state.primary,
-                    WorkerHash(w_hash, sig),
+                    WorkerHx(w_hash.clone(), sig),
                     &mut o
                 );
-                // TODO broadcast (batch hashes to mirror workers)
+
+                // broadcast the worker hash to
+                // aka worker hash broadcast
+                self.send_(
+                    self.mirror_workers.clone(),
+                    WHxToAll(w_hash, sig),
+                    &mut o
+                );
             }
             o
         }
