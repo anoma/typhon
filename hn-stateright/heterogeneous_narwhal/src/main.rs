@@ -3,7 +3,7 @@
 // -------------------------------------------------------
 // This code is geared toward clarity and correctness,
 // w.r.t. tech report
-// https://github.com/anoma/ .. 
+// https://github.com/anoma/ ..
 // .. research/tree/master/distributed-systems/heterogeneous-narwhal
 
 use serde::{Deserialize,Serialize};
@@ -11,9 +11,27 @@ use std::fmt::Debug;
 
 // For hashing,
 // based on doc.rust-lang.org/std/hash/index.html,
-// we use the following 8 (eight) lines:
+// we use the following 8 (eight) lines of code:
 use std::collections::hash_map::DefaultHasher;
+use std::collections::BTreeMap;
+// use std::collections::HashMap;
+// fn hash_to_btree<K:std::cmp::Ord,V>(
+//     hash: HashMap<K, V>
+// ) -> BTreeMap<K, V> {
+//     // make hashmap iterator, then collect ?!
+//     hash.into_iter().collect()
+// }
+
+use cute::c; // for “pythonic” vec comprehension
+             // simplest example
+             //const SQUARES = c![x*x, for x in 0..10];
+             //const EVEN_SQUARES = c![x*x, for x in 0..10, if x % 2 == 0];
+
+// https://docs.rs/mapcomp/latest/mapcomp/macro.btreemapc.html
+// use mapcomp::btreemapc; // for “pythonic” btree comprehension
 use std::hash::{Hash, Hasher};
+
+
 
 fn hash_of<T: Hash>(t: &T) -> u64 {
     let mut s = DefaultHasher::new();
@@ -24,7 +42,7 @@ fn hash_of<T: Hash>(t: &T) -> u64 {
 // the data type of learner graphs
 mod learner_graph {
     // the learner graph trait uses
-    use std::collections::{HashMap, HashSet};
+    use std::collections::{HashMap,HashSet};
     use std::iter::Iterator;
 
     // learner graph trait
@@ -51,7 +69,7 @@ mod learner_graph {
 
 // // this module is for the purpose of “faking” a PKI-infrastructure
 // mod pki {
-//     // ------- elliptic curve signatures imports (kudos to Daniel) ------
+//     // elliptic curve signatures imports (kudos to Daniel)
 //     use ed25519_consensus::*;
 //     use rand::thread_rng;
 //     use stateright::actor::Id;
@@ -163,18 +181,25 @@ enum MessageEnum {
     // acknowledgments of transactions by the worker
     TxAck(TxData, WorkerId),
     // broadcasting a tx (or its erasure code) to mirror workers
-    TxToAll(TxData, ClientId),
+    TxToAll(TxData, ClientId, usize),
     // Worker Hash (to the primary)
     WorkerHx(
         WorkerHashData,
         #[serde(with = "BigArray")] WorkerHashSignature,
-    ), 
+    ),
     // Worker Hash (broadcast to mirror workers)
     WHxToAll(
         WorkerHashData,
         #[serde(with = "BigArray")] WorkerHashSignature,
     ),
+    // Worker Hash (forwarded to primary)
+    WHxOK(
+        WorkerHashData,
+        #[serde(with = "BigArray")] WorkerHashSignature,
+    ),
+
 }
+
 
 use crate::MessageEnum::*;
 
@@ -186,6 +211,8 @@ const BATCH_SIZE: usize = 3;
 struct WorkerState {
     // the buffer for received transactions
     tx_buffer: Vec<(TxData, ClientId)>,
+    // hashmap to stores of transaction copies
+    tx_buffer_map: BTreeMap<WorkerId, Vec<(TxData, ClientId,usize)>>,
     // a copy of the primary information ()
     primary: ValidatorId,
     // a copy of the mirror worker information
@@ -289,8 +316,8 @@ struct ClientActor {
 
 
 // ideally, this _would_ be part of the `Vactor` trait
-// ... at least it is private -- even though not clean either [error E0445]
-enum Outputs<I, M> {
+// ... well, now it is public :-/ 
+pub enum Outputs<I, M> {
     Snd(I, M),
     //Cast(M),
     //Timer(usize),
@@ -303,13 +330,13 @@ use ambassador::{delegatable_trait, Delegate};
 
 // The following is based on stateright's Actor trait,
 // which can be lifted to enums via amabassor,
-// as opposed the present Actor trait -- cf. experiement above. 
+// as opposed the present Actor trait -- cf. experiement above.
 // Ambassador delegates calls to the enum to the respective types
 // the relation to the Actor trait is then given later by
 // the Actor impl for HNActor below.
 
 #[delegatable_trait]
-trait Vactor: Sized {
+pub trait Vactor: Sized {
     type Msg: Clone + Debug + Eq + Hash;
     type State: Clone + Debug + PartialEq + Hash;
 
@@ -366,7 +393,7 @@ impl Vactor for ClientActor {
         }
         let key = self.key_seed;
         let client_state = Client(self.known_workers.clone(), key);
-        let mut o = vec![]; 
+        let mut o = vec![];
 
         // send a different tx to every worker, to get started
         let mut x = 0;
@@ -374,7 +401,7 @@ impl Vactor for ClientActor {
             x = x + 1;
             &self.send(*k, TxReq(vec![x], id), &mut o);
         }
-        
+
         let res = (client_state, o);
         res
     }
@@ -392,10 +419,10 @@ impl Vactor for ClientActor {
                 use std::{thread, time};
                 let hundred_millis = time::Duration::from_millis(100);
                 thread::sleep(hundred_millis);
-                
+
                 // send the new transaction
                 let new_tx = Self::next_tx(tx.to_vec());
-                let mut o = vec![]; 
+                let mut o = vec![];
                 self.send(*worker, TxReq(vec![new_tx], id), &mut o);
                 o
             }
@@ -411,7 +438,7 @@ impl Vactor for ClientActor {
 }
 
 // the behaviour of workers, according to the spec
-impl WorkerActor {
+impl WorkerActor{
     fn process_tx_req(
         &self,
         src: Id,
@@ -426,16 +453,19 @@ impl WorkerActor {
             panic!("source of transaction request is not the client");
         } else {
             // push the tx to the worker's buffer
-            let buffer_entry = (tx.clone(), client); 
-            state.tx_buffer.push(buffer_entry);
-            // ack the tx, optional, but nice to have 
+            let buffer_entry = (tx.clone(), client);
+            let sequence_number = state.tx_buffer.len();
+            state.tx_buffer.push(buffer_entry.clone());
+            // the sequence number corresponds to the index
+            assert!(state.tx_buffer[sequence_number] == buffer_entry);
+            // ack the tx, optional, but nice to have
             assert!(client == src); // always true, just double checking
-            self.send(client, ack, &mut o); 
+            self.send(client, ack, &mut o);
 
             // "broadcast" tx to mirror_workers : Vec<Id>
             self.send_(
                 self.mirror_workers.clone(),
-                TxToAll(tx.clone(), client),
+                TxToAll(tx.clone(), client, sequence_number),
                 &mut o
             );
 
@@ -472,6 +502,60 @@ impl WorkerActor {
             o
         }
     }
+
+    // fn process_tx(
+    //     &self
+    //     //
+    // ) -> Vec<Outputs<Id, <WorkerActor as Vactor>::Msg>> {
+    //     vec![]
+    // }
+
+    // checking a worker hash and forwarding it 
+    fn process_w_hx(
+        &self, 
+        src : WorkerId, 
+        w_hash : &WorkerHashData, 
+        sig: WorkerHashSignature,
+        state: &mut WorkerState
+    ) -> Vec<Outputs<Id, <WorkerActor as Vactor>::Msg>> {
+
+        fn signature_good(
+            src : WorkerId, 
+            w_hash : &WorkerHashData, 
+            sig: WorkerHashSignature
+        ) -> bool {
+            true
+            // TODO
+        }
+
+        fn order_tx_vec_from<T>(
+            vector : Vec<T>, 
+            r : u64
+        ) -> Vec<TxData> {
+            vec![]// TODO vec
+        }
+
+        let mut res = vec![];
+        if signature_good(src, w_hash, sig){
+            // TODO check round number
+            let the_round = w_hash.rnd;
+            let relevant_txs = order_tx_vec_from(state.tx_buffer_map[&src].clone(), the_round);
+            if relevant_txs.len() == w_hash.length {
+                self.send(
+                    state.primary, 
+                    WHxOK(w_hash.clone(), sig),
+                    &mut res
+                )
+            } else {
+                // TODO set timer
+            }
+        } else {
+            println!("Got bad worker hash");            
+        }
+        res
+    }
+
+
 }
 
 impl Vactor for WorkerActor {
@@ -481,12 +565,17 @@ impl Vactor for WorkerActor {
     fn on_start_vec(
         &self, id: Id
     ) -> (Self::State, Vec<Outputs<Id, Self::Msg>>) {
-        if cfg!(debug_assertions) { 
-            println!("Starting worker {}", id); 
+        if cfg!(debug_assertions) {
+            println!("Starting worker {}", id);
         }
+        let map = c!{
+            key =>vec![],
+            for key in self.mirror_workers.clone()
+        };
         let worker_state = WorkerState {
             tx_buffer: vec![], // empty transaction buffer
-            primary: self.primary, // copy the primary
+            tx_buffer_map: map.into_iter().collect(), 
+            primary: self.primary,  // copy the primary
             rnd: GENESIS_ROUND, // start at genesis
             mirrors: self.mirror_workers.clone(), // copy mirror_workers
         };
@@ -505,7 +594,7 @@ impl Vactor for WorkerActor {
         src: Id,
         msg: Self::Msg,
     ) -> Vec<Outputs<Id, Self::Msg>> {
-        if cfg!(debug_assertions) {         
+        if cfg!(debug_assertions) {
             println!("Worker {} got a message {:?}", w_id, msg);
         }
         // check if state is proper
@@ -522,7 +611,11 @@ impl Vactor for WorkerActor {
         // choose the action to perform according to the message variant
         match msg {
             TxReq(tx, client) => {
+                // we got a transaction request from a client
+
+                // this is the expected ack
                 let msg = TxAck(tx.clone(), w_id);
+                // further processing
                 self.process_tx_req(
                     src,
                     client,
@@ -532,12 +625,28 @@ impl Vactor for WorkerActor {
                     key_seed
                 )
             }
+            TxToAll(tx, client, seq_num) => {
+                // we got a transaction copy (erasure code)
+                // --
+                // the info we want to store 
+                let new_tx_info = (tx, client, seq_num);
+                // updating the worker state
+                worker_state.tx_buffer_map
+                    .get_mut(&src).expect("because!") 
+                    .push(new_tx_info); 
+                // nothing else to do
+                vec![]
+            }
+            WHxToAll(w_hash, sig) => {
+            //   we got a worker hash from a mirror worker to process
+                self.process_w_hx(src, &w_hash, sig, worker_state)
+             }
             _ => {
                 println!(
                     "oops, me little client {:?} received Message {:?}",
                     &self, msg
                 );
-                vec![] 
+                vec![]
             }
         }
     }
@@ -598,9 +707,9 @@ impl Actor for HNActor {
         for x in v {
             match x {
                 Outputs::Snd(i, m) => o.send(i, m),
-                _ => {
-                    panic!("not implemented in on_start");
-                }
+                // _ => {
+                //     panic!("not implemented in on_start");
+                // }
             }
         }
         s
@@ -684,7 +793,7 @@ impl NarwhalModelCfg {
     }
     fn calculate_mirror_workers_and_id(&self, index: usize, primary: usize) -> (Vec<Id>, Id) {
         (
-            c![Id::from(self.get_worker_idx(index, j)), 
+            c![Id::from(self.get_worker_idx(index, j)),
            for j in 0..self.primary_count,
            if j != primary],
             self.get_worker_idx(index, primary).into(),
@@ -727,7 +836,7 @@ impl NarwhalModelCfg {
         // 1. workers: 0..wic*pc
         // 2. primaries: wic*pc..(wic+1)*pc
         // 3. clients: (wic+1)*pc..(wic+1)*pc+cc
-        .actors(c![WorkerActor(WorkerActor{ 
+        .actors(c![WorkerActor(WorkerActor{
                 index: i as u64,
                 primary: Id::from(self.get_primary_idx(j)),
                 mirror_workers: self.calculate_mirror_workers_and_id(i,j).0,
@@ -736,12 +845,12 @@ impl NarwhalModelCfg {
             }),
                        for i in 0..self.worker_index_count,
                        for j in 0..self.primary_count])
-        .actors(c![PrimaryActor(PrimaryActor{ 
+        .actors(c![PrimaryActor(PrimaryActor{
                 peer_validators: self.calculate_peer_validators_and_id(p).0,
                 my_expected_id: self.calculate_peer_validators_and_id(p).1,
                 key_seed: fresh_key_seed(),
             }), for p in 0..self.primary_count])
-        .actors(c![ClientActor(ClientActor{ 
+        .actors(c![ClientActor(ClientActor{
                 known_workers: self.calculate_known_workers(),
                 my_expected_id: self.get_client_idx(c).into(),
                 key_seed: fresh_key_seed(),
@@ -783,10 +892,8 @@ impl NarwhalModelCfg {
 //          pub within_boundary: fn(cfg: &C, state: &ActorModelState<A, H>) -> bool,
 // }
 
-use cute::c; // for “pythonic” vec comprehension
-             // simplest example
-             //const SQUARES = c![x*x, for x in 0..10];
-             //const EVEN_SQUARES = c![x*x, for x in 0..10, if x % 2 == 0];
+
+
 
 #[derive(PartialEq)]
 enum ThisEnum {
@@ -798,7 +905,7 @@ use ThisEnum::*;
 // hardcoded choice, so far
 //const SUP:ThisEnum = Check;
 //const SUP:ThisEnum = Spawn;
-const SUP: ThisEnum = Check;
+const SUP: ThisEnum = Explore;
 
 fn main() {
     // let mut tx_vec : Vec<Box<dyn Tx<u64>>> = vec![Box::new(4)] ;
