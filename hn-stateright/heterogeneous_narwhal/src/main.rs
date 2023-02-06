@@ -31,8 +31,6 @@ use cute::c; // for “pythonic” vec comprehension
 // use mapcomp::btreemapc; // for “pythonic” btree comprehension
 use std::hash::{Hash, Hasher};
 
-
-
 fn hash_of<T: Hash>(t: &T) -> u64 {
     let mut s = DefaultHasher::new();
     t.hash(&mut s);
@@ -67,59 +65,89 @@ mod learner_graph {
     }
 }
 
-// // this module is for the purpose of “faking” a PKI-infrastructure
-// mod pki {
-//     // elliptic curve signatures imports (kudos to Daniel)
-//     use ed25519_consensus::*;
-//     use rand::thread_rng;
-//     use stateright::actor::Id;
-//     use std::collections::HashMap;
-//     use std::convert::TryFrom;
+// this module is for the purpose of “faking” a PKI-infrastructure
+mod pki {
+    // elliptic curve signatures imports (kudos to Daniel)
+    use ed25519_consensus::*;
+    use rand::thread_rng;
+    use stateright::actor::Id;
+    use std::collections::BTreeMap;
+    use std::convert::TryFrom;
 
-//     pub trait Registry {
-//         fn register(&mut self, _: Id, _: VerificationKey) -> bool;
-//     }
+    // The Registry is responsible for
+    // - regsitering keys via `register_key`
+    // - lookup of verification keys via `lookup_vk`
+    pub trait Registry {
+        // registering a verification key for the id
+        fn register_key(
+            &mut self, 
+            _: Id,
+            _:VerificationKey,
+            _: [u8; 64]
+        ) -> bool;
 
-//     pub struct KeyTable {
-//         map: HashMap<Id, VerificationKey>,
-//     }
+        // looking up the key for the id
+        fn lookup_vk(
+            &self,
+            _: Id
+        ) -> Option<VerificationKey>;
 
-//     impl Registry for KeyTable {
-//         fn register(&mut self, id: Id, vk: VerificationKey) -> bool {
-//             self.map.insert(id, vk) != None
-//         }
-//     }
+    }
 
-//     fn get_vk(sk: SigningKey) -> VerificationKey {
-//         VerificationKey::from(&sk)
-//     }
+    pub struct KeyTable {
+        pub map: BTreeMap<Id, VerificationKey>,
+    }
 
-//     fn private_test_ed25519_consensus() {
-//         // ------- ed25519-consensus signatures example usage
-//         let msg = b"ed25519-consensus";
+    impl Registry for KeyTable {
 
-//         // Signer's context
-//         let (vk_bytes, sig_bytes) = {
-//             // Generate a signing key and sign the message
-//             let sk = SigningKey::new(thread_rng());
-//             let sig = sk.sign(msg);
+        fn register_key(
+            &mut self,
+            id: Id,
+            vk: VerificationKey, 
+            _sig : [u8; 64]
+        ) -> bool {
+            // TODO, add signature check
+            self.map.insert(id, vk) != None
+        }
 
-//             // Types can be converted to raw byte arrays with From/Into
-//             let sig_bytes: [u8; 64];
-//             sig_bytes = sig.into();
-//             let vk_bytes: [u8; 32];
-//             vk_bytes = VerificationKey::from(&sk).into();
+        fn lookup_vk(
+            &self,
+            id: Id
+        ) -> Option<VerificationKey> {
+            if let Some(vk) = self.map.get(&id){
+                Some(*vk)
+            } else {
+                None
+            }
+        }
+    }
 
-//             (vk_bytes, sig_bytes)
-//         };
+    // fn private_test_ed25519_consensus() {
+    //     // ------- ed25519-consensus signatures example usage
+    //     let msg = b"ed25519-consensus";
+    // 
+    //     // Signer's context
+    //     let (vk_bytes, sig_bytes) = {
+    //         // Generate a signing key and sign the message
+    //         let sk = SigningKey::new(thread_rng());
+    //         let sig = sk.sign(msg);
+    // 
+    //         // Types can be converted to raw byte arrays with From/Into
+    //         let sig_bytes: [u8; 64];
+    //         sig_bytes = sig.into();
+    //         let vk_bytes: [u8; 32];
+    //         vk_bytes = VerificationKey::from(&sk).into();
+    // 
+    //         (vk_bytes, sig_bytes)
+    //     };
 
-//         // Verify the signature
-//         assert!(VerificationKey::try_from(vk_bytes)
-//             .and_then(|vk| vk.verify(&sig_bytes.into(), msg))
-//             .is_ok());
-//     }
-//     // -- end ed25519-consensus usage
-// }
+    //     // Verify the signature
+    //     assert!(VerificationKey::try_from(vk_bytes)
+    //         .and_then(|vk| vk.verify(&sig_bytes.into(), msg))
+    //         .is_ok());
+    // }
+    // -- end ed25519-consensus usage
+}
 
 // all about actors from stateright
 use stateright::actor::*;
@@ -271,6 +299,8 @@ struct PrimaryActor {
 struct ClientActor {
     // key (as seed) -- NB: this needs to be fixed before `on_start`
     key_seed: [u8; 32],
+    // verification key,
+    
     // the vector of workers to which requests can/will be sent
     known_workers: Vec<WorkerId>,
     // my_expected_id (for debugging)
@@ -387,7 +417,10 @@ impl Vactor for ClientActor {
     type Msg = MessageEnum;
     type State = StateEnum;
 
-    fn on_start_vec(&self, id: Id) -> (Self::State, Vec<Outputs<Id, Self::Msg>>) {
+    fn on_start_vec(
+        &self,
+        id: Id
+    ) -> (Self::State, Vec<Outputs<Id, Self::Msg>>) {
         if cfg!(debug_assertions) {
             print!("Start client {}", id);
         }
@@ -518,7 +551,6 @@ impl WorkerActor{
         sig: WorkerHashSignature,
         state: &mut WorkerState
     ) -> Vec<Outputs<Id, <WorkerActor as Vactor>::Msg>> {
-
         fn signature_good(
             src : WorkerId, 
             w_hash : &WorkerHashData, 
@@ -726,9 +758,9 @@ impl Actor for HNActor {
         for x in v {
             match x {
                 Outputs::Snd(i, m) => o.send(i, m),
-                _ => {
-                    panic!("not implemented in on_msg");
-                }
+                // _ => {
+                //     panic!("not implemented in on_msg");
+                // }
             }
         }
     }
@@ -907,8 +939,28 @@ use ThisEnum::*;
 //const SUP:ThisEnum = Spawn;
 const SUP: ThisEnum = Explore;
 
+// this is the registry
+
+const REGISTRY : pki::KeyTable =
+// MENDME plz: make this proper with setters/getters/init
+    pki::KeyTable{
+        map : BTreeMap::new(),
+    };
 fn main() {
-    // let mut tx_vec : Vec<Box<dyn Tx<u64>>> = vec![Box::new(4)] ;
+    // this is an example on how to use REGISTRY
+    use ed25519_consensus::VerificationKey;
+    use pki::*;
+    match VerificationKey::try_from([0; 32]) {
+        Ok(vk) => {
+            // 
+            let dumm_sig = [0; 64];// this would be a signature of the key
+            REGISTRY.register_key(Id::from(0), vk, dumm_sig);
+        }
+        Err(_) => {
+            // this is probably unreachable ❓ 
+            println!("too bad"); 
+        }
+    }
     match SUP {
         Spawn => {
             println!(" about to spawn HNarwhal");
@@ -1054,7 +1106,7 @@ fn main() {
                 |bytes| serde_json::from_slice(bytes),
                 all_vactor_vec,
             )
-            .unwrap();
+                .unwrap();
 
             // "the
             use ed25519_consensus::{SigningKey, VerificationKey};
@@ -1084,8 +1136,8 @@ fn main() {
 
             // Verify the signature
             assert!(VerificationKey::try_from(vk_bytes)
-                .and_then(|vk| vk.verify(&sig_bytes.into(), msg))
-                .is_ok());
+                    .and_then(|vk| vk.verify(&sig_bytes.into(), msg))
+                    .is_ok());
 
             // -- end elliptic curves usage
         }
@@ -1100,10 +1152,10 @@ fn main() {
                 network: nw,
             }
             .into_model()
-            .checker()
-            .threads(num_cpus::get())
-            .spawn_dfs()
-            .report(&mut std::io::stdout());
+                .checker()
+                .threads(num_cpus::get())
+                .spawn_dfs()
+                .report(&mut std::io::stdout());
         }
         Explore => {
             let c_count = 3;
@@ -1120,9 +1172,9 @@ fn main() {
                 network: nw,
             }
             .into_model()
-            .checker()
-            .threads(num_cpus::get())
-            .serve(address);
+                .checker()
+                .threads(num_cpus::get())
+                .serve(address);
         }
         // _ => {
         //     panic!("noooo, SUP?!")
