@@ -425,6 +425,17 @@ impl Vactor for ClientActor {
             print!("Start client {}", id);
         }
         let key = self.key_seed;
+        match ed25519_consensus::VerificationKey::try_from(key) {
+            // MENDME: mover the key registration to Vactor trait (code copies) 
+            Ok(vk) => {
+                use pki::*;
+                REGISTRY.register_key(id, vk, DUMMY_SIG);
+            }
+            _ => {
+                panic!("bad key at client {:?}", self); 
+            }
+        }
+            
         let client_state = Client(self.known_workers.clone(), key);
         let mut o = vec![];
 
@@ -615,6 +626,15 @@ impl Vactor for WorkerActor {
             worker_state,
             self.key_seed, // copy key
         );
+        match ed25519_consensus::VerificationKey::try_from(self.key_seed) {
+            Ok(vk) => {
+                use pki::*;
+                REGISTRY.register_key(id, vk, DUMMY_SIG);
+            }
+            _ => {
+                panic!("bad key at worker {:?}", self); 
+            }
+        }
         (state,vec![])
     }
 
@@ -691,6 +711,15 @@ impl Vactor for PrimaryActor {
     fn on_start_vec(&self, id: Id) -> (Self::State, Vec<Outputs<Id, Self::Msg>>) {
         println!("start primary {}", id);
         let key_seed = self.key_seed;
+        match ed25519_consensus::VerificationKey::try_from(key_seed) {
+            Ok(vk) => {
+                use pki::*;
+                REGISTRY.register_key(id, vk, DUMMY_SIG);
+            }
+            _ => {
+                panic!("bad key at primary {:?}", self); 
+            }
+        }
         (Primary(PrimaryState {}, key_seed), vec![]) // default value for one ping pongk
     }
 
@@ -946,21 +975,22 @@ const REGISTRY : pki::KeyTable =
     pki::KeyTable{
         map : BTreeMap::new(),
     };
+const DUMMY_SIG : [u8; 64] = [0; 64];
 fn main() {
-    // this is an example on how to use REGISTRY
-    use ed25519_consensus::VerificationKey;
-    use pki::*;
-    match VerificationKey::try_from([0; 32]) {
-        Ok(vk) => {
-            // 
-            let dumm_sig = [0; 64];// this would be a signature of the key
-            REGISTRY.register_key(Id::from(0), vk, dumm_sig);
-        }
-        Err(_) => {
-            // this is probably unreachable ❓ 
-            println!("too bad"); 
-        }
-    }
+    // // this is an example on how to use REGISTRY
+    // use ed25519_consensus::VerificationKey;
+    // use pki::*;
+    // match VerificationKey::try_from([0; 32]) {
+    //     Ok(vk) => {
+    //         // 
+    //         let dumm_sig = [0; 64];// this would be a signature of the key
+    //         REGISTRY.register_key(Id::from(0), vk, dumm_sig);
+    //     }
+    //     Err(_) => {
+    //         // this is probably unreachable ❓ 
+    //         println!("too bad"); 
+    //     }
+    // }
     match SUP {
         Spawn => {
             println!(" about to spawn HNarwhal");
