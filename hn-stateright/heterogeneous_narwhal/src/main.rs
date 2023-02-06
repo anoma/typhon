@@ -1,6 +1,7 @@
 // -------------------------------------------------------
 // The Heterogeneous Narwhal implementation in stateright
 // -------------------------------------------------------
+// 
 // This code is geared toward clarity and correctness,
 // w.r.t. tech report
 // https://github.com/anoma/ ..
@@ -106,7 +107,7 @@ mod pki {
             vk: VerificationKey, 
             _sig : [u8; 64]
         ) -> bool {
-            // TODO, add signature check
+            // MENDME, add signature check
             self.map.insert(id, vk) != None
         }
 
@@ -561,14 +562,29 @@ impl WorkerActor{
         w_hash : &WorkerHashData, 
         sig: WorkerHashSignature,
         state: &mut WorkerState
-    ) -> Vec<Outputs<Id, <WorkerActor as Vactor>::Msg>> {
-        fn signature_good(
+    ) -> Vec<
+            Outputs<
+                    Id,
+                <WorkerActor as Vactor>::Msg
+                    >
+            > {
+        fn check_signature(
             src : WorkerId, 
             w_hash : &WorkerHashData, 
             sig: WorkerHashSignature
         ) -> bool {
-            true
-            // TODO
+            //fn verify(&self, &Signature, &[u8]) -> Result<(), Error>
+            use ed25519_consensus::{VerificationKey,Signature};
+            use pki::*;
+            let key = VerificationKey::from(REGISTRY.lookup_vk(src).unwrap());
+            let w_bytes = &bincode::serialize(&w_hash).unwrap();
+            match key.verify(&Signature::from(sig), w_bytes){
+                Ok(_) => {true},
+                Err(_) => {
+                    println!("got a bad signature from worker #{}", src); 
+                    false
+                }
+            }
         }
 
         fn order_tx_vec_from<T>(
@@ -579,7 +595,7 @@ impl WorkerActor{
         }
 
         let mut res = vec![];
-        if signature_good(src, w_hash, sig){
+        if check_signature(src, w_hash, sig){
             // TODO check round number
             let the_round = w_hash.rnd;
             let relevant_txs = order_tx_vec_from(state.tx_buffer_map[&src].clone(), the_round);
