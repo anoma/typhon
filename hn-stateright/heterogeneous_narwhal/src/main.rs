@@ -179,7 +179,7 @@ struct WorkerHashData {
     rnd: u64,
     // the number of txs of this worker hash
     length: usize,
-    // the hash
+    // the hasho
     hash: u64,
 }
 
@@ -210,7 +210,7 @@ enum MessageEnum {
     // acknowledgments of transactions by the worker
     TxAck(TxData, WorkerId),
     // broadcasting a tx (or its erasure code) to mirror workers
-    TxToAll(TxData, ClientId, usize),
+    TxToAll(TxData, ClientId, usize, u64),
     // Worker Hash (to the primary)
     WorkerHx(
         WorkerHashData,
@@ -241,7 +241,7 @@ struct WorkerState {
     // the buffer for received transactions
     tx_buffer: Vec<(TxData, ClientId)>,
     // hashmap to stores of transaction copies
-    tx_buffer_map: BTreeMap<WorkerId, Vec<(TxData, ClientId,usize)>>,
+    tx_buffer_map: BTreeMap<WorkerId, Vec<(TxData, ClientId, usize, u64)>>,
     // a copy of the primary information ()
     primary: ValidatorId,
     // a copy of the mirror worker information
@@ -282,6 +282,8 @@ struct WorkerActor {
     mirror_workers: Vec<Id>,
     // my_expected_id is for debugging
     my_expected_id: Id,
+    // round number
+    rnd: u64,
 }
 
 // PrimaryActor holds the static information about primaries
@@ -510,7 +512,7 @@ impl WorkerActor{
             // "broadcast" tx to mirror_workers : Vec<Id>
             self.send_(
                 self.mirror_workers.clone(),
-                TxToAll(tx.clone(), client, sequence_number),
+                TxToAll(tx.clone(), client, sequence_number, self.rnd),
                 &mut o
             );
 
@@ -587,18 +589,35 @@ impl WorkerActor{
             }
         }
 
-        fn order_tx_vec_from<T>(
-            vector : Vec<T>, 
-            r : u64
-        ) -> Vec<TxData> {
-            vec![]// TODO vec
+        // we need to have the transactions ordered
+        // the order is induced by the sequence number 
+        fn sort_tx_vec_from<T:Clone, C:Clone, U :Ord+Clone>(
+             vector : &mut Vec<(T,C,U, u64)>, 
+            rnd : u64
+        ) -> Vec<(T,C,U, u64)>{
+            let i  = vector.iter().filter(|x| x.3  == rnd);
+            // this should be just collecting the iterator into i
+            let mut x = vec![];
+            for k in i {
+                let wow = &(*k);
+                x.push(wow.clone());
+            }
+            // now x is the filtered vector
+            x.sort_by(|x , y| x.2.cmp(&y.2));
+            // and sorted
+            x
         }
 
         let mut res = vec![];
         if check_signature(src, w_hash, sig){
-            // TODO check round number
+            // TODO check round number 
+            // (whether we already have a worker hash from the src ?) 
             let the_round = w_hash.rnd;
-            let relevant_txs = order_tx_vec_from(state.tx_buffer_map[&src].clone(), the_round);
+            let mut all_txs = state.tx_buffer_map[&src].clone();
+            let relevant_txs = sort_tx_vec_from(
+                &mut all_txs, 
+                the_round
+            );
             if relevant_txs.len() == w_hash.length {
                 self.send(
                     state.primary, 
@@ -693,11 +712,11 @@ impl Vactor for WorkerActor {
                     key_seed
                 )
             }
-            TxToAll(tx, client, seq_num) => {
+            TxToAll(tx, client, seq_num, r) => {
                 // we got a transaction copy (erasure code)
                 // --
                 // the info we want to store 
-                let new_tx_info = (tx, client, seq_num);
+                let new_tx_info = (tx, client, seq_num, r);
                 // updating the worker state
                 worker_state.tx_buffer_map
                     .get_mut(&src).expect("because!") 
@@ -919,6 +938,7 @@ impl NarwhalModelCfg {
                 mirror_workers: self.calculate_mirror_workers_and_id(i,j).0,
                 my_expected_id: self.calculate_mirror_workers_and_id(i,j).1,
                 key_seed: fresh_key_seed(),
+                rnd: GENESIS_ROUND,
             }),
                        for i in 0..self.worker_index_count,
                        for j in 0..self.primary_count])
@@ -1079,6 +1099,7 @@ fn main() {
                                                                 worker_port + WORKER_INDEX_COUNT*y + x)
                     ),
                     key_seed: fresh_key_seed(),
+                    rnd: GENESIS_ROUND,
                 },
                 for x in 0..WORKER_INDEX_COUNT,
                 for y in 0..PRIMARY_COUNT
