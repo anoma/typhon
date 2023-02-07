@@ -15,7 +15,7 @@ use std::fmt::Debug;
 // we use the following 8 (eight) lines of code:
 use std::collections::hash_map::DefaultHasher;
 use std::collections::BTreeMap;
-// use std::collections::HashMap;
+use std::collections::HashMap;
 // fn hash_to_btree<K:std::cmp::Ord,V>(
 //     hash: HashMap<K, V>
 // ) -> BTreeMap<K, V> {
@@ -26,6 +26,13 @@ fn iter_to_vec<T : Clone>(
     i: &mut dyn Iterator<Item = T>
 ) -> Vec<T> {
     i.collect()
+}
+fn iter_to_vec_<T : Clone>(
+    iter: &mut dyn Iterator<Item = T>
+) -> Vec<T> {
+    let mut x = vec![];
+    for el in iter {x.push(el.clone());}
+    x
 }
 
 use cute::c; // for “pythonic” vec comprehension
@@ -74,8 +81,7 @@ mod learner_graph {
 // this module is for the purpose of “faking” a PKI-infrastructure
 mod pki {
     // elliptic curve signatures imports (kudos to Daniel)
-    use ed25519_consensus::*;
-    use rand::thread_rng;
+    use ed25519_consensus::*; 
     use stateright::actor::Id;
     use std::collections::BTreeMap;
     use std::convert::TryFrom;
@@ -112,7 +118,7 @@ mod pki {
             vk: VerificationKey, 
             _sig : [u8; 64]
         ) -> bool {
-            // MENDME, add signature check
+            // MENDME, add some form of authentication
             self.map.insert(id, vk) != None
         }
 
@@ -130,6 +136,7 @@ mod pki {
 
     // fn private_test_ed25519_consensus() {
     //     // ------- ed25519-consensus signatures example usage
+    //     use rand::thread_rng;
     //     let msg = b"ed25519-consensus";
     // 
     //     // Signer's context
@@ -180,13 +187,16 @@ type TxData = Vec<TxChunk>;
 // serialization matters as in https://crates.io/crates/bincode
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, Hash)]
 struct WorkerHashData {
-    // the round
+    // the take (formerly, the round of the primary)
     take: u32,
     // the number of txs of this worker hash
     length: usize,
-    // the hasho
+    // the hash
     hash: u64,
+    // the collector
+    // collector: WorkerId
 }
+
 
 // the hashing library uses [u8; 64], which makes us use BigArray
 use serde_big_array::BigArray;
@@ -206,6 +216,16 @@ type ClientId = Id;
 // the indices of workers (globally fixed, for all validators)
 type WorkerIndex = u64;
 
+// header, the data structure for primaries
+#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, Hash)]
+struct HeaderData {
+    // the creator of the header
+    creator : ValidatorId,
+    // the worker hashes (produced by the creator's workers)
+    worker_hashes: Vec<WorkerHashData>,
+}
+
+
 // the enumeration of all possible kinds of messages
 //
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
@@ -221,13 +241,13 @@ enum MessageEnum {
         WorkerHashData,
         #[serde(with = "BigArray")] WorkerHashSignature,
     ),
-    // Worker Hash (broadcast to mirror workers)
+    // Worker Hash Broadcast (to mirror workers)
     WHxToAll(
         WorkerHashData,
         #[serde(with = "BigArray")] WorkerHashSignature,
     ),
-    // Worker Hash (forwarded to primary)
-    WHxOK(
+    // Worker Hash forwarding (to primary, received from mirror workers)
+    WHxFwd(
         WorkerHashData,
         #[serde(with = "BigArray")] WorkerHashSignature,
     ),
@@ -258,7 +278,9 @@ struct WorkerState {
 
 // the state type of primaries
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
-struct PrimaryState;
+struct PrimaryState{
+    map_of_worker_hashes: BTreeMap<WorkerId, Vec<WorkerHashData>>,
+}
 
 // the state type of clients
 // it is the number of requests
@@ -298,9 +320,11 @@ struct PrimaryActor {
     // key (as seed) -- NB: this needs to be fixed before `on_start`
     key_seed: [u8; 32],
     // the ids of all (known) peer validators
-    peer_validators: Vec<Id>,
+    peer_validators: Vec<ValidatorId>,
     // my_expected_id (for debugging)
     my_expected_id: Id,
+    // 
+    local_workers: Vec<WorkerId>,
 }
 
 // ClientActor holds the static information about clients
@@ -435,7 +459,7 @@ impl Vactor for ClientActor {
         }
         let key = self.key_seed;
         match ed25519_consensus::VerificationKey::try_from(key) {
-            // MENDME: mover the key registration to Vactor trait (code copies) 
+            // MENDME (code copies!!): move key registration to Vactor trait 
             Ok(vk) => {
                 use pki::*;
                 REGISTRY.register_key(id, vk, DUMMY_SIG);
@@ -513,15 +537,17 @@ impl WorkerActor{
             assert!(state.tx_buffer[sequence_number] == buffer_entry);
             // ack the tx, optional, but nice to have
             assert!(client == src); // always true, just double checking
+            // the nice to have ack
             self.send(client, ack, &mut o);
 
             // "broadcast" tx to mirror_workers : Vec<Id>
             self.send_(
-                self.mirror_workers.clone(),
-                TxToAll(tx.clone(), client, sequence_number, self.take),
+                state.mirrors.clone(),
+                TxToAll(tx, client, sequence_number, state.take),
                 &mut o
             );
-
+            // 
+            state.take = state.take +1;
 
             // check if we can finish a batch
             if state.tx_buffer.len() >= BATCH_SIZE {
@@ -547,7 +573,7 @@ impl WorkerActor{
                 // broadcast the worker hash to
                 // aka worker hash broadcast
                 self.send_(
-                    self.mirror_workers.clone(),
+                    state.mirrors.clone(),
                     WHxToAll(w_hash, sig),
                     &mut o
                 );
@@ -577,7 +603,8 @@ impl WorkerActor{
                     >
             > {
         fn check_signature(
-            src : WorkerId, 
+            // src is the signing id
+            src : WorkerId,          
             w_hash : &WorkerHashData, 
             sig: WorkerHashSignature
         ) -> bool {
@@ -606,7 +633,7 @@ impl WorkerActor{
             let mut x = vec![];
             for el in iter {x.push(el.clone());}
             // x is the vector of transaction data of the same “take” 
-            x.sort_by(|x , y| x.2.cmp(&y.2));
+            x.sort_by(|a , b| a.2.cmp(&b.2));
             // and sorted, ascending in the sequence number (within the take)
             // guess sequence number should be frame number ;-)
             x
@@ -614,11 +641,8 @@ impl WorkerActor{
 
         let mut res = vec![];
         if check_signature(src, w_hash, sig){
-            // TODO check round number -- potential ISSUE
-            // each worker should have an independent counter of “takes/chunks”
-            // (whether we already have a worker hash from the src ?)
-            // actually, this might need a “direct communication” of round numbers,
-            // between validator and worker ?
+            // NB:
+            // each has an independent counter of “takes/chunks”
             let hash_take = w_hash.take;
             let mut all_txs = state.tx_buffer_map[&src].clone();
             let relevant_txs = sort_tx_vec_from(
@@ -628,7 +652,7 @@ impl WorkerActor{
             if relevant_txs.len() == w_hash.length {
                 self.send(
                     state.primary, 
-                    WHxOK(w_hash.clone(), sig),
+                    WHxFwd(w_hash.clone(), sig),
                     &mut res
                 )
             } else {
@@ -667,6 +691,7 @@ impl Vactor for WorkerActor {
             self.key_seed, // copy key
         );
         match ed25519_consensus::VerificationKey::try_from(self.key_seed) {
+            // MENDME (code copies!!): move key registration to Vactor trait 
             Ok(vk) => {
                 use pki::*;
                 REGISTRY.register_key(id, vk, DUMMY_SIG);
@@ -752,6 +777,7 @@ impl Vactor for PrimaryActor {
         println!("start primary {}", id);
         let key_seed = self.key_seed;
         match ed25519_consensus::VerificationKey::try_from(key_seed) {
+            // MENDME (code copies!!): move key registration to Vactor trait 
             Ok(vk) => {
                 use pki::*;
                 REGISTRY.register_key(id, vk, DUMMY_SIG);
@@ -760,7 +786,13 @@ impl Vactor for PrimaryActor {
                 panic!("bad key at primary {:?}", self); 
             }
         }
-        (Primary(PrimaryState {}, key_seed), vec![]) // default value for one ping pongk
+        let map : HashMap<WorkerId, Vec<WorkerHashData>> = c!{
+            key => vec![],
+            for key in self.local_workers.clone()
+        };
+        (Primary(PrimaryState {
+            map_of_worker_hashes: BTreeMap::new(),
+        }, key_seed), vec![]) // default value for one ping pongk
     }
 
     fn on_msg_vec(
@@ -804,6 +836,7 @@ impl Actor for HNActor {
     type State = StateEnum;
 
     fn on_start(&self, id: Id, o: &mut Out<Self>) -> Self::State {
+        
         let (s, v) = self.on_start_vec(id);
         for x in v {
             match x {
@@ -900,6 +933,11 @@ impl NarwhalModelCfg {
             self.get_worker_idx(index, primary).into(),
         )
     }
+    fn calculate_local_workers(&self, primary: usize) -> Vec<Id> {
+        c![self.get_worker_idx(index, primary).into(), 
+           for index in 0..self.worker_index_count
+        ]
+    }
 
     fn record_msg_in<'a, 'b, 'c>(
         _cfg: &'a Self,
@@ -947,10 +985,11 @@ impl NarwhalModelCfg {
             }),
                        for i in 0..self.worker_index_count,
                        for j in 0..self.primary_count])
-        .actors(c![PrimaryActor(PrimaryActor{
+            .actors(c![PrimaryActor(PrimaryActor{
                 peer_validators: self.calculate_peer_validators_and_id(p).0,
                 my_expected_id: self.calculate_peer_validators_and_id(p).1,
                 key_seed: fresh_key_seed(),
+                local_workers:self.calculate_local_workers(p),
             }), for p in 0..self.primary_count])
         .actors(c![ClientActor(ClientActor{
                 known_workers: self.calculate_known_workers(),
@@ -1084,10 +1123,19 @@ fn main() {
                 for y in 0..CLIENT_COUNT
             ];
             // create primary structs:
+            
+
             let primaries = c![
                 PrimaryActor{peer_validators : primary_ids.clone(),
                              my_expected_id: Id::from(SocketAddrV4::new(Ipv4Addr::LOCALHOST, primary_port + y)),
                              key_seed: fresh_key_seed(),
+                             local_workers: 
+                             // a bunch of worker IDs (code copy!)
+                             c![
+                                 Id::from(SocketAddrV4::new(Ipv4Addr::LOCALHOST,
+                                                            worker_port + WORKER_INDEX_COUNT*y + x)
+                                 ),
+                                 for x in 0..WORKER_INDEX_COUNT]
                 },
                 for y in 0..PRIMARY_COUNT
             ];
