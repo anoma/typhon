@@ -1,13 +1,13 @@
 // -------------------------------------------------------
 // The Heterogeneous Narwhal implementation in stateright
 // -------------------------------------------------------
-// 
+//
 // This code is geared toward clarity and correctness,
 // w.r.t. tech report
 // https://github.com/anoma/ ..
 // .. research/tree/master/distributed-systems/heterogeneous-narwhal
 
-use serde::{Deserialize,Serialize};
+use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 
 // For hashing,
@@ -19,19 +19,17 @@ use std::collections::HashMap;
 // fn hash_to_btree<K:std::cmp::Ord,V>(
 //     hash: HashMap<K, V>
 // ) -> BTreeMap<K, V> {
-//     // make hashmap iterator, then collect 
+//     // make hashmap iterator, then collect
 //     hash.into_iter().collect()
 // }
-fn iter_to_vec<T : Clone>(
-    i: &mut dyn Iterator<Item = T>
-) -> Vec<T> {
+fn iter_to_vec<T: Clone>(i: &mut dyn Iterator<Item = T>) -> Vec<T> {
     i.collect()
 }
-fn iter_to_vec_<T : Clone>(
-    iter: &mut dyn Iterator<Item = T>
-) -> Vec<T> {
+fn iter_to_vec_<T: Clone>(iter: &mut dyn Iterator<Item = T>) -> Vec<T> {
     let mut x = vec![];
-    for el in iter {x.push(el.clone());}
+    for el in iter {
+        x.push(el.clone());
+    }
     x
 }
 
@@ -53,7 +51,7 @@ fn hash_of<T: Hash>(t: &T) -> u64 {
 // the data type of learner graphs
 mod learner_graph {
     // the learner graph trait uses
-    use std::collections::{HashMap,HashSet};
+    use std::collections::{HashMap, HashSet};
     use std::iter::Iterator;
 
     // learner graph trait
@@ -62,26 +60,18 @@ mod learner_graph {
         type Learner;
         type Validator;
 
-        fn get_learners(
-            &self
-        ) -> dyn Iterator<Item = Self::Learner>;
+        fn get_learners(&self) -> dyn Iterator<Item = Self::Learner>;
 
-        fn get_quorums(
-            &self
-        ) -> HashMap<Self::Learner, HashSet<Self::Validator>>;
+        fn get_quorums(&self) -> HashMap<Self::Learner, HashSet<Self::Validator>>;
 
-        fn are_entangled(
-            &self,
-            learner_a: Self::Learner,
-            learner_b: Self::Learner
-        ) -> bool;
+        fn are_entangled(&self, learner_a: Self::Learner, learner_b: Self::Learner) -> bool;
     }
 }
 
 // this module is for the purpose of “faking” a PKI-infrastructure
 mod pki {
     // elliptic curve signatures imports (kudos to Daniel)
-    use ed25519_consensus::*; 
+    use ed25519_consensus::*;
     use stateright::actor::Id;
     use std::collections::BTreeMap;
     // use std::convert::TryFrom;
@@ -91,19 +81,10 @@ mod pki {
     // - lookup of verification keys via `lookup_vk`
     pub trait Registry {
         // registering a verification key for the id
-        fn register_key(
-            &mut self, 
-            _: Id,
-            _:VerificationKey,
-            _: [u8; 64]
-        ) -> bool;
+        fn register_key(&mut self, _: Id, _: VerificationKey, _: [u8; 64]) -> bool;
 
         // looking up the key for the id
-        fn lookup_vk(
-            &self,
-            _: Id
-        ) -> Option<VerificationKey>;
-
+        fn lookup_vk(&self, _: Id) -> Option<VerificationKey>;
     }
 
     pub struct KeyTable {
@@ -111,22 +92,13 @@ mod pki {
     }
 
     impl Registry for KeyTable {
-
-        fn register_key(
-            &mut self,
-            id: Id,
-            vk: VerificationKey, 
-            _sig : [u8; 64]
-        ) -> bool {
+        fn register_key(&mut self, id: Id, vk: VerificationKey, _sig: [u8; 64]) -> bool {
             // MENDME, add some form of authentication
             self.map.insert(id, vk) != None
         }
 
-        fn lookup_vk(
-            &self,
-            id: Id
-        ) -> Option<VerificationKey> {
-            if let Some(vk) = self.map.get(&id){
+        fn lookup_vk(&self, id: Id) -> Option<VerificationKey> {
+            if let Some(vk) = self.map.get(&id) {
                 Some(*vk)
             } else {
                 None
@@ -138,19 +110,19 @@ mod pki {
     //     // ------- ed25519-consensus signatures example usage
     //     use rand::thread_rng;
     //     let msg = b"ed25519-consensus";
-    // 
+    //
     //     // Signer's context
     //     let (vk_bytes, sig_bytes) = {
     //         // Generate a signing key and sign the message
     //         let sk = SigningKey::new(thread_rng());
     //         let sig = sk.sign(msg);
-    // 
+    //
     //         // Types can be converted to raw byte arrays with From/Into
     //         let sig_bytes: [u8; 64];
     //         sig_bytes = sig.into();
     //         let vk_bytes: [u8; 32];
     //         vk_bytes = VerificationKey::from(&sk).into();
-    // 
+    //
     //         (vk_bytes, sig_bytes)
     //     };
 
@@ -197,7 +169,6 @@ struct WorkerHashData {
     // collector: WorkerId
 }
 
-
 // the hashing library uses [u8; 64], which makes us use BigArray
 use serde_big_array::BigArray;
 
@@ -220,11 +191,10 @@ type WorkerIndex = u64;
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, Hash)]
 struct HeaderData {
     // the creator of the header
-    creator : ValidatorId,
+    creator: ValidatorId,
     // the worker hashes (produced by the creator's workers)
     worker_hashes: Vec<WorkerHashData>,
 }
-
 
 // the enumeration of all possible kinds of messages
 //
@@ -251,9 +221,7 @@ enum MessageEnum {
         WorkerHashData,
         #[serde(with = "BigArray")] WorkerHashSignature,
     ),
-
 }
-
 
 use crate::MessageEnum::*;
 
@@ -272,19 +240,19 @@ struct WorkerState {
     primary: ValidatorId,
     // a copy of the mirror worker information
     mirrors: Vec<WorkerId>,
-    //  ̶r̶o̶u̶n̶d̶ ̶n̶u̶m̶b̶e̶r̶ => take 
+    //  ̶r̶o̶u̶n̶d̶ ̶n̶u̶m̶b̶e̶r̶ => take
     take: u32,
     // the id
-    id: WorkerId
+    the_id: WorkerId,
 }
 
 // the state type of primaries
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
-struct PrimaryState{
-    // 
+struct PrimaryState {
+    // map_of_worker_hashes loal or foreign (right ?)
     map_of_worker_hashes: BTreeMap<WorkerId, Vec<WorkerHashData>>,
     // the id
-    id : ValidatorId
+    the_id: ValidatorId,
 }
 
 // the state type of clients
@@ -328,7 +296,7 @@ struct PrimaryActor {
     peer_validators: Vec<ValidatorId>,
     // my_expected_id (for debugging)
     my_expected_id: Id,
-    // 
+    //
     local_workers: Vec<WorkerId>,
 }
 
@@ -338,7 +306,7 @@ struct ClientActor {
     // key (as seed) -- NB: this needs to be fixed before `on_start`
     key_seed: [u8; 32],
     // verification key,
-    
+
     // the vector of workers to which requests can/will be sent
     known_workers: Vec<WorkerId>,
     // my_expected_id (for debugging)
@@ -357,7 +325,6 @@ struct ClientActor {
 // struct ExOne;
 // #[derive(Clone)]
 // struct ExTwo;
-
 
 // impl ExampleTrait for ExOne {
 //     fn do_this (&self, o: &mut Vec<Self>){
@@ -381,10 +348,8 @@ struct ClientActor {
 // // experiment _delegation_ end
 // -----------------------------------------------------------------------------
 
-
-
 // ideally, this _would_ be part of the `Vactor` trait
-// ... well, now it is public :-/ 
+// ... well, now it is public :-/
 pub enum Outputs<I, M> {
     Snd(I, M),
     //Cast(M),
@@ -410,17 +375,15 @@ pub trait Vactor: Sized {
 
     fn get_vk_bytes(&self) -> [u8; 32];
 
-    fn send(&self, id : Id, m : Self::Msg, o : &mut Vec<Outputs<Id, Self::Msg>>){
+    fn send(&self, id: Id, m: Self::Msg, o: &mut Vec<Outputs<Id, Self::Msg>>) {
         o.push(Outputs::Snd(id, m));
     }
-    fn send_(&self, ids : Vec<Id>, m : Self::Msg, o : &mut Vec<Outputs<Id, Self::Msg>>){
+    fn send_(&self, ids: Vec<Id>, m: Self::Msg, o: &mut Vec<Outputs<Id, Self::Msg>>) {
         for i in ids {
             self.send(i, m.clone(), o);
         }
     }
-    fn on_start_vec(
-        &self, id: Id
-    ) -> (Self::State, Vec<Outputs<Id, Self::Msg>>);
+    fn on_start_vec(&self, id: Id) -> (Self::State, Vec<Outputs<Id, Self::Msg>>);
 
     fn on_msg_vec(
         &self,
@@ -439,16 +402,15 @@ pub trait Vactor: Sized {
     }
 }
 
-impl ClientActor{
-
+impl ClientActor {
     // a function for generating the next tx
-    fn next_tx(tx : TxData) -> TxChunk {
+    fn next_tx(tx: TxData) -> TxChunk {
         // could be "random", but, to keep things simple for the moment:
-                    if tx[0]%2 == 0 {
-                        tx[0] / 2
-                    } else {
-                        3*tx[0] + 1
-                    }
+        if tx[0] % 2 == 0 {
+            tx[0] / 2
+        } else {
+            3 * tx[0] + 1
+        }
     }
 }
 
@@ -462,21 +424,11 @@ impl Vactor for ClientActor {
         VerificationKey::from(&SigningKey::from(self.key_seed)).into()
     }
 
-    fn on_start_vec(
-        &self,
-        id: Id
-    ) -> (
-        Self::State,
-        Vec<Outputs<Id, Self::Msg>>
-    ) {
+    fn on_start_vec(&self, id: Id) -> (Self::State, Vec<Outputs<Id, Self::Msg>>) {
         if cfg!(debug_assertions) {
             print!("Start client {}", id);
         }
-        let client_state = Client(
-            self.known_workers.clone(),
-            self.key_seed,
-            id
-        );
+        let client_state = Client(self.known_workers.clone(), self.key_seed, id);
         let mut o = vec![];
 
         // send a different tx to every worker, to get started
@@ -522,7 +474,7 @@ impl Vactor for ClientActor {
 }
 
 // the behaviour of workers, according to the spec
-impl WorkerActor{
+impl WorkerActor {
     fn process_tx_req(
         &self,
         src: Id,
@@ -534,27 +486,27 @@ impl WorkerActor{
     ) -> Vec<Outputs<Id, <WorkerActor as Vactor>::Msg>> {
         let mut o = vec![];
         if client != src {
-            panic!("source of transaction request is not the client");
+            panic!("sender of transaction request is not tx's client");
         } else {
             // push the tx to the worker's buffer
-            let buffer_entry = (tx.clone(), client);
+            let tx_entry = (tx.clone(), client);
             let sequence_number = state.tx_buffer.len();
-            state.tx_buffer.push(buffer_entry.clone());
-            // the sequence number corresponds to the index
-            assert!(state.tx_buffer[sequence_number] == buffer_entry);
-            // ack the tx, optional, but nice to have
-            assert!(client == src); // always true, just double checking
-            // the nice to have ack
+            state.tx_buffer.push(tx_entry.clone());
+            // sequence number should correspond to the tx's index in the tx_buffer
+            assert!(state.tx_buffer[sequence_number] == tx_entry);
+
+            // planning to send the (nice to have) ack
             self.send(client, ack, &mut o);
+            assert!(client == src); // always true, just double checking
 
             // "broadcast" tx to mirror_workers : Vec<Id>
             self.send_(
                 state.mirrors.clone(),
                 TxToAll(tx, client, sequence_number, state.take),
-                &mut o
+                &mut o,
             );
-            // 
-            state.take = state.take +1;
+            //
+            state.take = state.take + 1;
 
             // check if we can finish a batch
             if state.tx_buffer.len() >= BATCH_SIZE {
@@ -571,19 +523,11 @@ impl WorkerActor{
 
                 // notify primary that a new batch hash is out
                 // aka worker hash provision
-                self.send(
-                    state.primary,
-                    WorkerHx(w_hash.clone(), sig),
-                    &mut o
-                );
+                self.send(state.primary, WorkerHx(w_hash.clone(), sig), &mut o);
 
                 // broadcast the worker hash to
                 // aka worker hash broadcast
-                self.send_(
-                    state.mirrors.clone(),
-                    WHxToAll(w_hash, sig),
-                    &mut o
-                );
+                self.send_(state.mirrors.clone(), WHxToAll(w_hash, sig), &mut o);
             }
             o
         }
@@ -596,77 +540,67 @@ impl WorkerActor{
     //     vec![]
     // }
 
-    // checking a worker hash and forwarding it 
+    // checking a worker hash and forwarding it
     fn process_w_hx(
-        &self, 
-        src : WorkerId, 
-        w_hash : &WorkerHashData, 
+        &self,
+        src: WorkerId,
+        w_hash: &WorkerHashData,
         sig: WorkerHashSignature,
-        state: &mut WorkerState
-    ) -> Vec<
-            Outputs<
-                    Id,
-                <WorkerActor as Vactor>::Msg
-                    >
-            > {
+        state: &mut WorkerState,
+    ) -> Vec<Outputs<Id, <WorkerActor as Vactor>::Msg>> {
         fn check_signature(
             // src is the signing id
-            src : WorkerId,          
-            w_hash : &WorkerHashData, 
-            sig: WorkerHashSignature
+            src: WorkerId,
+            w_hash: &WorkerHashData,
+            sig: WorkerHashSignature,
         ) -> bool {
             //fn verify(&self, &Signature, &[u8]) -> Result<(), Error>
-            use ed25519_consensus::{VerificationKey,Signature};
+            use ed25519_consensus::{Signature, VerificationKey};
             use pki::*;
             let key = VerificationKey::from(REGISTRY.lookup_vk(src).unwrap());
             let w_bytes = &bincode::serialize(&w_hash).unwrap();
-            match key.verify(&Signature::from(sig), w_bytes){
-                Ok(_) => {true},
+            match key.verify(&Signature::from(sig), w_bytes) {
+                Ok(_) => true,
                 Err(_) => {
-                    println!("got a bad signature from worker #{}", src); 
+                    println!("got a bad signature from worker #{}", src);
                     false
                 }
             }
         }
 
         // we need to have the transactions ordered
-        // the order is induced by the sequence number 
-        fn sort_tx_vec_from<T:Clone, C:Clone, U :Ord+Clone>(
-            vector : &mut Vec<(T, C, U, u32)>, 
-            tk : u32
-        ) -> Vec<(T,C,U, u32)>{
-            let iter  = vector.iter().filter(|x| x.3  == tk);
+        // the order is induced by the sequence number
+        fn sort_tx_vec_from<T: Clone, C: Clone, U: Ord + Clone>(
+            vector: &mut Vec<(T, C, U, u32)>,
+            tk: u32,
+        ) -> Vec<(T, C, U, u32)> {
+            let iter = vector.iter().filter(|x| x.3 == tk);
             // the next two lines _should_ be just `let mut x = i.collect();`
             let mut x = vec![];
-            for el in iter {x.push(el.clone());}
-            // x is the vector of transaction data of the same “take” 
-            x.sort_by(|a , b| a.2.cmp(&b.2));
+            for el in iter {
+                x.push(el.clone());
+            }
+            // x is the vector of transaction data of the same “take”
+            x.sort_by(|a, b| a.2.cmp(&b.2));
             // and sorted, ascending in the sequence number (within the take)
             // guess sequence number should be frame number ;-)
             x
         }
 
         let mut res = vec![];
-        if check_signature(src, w_hash, sig){
+        if check_signature(src, w_hash, sig) {
             // NB:
             // each has an independent counter of “takes/chunks”
             let hash_take = w_hash.take;
             let mut all_txs = state.tx_buffer_map[&src].clone();
-            let relevant_txs = sort_tx_vec_from(
-                &mut all_txs, 
-                hash_take
-            );
+            let relevant_txs = sort_tx_vec_from(&mut all_txs, hash_take);
             if relevant_txs.len() == w_hash.length {
-                self.send(
-                    state.primary, 
-                    WHxFwd(w_hash.clone(), sig),
-                    &mut res
-                )
+                self.send(state.primary, WHxFwd(w_hash.clone(), sig), &mut res)
             } else {
                 // TODO set timer and return "here" later
             }
         } else {
-            println!("Got bad worker hash");            
+            println!("Got bad worker hash");
         }
         res
     }
@@ -681,44 +615,39 @@ impl Vactor for WorkerActor {
         VerificationKey::from(&SigningKey::from(self.key_seed)).into()
     }
 
-    fn on_start_vec(
-        &self, id: Id
-    ) -> (
-        Self::State,
-        Vec<Outputs<Id, Self::Msg>>
-    ) {
+    fn on_start_vec(&self, id: Id) -> (Self::State, Vec<Outputs<Id, Self::Msg>>) {
         if cfg!(debug_assertions) {
             println!("Starting worker {}", id);
         }
-        let map = c!{
+        let map = c! {
             key =>vec![],
             for key in self.mirror_workers.clone()
         };
-        assert!(id==self.my_expected_id);
+        assert!(id == self.my_expected_id);
         let worker_state = WorkerState {
             tx_buffer: vec![], // empty transaction buffer
-            tx_buffer_map: map.into_iter().collect(), 
-            primary: self.primary,  // copy the primary
-            take: FIRST_TAKE, // start at 0
+            tx_buffer_map: map.into_iter().collect(),
+            primary: self.primary,                // copy the primary
+            take: FIRST_TAKE,                     // start at 0
             mirrors: self.mirror_workers.clone(), // copy mirror_workers
-            id: id, // copy id 
+            the_id: id,                           // copy id
         };
         let state = Worker(
             worker_state,
             self.key_seed, // copy key
-            id, // copy id
+            id,            // copy id
         );
         // match ed25519_consensus::VerificationKey::try_from(self.key_seed) {
-        //     // MENDME (code copies!!): move key registration to Vactor trait 
+        //     // MENDME (code copies!!): move key registration to Vactor trait
         //     Ok(vk) => {
         //         use pki::*;
         //         REGISTRY.register_key(id, vk, DUMMY_SIG);
         //     }
         //     _ => {
-        //         panic!("bad key at worker {:?}", self); 
+        //         panic!("bad key at worker {:?}", self);
         //     }
         // }
-        (state,vec![])
+        (state, vec![])
     }
 
     // reacting to received messages
@@ -733,8 +662,8 @@ impl Vactor for WorkerActor {
             println!("Worker {} got a message {:?}", w_id, msg);
         }
         // check if state is proper
-        let mut worker_state : &mut WorkerState;
-        let key_seed : [u8; 32];
+        let mut worker_state: &mut WorkerState;
+        let key_seed: [u8; 32];
         if let Worker(ref mut s, k, _i) = state.to_mut() {
             worker_state = s;
             key_seed = *k;
@@ -751,31 +680,26 @@ impl Vactor for WorkerActor {
                 // this is the expected ack
                 let msg = TxAck(tx.clone(), w_id);
                 // further processing
-                self.process_tx_req(
-                    src,
-                    client,
-                    tx,
-                    msg,
-                    &mut worker_state,
-                    key_seed
-                )
+                self.process_tx_req(src, client, tx, msg, &mut worker_state, key_seed)
             }
             TxToAll(tx, client, seq_num, r) => {
                 // we got a transaction copy (erasure code)
                 // --
-                // the info we want to store 
+                // the info we want to store
                 let new_tx_info = (tx, client, seq_num, r);
                 // updating the worker state
-                worker_state.tx_buffer_map
-                    .get_mut(&src).expect("because!") 
-                    .push(new_tx_info); 
+                worker_state
+                    .tx_buffer_map
+                    .get_mut(&src)
+                    .expect("because!")
+                    .push(new_tx_info);
                 // nothing else to do
                 vec![]
             }
             WHxToAll(w_hash, sig) => {
-            //   we got a worker hash from a mirror worker to process
+                //   we got a worker hash from a mirror worker to process
                 self.process_w_hx(src, &w_hash, sig, worker_state)
-             }
+            }
             _ => {
                 println!(
                     "oops, me little client {:?} received Message {:?}",
@@ -785,7 +709,6 @@ impl Vactor for WorkerActor {
             }
         }
     }
-
 }
 
 impl Vactor for PrimaryActor {
@@ -797,31 +720,35 @@ impl Vactor for PrimaryActor {
         VerificationKey::from(&SigningKey::from(self.key_seed)).into()
     }
     // cf. `on_start` of Actor
-    fn on_start_vec(
-        &self,
-        id: Id
-    ) -> (Self::State, Vec<Outputs<Id, Self::Msg>>) {
+    fn on_start_vec(&self, id: Id) -> (Self::State, Vec<Outputs<Id, Self::Msg>>) {
         println!("start primary {}", id);
         let key_seed = self.key_seed;
         // match ed25519_consensus::VerificationKey::try_from(key_seed) {
-        //     // MENDME (code copies!!): move key registration to Vactor trait 
+        //     // MENDME (code copies!!): move key registration to Vactor trait
         //     Ok(vk) => {
         //         use pki::*;
         //         REGISTRY.register_key(id, vk, DUMMY_SIG);
         //     }
         //     _ => {
-        //         panic!("bad key at primary {:?}", self); 
+        //         panic!("bad key at primary {:?}", self);
         //     }
         // }
-        let map : HashMap<WorkerId, Vec<WorkerHashData>> = c!{
+        let map: HashMap<WorkerId, Vec<WorkerHashData>> = c! {
             key => vec![],
             for key in self.local_workers.clone()
         };
-        assert!(id==self.my_expected_id);
-        (Primary(PrimaryState {
-            map_of_worker_hashes: BTreeMap::new(),
-            id: id
-        }, key_seed, id), vec![]) // default value for one ping pongk
+        assert!(id == self.my_expected_id);
+        (
+            Primary(
+                PrimaryState {
+                    map_of_worker_hashes: BTreeMap::new(),
+                    the_id: id,
+                },
+                key_seed,
+                id,
+            ),
+            vec![],
+        ) // default value for one ping pongk
     }
 
     fn on_msg_vec(
@@ -872,10 +799,10 @@ impl Actor for HNActor {
                 REGISTRY.register_key(id, vk, DUMMY_SIG);
             }
             _ => {
-                panic!("bad key at `HNactor` {:?}", self); 
+                panic!("bad key at `HNactor` {:?}", self);
             }
         }
-        
+
         let (state, out_vec) = self.on_start_vec(id);
         for x in out_vec {
             match x {
@@ -974,7 +901,7 @@ impl NarwhalModelCfg {
         )
     }
     fn calculate_local_workers(&self, primary: usize) -> Vec<Id> {
-        c![self.get_worker_idx(index, primary).into(), 
+        c![self.get_worker_idx(index, primary).into(),
            for index in 0..self.worker_index_count
         ]
     }
@@ -1025,7 +952,7 @@ impl NarwhalModelCfg {
             }),
                        for i in 0..self.worker_index_count,
                        for j in 0..self.primary_count])
-            .actors(c![PrimaryActor(PrimaryActor{
+        .actors(c![PrimaryActor(PrimaryActor{
                 peer_validators: self.calculate_peer_validators_and_id(p).0,
                 my_expected_id: self.calculate_peer_validators_and_id(p).1,
                 key_seed: fresh_key_seed(),
@@ -1073,9 +1000,6 @@ impl NarwhalModelCfg {
 //          pub within_boundary: fn(cfg: &C, state: &ActorModelState<A, H>) -> bool,
 // }
 
-
-
-
 #[derive(PartialEq)]
 enum ThisEnum {
     Check,
@@ -1090,25 +1014,25 @@ const SUP: ThisEnum = Explore;
 
 // this is the registry
 
-const REGISTRY : pki::KeyTable =
-// MENDME plz: make this proper with setters/getters/init
-    pki::KeyTable{
-        map : BTreeMap::new(),
+const REGISTRY: pki::KeyTable =
+    // MENDME plz: make this proper with setters/getters/init
+    pki::KeyTable {
+        map: BTreeMap::new(),
     };
-const DUMMY_SIG : [u8; 64] = [0; 64];
+const DUMMY_SIG: [u8; 64] = [0; 64];
 fn main() {
     // // this is an example on how to use REGISTRY
     // use ed25519_consensus::VerificationKey;
     // use pki::*;
     // match VerificationKey::try_from([0; 32]) {
     //     Ok(vk) => {
-    //         // 
+    //         //
     //         let dumm_sig = [0; 64];// this would be a signature of the key
     //         REGISTRY.register_key(Id::from(0), vk, dumm_sig);
     //     }
     //     Err(_) => {
-    //         // this is probably unreachable ❓ 
-    //         println!("too bad"); 
+    //         // this is probably unreachable ❓
+    //         println!("too bad");
     //     }
     // }
     match SUP {
@@ -1163,13 +1087,12 @@ fn main() {
                 for y in 0..CLIENT_COUNT
             ];
             // create primary structs:
-            
 
             let primaries = c![
                 PrimaryActor{peer_validators : primary_ids.clone(),
                              my_expected_id: Id::from(SocketAddrV4::new(Ipv4Addr::LOCALHOST, primary_port + y)),
                              key_seed: fresh_key_seed(),
-                             local_workers: 
+                             local_workers:
                              // a bunch of worker IDs (code copy!)
                              c![
                                  Id::from(SocketAddrV4::new(Ipv4Addr::LOCALHOST,
@@ -1206,15 +1129,15 @@ fn main() {
             //     for y in 0..PRIMARY_COUNT
             // ];
 
-            let  primary_actor_vec = c![
+            let primary_actor_vec = c![
                 (primary_ids[y as usize], primaries[y as usize].clone()),
                 for y in 0..PRIMARY_COUNT
             ];
-            let  client_actor_vec = c![
+            let client_actor_vec = c![
                 (client_ids[y as usize], clients[y as usize].clone()),
                 for y in 0..CLIENT_COUNT
             ];
-            let  worker_actor_vec = c![
+            let worker_actor_vec = c![
                 (worker_ids[(WORKER_INDEX_COUNT*y + x)as usize], workers[(WORKER_INDEX_COUNT*y + x)as usize].clone()),
                 for x in 0..WORKER_INDEX_COUNT,
                 for y in 0..PRIMARY_COUNT
@@ -1266,7 +1189,7 @@ fn main() {
                 |bytes| serde_json::from_slice(bytes),
                 all_vactor_vec,
             )
-                .unwrap();
+            .unwrap();
 
             // "the
             use ed25519_consensus::{SigningKey, VerificationKey};
@@ -1296,8 +1219,8 @@ fn main() {
 
             // Verify the signature
             assert!(VerificationKey::try_from(vk_bytes)
-                    .and_then(|vk| vk.verify(&sig_bytes.into(), msg))
-                    .is_ok());
+                .and_then(|vk| vk.verify(&sig_bytes.into(), msg))
+                .is_ok());
 
             // -- end elliptic curves usage
         }
@@ -1312,10 +1235,10 @@ fn main() {
                 network: nw,
             }
             .into_model()
-                .checker()
-                .threads(num_cpus::get())
-                .spawn_dfs()
-                .report(&mut std::io::stdout());
+            .checker()
+            .threads(num_cpus::get())
+            .spawn_dfs()
+            .report(&mut std::io::stdout());
         }
         Explore => {
             let c_count = 3;
@@ -1332,12 +1255,11 @@ fn main() {
                 network: nw,
             }
             .into_model()
-                .checker()
-                .threads(num_cpus::get())
-                .serve(address);
-        }
-        // _ => {
-        //     panic!("noooo, SUP?!")
-        // }
+            .checker()
+            .threads(num_cpus::get())
+            .serve(address);
+        } // _ => {
+          //     panic!("noooo, SUP?!")
+          // }
     }
 }
