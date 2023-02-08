@@ -274,12 +274,17 @@ struct WorkerState {
     mirrors: Vec<WorkerId>,
     //  ̶r̶o̶u̶n̶d̶ ̶n̶u̶m̶b̶e̶r̶ => take 
     take: u32,
+    // the id
+    id: WorkerId
 }
 
 // the state type of primaries
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 struct PrimaryState{
+    // 
     map_of_worker_hashes: BTreeMap<WorkerId, Vec<WorkerHashData>>,
+    // the id
+    id : ValidatorId
 }
 
 // the state type of clients
@@ -689,12 +694,14 @@ impl Vactor for WorkerActor {
             key =>vec![],
             for key in self.mirror_workers.clone()
         };
+        assert!(id==self.my_expected_id);
         let worker_state = WorkerState {
             tx_buffer: vec![], // empty transaction buffer
             tx_buffer_map: map.into_iter().collect(), 
             primary: self.primary,  // copy the primary
             take: FIRST_TAKE, // start at 0
             mirrors: self.mirror_workers.clone(), // copy mirror_workers
+            id: id, // copy id 
         };
         let state = Worker(
             worker_state,
@@ -810,8 +817,10 @@ impl Vactor for PrimaryActor {
             key => vec![],
             for key in self.local_workers.clone()
         };
+        assert!(id==self.my_expected_id);
         (Primary(PrimaryState {
             map_of_worker_hashes: BTreeMap::new(),
+            id: id
         }, key_seed, id), vec![]) // default value for one ping pongk
     }
 
