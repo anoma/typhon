@@ -353,7 +353,7 @@ struct ClientActor {
 pub enum Outputs<I, M> {
     Snd(I, M),
     //Cast(M),
-    //Timer(usize),
+    Timer(core::ops::Range<core::time::Duration>), // timer in seconds
 }
 
 // ambassador (see also https://github.com/Heliozoa/impl-enum)
@@ -383,6 +383,13 @@ pub trait Vactor: Sized {
             self.send(i, m.clone(), o);
         }
     }
+
+    fn check_back_later(&self, o: &mut Vec<Outputs<Id, Self::Msg>>){
+        use core::time::Duration;
+        let duration = Duration::from_secs(1)..Duration::from_secs(2);
+        o.push(Outputs::Timer(duration));
+    }
+
     fn on_start_vec(&self, id: Id) -> (Self::State, Vec<Outputs<Id, Self::Msg>>);
 
     fn on_msg_vec(
@@ -398,6 +405,7 @@ pub trait Vactor: Sized {
         _id: Id,
         _state: &mut Cow<'_, Self::State>,
     ) -> Vec<Outputs<Id, Self::Msg>> {
+        // by default, “ignore”
         Vec::new()
     }
 }
@@ -590,19 +598,32 @@ impl WorkerActor {
         let mut res = vec![];
         if check_signature(src, w_hash, sig) {
             // NB:
-            // each has an independent counter of “takes/chunks”
+            // each worker has an independent counter of “takes/chunks”
             let hash_take = w_hash.take;
             let mut all_txs = state.tx_buffer_map[&src].clone();
             let relevant_txs = sort_tx_vec_from(&mut all_txs, hash_take);
             if relevant_txs.len() == w_hash.length {
                 self.send(state.primary, WHxFwd(w_hash.clone(), sig), &mut res)
             } else {
-                // TODO set timer and return "here" later
+                // CONTINUE here
+                self.check_back_later(&mut res);
+                // TODO need a way to keep track of “pending” hashes 
             }
         } else {
             println!("Got bad worker hash");
         }
         res
+    }
+
+    fn on_timeout_vec(
+        &self,
+        _id: Id,
+        _state: &mut Cow<'_, <WorkerActor as Vactor>::State>,
+    ) -> Vec<
+            Outputs<Id, <WorkerActor as Vactor>::Msg>
+            > {
+        // TODO check again the worker hashes as if a new worker hash arrived
+        vec![]
     }
 }
 
@@ -791,7 +812,11 @@ impl Actor for HNActor {
     type Msg = MessageEnum;
     type State = StateEnum;
 
-    fn on_start(&self, id: Id, o: &mut Out<Self>) -> Self::State {
+    fn on_start(
+        &self,
+        id: Id,
+        o: &mut Out<Self>
+    ) -> Self::State {
         let vk_bytes = self.get_vk_bytes();
         match ed25519_consensus::VerificationKey::try_from(vk_bytes) {
             Ok(vk) => {
@@ -807,6 +832,7 @@ impl Actor for HNActor {
         for x in out_vec {
             match x {
                 Outputs::Snd(i, m) => o.send(i, m),
+                Outputs::Timer(d) => o.set_timer(d),
                 // _ => {
                 //     panic!("not implemented in on_start");
                 // }
@@ -824,9 +850,11 @@ impl Actor for HNActor {
         o: &mut Out<Self>,
     ) {
         let out_vec = self.on_msg_vec(id, state, src, msg);
+        // MENDME code copy (see )
         for x in out_vec {
             match x {
                 Outputs::Snd(i, m) => o.send(i, m),
+                Outputs::Timer(d) => o.set_timer(d),
                 // _ => {
                 //     panic!("not implemented in on_msg");
                 // }
