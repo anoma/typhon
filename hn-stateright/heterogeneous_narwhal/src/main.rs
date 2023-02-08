@@ -84,7 +84,7 @@ mod pki {
     use ed25519_consensus::*; 
     use stateright::actor::Id;
     use std::collections::BTreeMap;
-    use std::convert::TryFrom;
+    // use std::convert::TryFrom;
 
     // The Registry is responsible for
     // - regsitering keys via `register_key`
@@ -290,9 +290,9 @@ type ClientState = Vec<WorkerId>;
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 enum StateEnum {
     // every actor has a signing key (seed)
-    Worker(WorkerState, [u8; 32]),
-    Primary(PrimaryState, [u8; 32]),
-    Client(ClientState, [u8; 32]),
+    Worker(WorkerState, [u8; 32], Id),
+    Primary(PrimaryState, [u8; 32], Id),
+    Client(ClientState, [u8; 32], Id),
 }
 
 use crate::StateEnum::*;
@@ -403,6 +403,8 @@ pub trait Vactor: Sized {
     type Msg: Clone + Debug + Eq + Hash;
     type State: Clone + Debug + PartialEq + Hash;
 
+    fn get_vk_bytes(&self) -> [u8; 32];
+
     fn send(&self, id : Id, m : Self::Msg, o : &mut Vec<Outputs<Id, Self::Msg>>){
         o.push(Outputs::Snd(id, m));
     }
@@ -450,26 +452,26 @@ impl Vactor for ClientActor {
     type Msg = MessageEnum;
     type State = StateEnum;
 
+    fn get_vk_bytes(&self) -> [u8; 32] {
+        use ed25519_consensus::*;
+        VerificationKey::from(&SigningKey::from(self.key_seed)).into()
+    }
+
     fn on_start_vec(
         &self,
         id: Id
-    ) -> (Self::State, Vec<Outputs<Id, Self::Msg>>) {
+    ) -> (
+        Self::State,
+        Vec<Outputs<Id, Self::Msg>>
+    ) {
         if cfg!(debug_assertions) {
             print!("Start client {}", id);
         }
-        let key = self.key_seed;
-        match ed25519_consensus::VerificationKey::try_from(key) {
-            // MENDME (code copies!!): move key registration to Vactor trait 
-            Ok(vk) => {
-                use pki::*;
-                REGISTRY.register_key(id, vk, DUMMY_SIG);
-            }
-            _ => {
-                panic!("bad key at client {:?}", self); 
-            }
-        }
-            
-        let client_state = Client(self.known_workers.clone(), key);
+        let client_state = Client(
+            self.known_workers.clone(),
+            self.key_seed,
+            id
+        );
         let mut o = vec![];
 
         // send a different tx to every worker, to get started
@@ -669,9 +671,17 @@ impl Vactor for WorkerActor {
     type Msg = MessageEnum;
     type State = StateEnum;
 
+    fn get_vk_bytes(&self) -> [u8; 32] {
+        use ed25519_consensus::*;
+        VerificationKey::from(&SigningKey::from(self.key_seed)).into()
+    }
+
     fn on_start_vec(
         &self, id: Id
-    ) -> (Self::State, Vec<Outputs<Id, Self::Msg>>) {
+    ) -> (
+        Self::State,
+        Vec<Outputs<Id, Self::Msg>>
+    ) {
         if cfg!(debug_assertions) {
             println!("Starting worker {}", id);
         }
@@ -689,17 +699,18 @@ impl Vactor for WorkerActor {
         let state = Worker(
             worker_state,
             self.key_seed, // copy key
+            id, // copy id
         );
-        match ed25519_consensus::VerificationKey::try_from(self.key_seed) {
-            // MENDME (code copies!!): move key registration to Vactor trait 
-            Ok(vk) => {
-                use pki::*;
-                REGISTRY.register_key(id, vk, DUMMY_SIG);
-            }
-            _ => {
-                panic!("bad key at worker {:?}", self); 
-            }
-        }
+        // match ed25519_consensus::VerificationKey::try_from(self.key_seed) {
+        //     // MENDME (code copies!!): move key registration to Vactor trait 
+        //     Ok(vk) => {
+        //         use pki::*;
+        //         REGISTRY.register_key(id, vk, DUMMY_SIG);
+        //     }
+        //     _ => {
+        //         panic!("bad key at worker {:?}", self); 
+        //     }
+        // }
         (state,vec![])
     }
 
@@ -717,7 +728,7 @@ impl Vactor for WorkerActor {
         // check if state is proper
         let mut worker_state : &mut WorkerState;
         let key_seed : [u8; 32];
-        if let Worker(ref mut s, k) = state.to_mut() {
+        if let Worker(ref mut s, k, _i) = state.to_mut() {
             worker_state = s;
             key_seed = *k;
             // ok
@@ -767,32 +778,41 @@ impl Vactor for WorkerActor {
             }
         }
     }
+
 }
 
 impl Vactor for PrimaryActor {
     type Msg = MessageEnum;
     type State = StateEnum;
 
-    fn on_start_vec(&self, id: Id) -> (Self::State, Vec<Outputs<Id, Self::Msg>>) {
+    fn get_vk_bytes(&self) -> [u8; 32] {
+        use ed25519_consensus::*;
+        VerificationKey::from(&SigningKey::from(self.key_seed)).into()
+    }
+    // cf. `on_start` of Actor
+    fn on_start_vec(
+        &self,
+        id: Id
+    ) -> (Self::State, Vec<Outputs<Id, Self::Msg>>) {
         println!("start primary {}", id);
         let key_seed = self.key_seed;
-        match ed25519_consensus::VerificationKey::try_from(key_seed) {
-            // MENDME (code copies!!): move key registration to Vactor trait 
-            Ok(vk) => {
-                use pki::*;
-                REGISTRY.register_key(id, vk, DUMMY_SIG);
-            }
-            _ => {
-                panic!("bad key at primary {:?}", self); 
-            }
-        }
+        // match ed25519_consensus::VerificationKey::try_from(key_seed) {
+        //     // MENDME (code copies!!): move key registration to Vactor trait 
+        //     Ok(vk) => {
+        //         use pki::*;
+        //         REGISTRY.register_key(id, vk, DUMMY_SIG);
+        //     }
+        //     _ => {
+        //         panic!("bad key at primary {:?}", self); 
+        //     }
+        // }
         let map : HashMap<WorkerId, Vec<WorkerHashData>> = c!{
             key => vec![],
             for key in self.local_workers.clone()
         };
         (Primary(PrimaryState {
             map_of_worker_hashes: BTreeMap::new(),
-        }, key_seed), vec![]) // default value for one ping pongk
+        }, key_seed, id), vec![]) // default value for one ping pongk
     }
 
     fn on_msg_vec(
@@ -836,9 +856,19 @@ impl Actor for HNActor {
     type State = StateEnum;
 
     fn on_start(&self, id: Id, o: &mut Out<Self>) -> Self::State {
+        let vk_bytes = self.get_vk_bytes();
+        match ed25519_consensus::VerificationKey::try_from(vk_bytes) {
+            Ok(vk) => {
+                use pki::*;
+                REGISTRY.register_key(id, vk, DUMMY_SIG);
+            }
+            _ => {
+                panic!("bad key at `HNactor` {:?}", self); 
+            }
+        }
         
-        let (s, v) = self.on_start_vec(id);
-        for x in v {
+        let (state, out_vec) = self.on_start_vec(id);
+        for x in out_vec {
             match x {
                 Outputs::Snd(i, m) => o.send(i, m),
                 // _ => {
@@ -846,8 +876,9 @@ impl Actor for HNActor {
                 // }
             }
         }
-        s
+        state
     }
+
     fn on_msg(
         &self,
         id: Id,
@@ -856,8 +887,8 @@ impl Actor for HNActor {
         msg: Self::Msg,
         o: &mut Out<Self>,
     ) {
-        let v = self.on_msg_vec(id, state, src, msg);
-        for x in v {
+        let out_vec = self.on_msg_vec(id, state, src, msg);
+        for x in out_vec {
             match x {
                 Outputs::Snd(i, m) => o.send(i, m),
                 // _ => {
