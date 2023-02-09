@@ -240,6 +240,8 @@ const BATCH_SIZE: usize = 3;
 struct WorkerState {
     // the buffer for received transactions
     tx_buffer: Vec<(TxData, ClientId)>,
+    // storing the pending worker hashes
+    pending_hxs : Vec<(WorkerId, WorkerHashData, WorkerHashSignature)>,
     // hashmap to stores of transaction copies
     tx_buffer_map: BTreeMap<WorkerId, Vec<(TxData, ClientId, usize, u32)>>,
     // a copy of the primary information ()
@@ -581,11 +583,12 @@ impl WorkerActor {
                     false
                 }
             }
-        }
+        }// end `fn check_signature`
 
         // we need to have the transactions ordered
         // the order is induced by the sequence number
-        fn sort_tx_vec_from<T: Clone, C: Clone, U: Ord + Clone>(
+        // also we first filter the tak
+        fn filter_n_sort<T: Clone, C: Clone, U: Ord + Clone>(
             vector: &mut Vec<(T, C, U, u32)>,
             tk: u32,
         ) -> Vec<(T, C, U, u32)> {
@@ -607,14 +610,22 @@ impl WorkerActor {
             // NB:
             // each worker has an independent counter of “takes/chunks”
             let hash_take = w_hash.take;
-            let mut all_txs = state.tx_buffer_map[&src].clone();
-            let relevant_txs = sort_tx_vec_from(&mut all_txs, hash_take);
+            let mut all_src_txs = state.tx_buffer_map[&src].clone();
+            let relevant_txs = filter_n_sort(&mut all_src_txs, hash_take);
             if relevant_txs.len() == w_hash.length {
+                if cfg!(debug_assertions) {
+                    println!(
+                        "uploading worker hash {:?} at primary {:?}",
+                        w_hash,
+                        state.primary
+                    );
+                }
                 self.send(state.primary, WHxFwd(w_hash.clone(), sig), &mut res)
             } else {
-                // CONTINUE here
+                // we have some pending worker hash
+                let pending = (src, w_hash.clone(), sig);
+                state.pending_hxs.push(pending);
                 self.check_back_later(&mut res);
-                // TODO need a way to keep track of “pending” hashes 
             }
         } else {
             println!("Got bad worker hash");
@@ -630,6 +641,8 @@ impl WorkerActor {
             Outputs<Id, <WorkerActor as Vactor>::Msg>
             > {
         // TODO check again the worker hashes as if a new worker hash arrived
+        // specifically check pending_hxs
+        
         vec![]
     }
 }
@@ -655,6 +668,7 @@ impl Vactor for WorkerActor {
         let worker_state = WorkerState {
             tx_buffer: vec![], // empty transaction buffer
             tx_buffer_map: map.into_iter().collect(),
+            pending_hxs: vec![],
             primary: self.primary,                // copy the primary
             take: FIRST_TAKE,                     // start at 0
             mirrors: self.mirror_workers.clone(), // copy mirror_workers
@@ -1051,7 +1065,7 @@ const SUP: ThisEnum = Explore;
 
 // right now, the registry is a global variable 
 // ... wrapped into a mutex 
-// NTH: make this _immutable_ lazy static 
+// NTH: make this _immutable_ lazy static
 #[macro_use]
 extern crate lazy_static;
 use std::sync::Mutex;
