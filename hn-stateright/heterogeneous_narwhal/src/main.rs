@@ -42,10 +42,16 @@ use cute::c; // for “pythonic” vec comprehension
 // use mapcomp::btreemapc; // for “pythonic” btree comprehension
 use std::hash::{Hash, Hasher};
 
+
 fn hash_of<T: Hash>(t: &T) -> u64 {
     let mut s = DefaultHasher::new();
+    let mut s_ = DefaultHasher::new();
     t.hash(&mut s);
-    s.finish()
+    let first_hash = s.finish();
+    t.hash(&mut s_);
+    let second_hash = s_.finish();
+    assert!(first_hash == second_hash);
+    first_hash
 }
 
 // the data type of learner graphs
@@ -565,7 +571,8 @@ impl WorkerActor {
             //fn verify(&self, &Signature, &[u8]) -> Result<(), Error>
             use ed25519_consensus::{Signature, VerificationKey};
             use pki::*;
-            let key = VerificationKey::from(REGISTRY.lookup_vk(src).unwrap());
+            let mut the_reg = REG_MUTEX.lock().unwrap();
+            let key = VerificationKey::from(the_reg.lookup_vk(src).unwrap());
             let w_bytes = &bincode::serialize(&w_hash).unwrap();
             match key.verify(&Signature::from(sig), w_bytes) {
                 Ok(_) => true,
@@ -662,7 +669,7 @@ impl Vactor for WorkerActor {
         //     // MENDME (code copies!!): move key registration to Vactor trait
         //     Ok(vk) => {
         //         use pki::*;
-        //         REGISTRY.register_key(id, vk, DUMMY_SIG);
+        //         the_reg.register_key(id, vk, DUMMY_SIG);
         //     }
         //     _ => {
         //         panic!("bad key at worker {:?}", self);
@@ -748,7 +755,7 @@ impl Vactor for PrimaryActor {
         //     // MENDME (code copies!!): move key registration to Vactor trait
         //     Ok(vk) => {
         //         use pki::*;
-        //         REGISTRY.register_key(id, vk, DUMMY_SIG);
+        //         the_reg.register_key(id, vk, DUMMY_SIG);
         //     }
         //     _ => {
         //         panic!("bad key at primary {:?}", self);
@@ -821,7 +828,8 @@ impl Actor for HNActor {
         match ed25519_consensus::VerificationKey::try_from(vk_bytes) {
             Ok(vk) => {
                 use pki::*;
-                REGISTRY.register_key(id, vk, DUMMY_SIG);
+                let mut the_reg = REG_MUTEX.lock().unwrap();
+                the_reg.register_key(id, vk, DUMMY_SIG);
             }
             _ => {
                 panic!("bad key at `HNactor` {:?}", self);
@@ -1040,23 +1048,38 @@ use ThisEnum::*;
 //const SUP:ThisEnum = Spawn;
 const SUP: ThisEnum = Explore;
 
-// this is the registry
 
-const REGISTRY: pki::KeyTable =
-    // MENDME plz: make this proper with setters/getters/init
-    pki::KeyTable {
-        map: BTreeMap::new(),
-    };
+// right now, the registry is a global variable 
+// ... wrapped into a mutex 
+// NTH: make this _immutable_ lazy static 
+#[macro_use]
+extern crate lazy_static;
+use std::sync::Mutex;
+lazy_static! {
+    static ref REG_MUTEX:Mutex<pki::KeyTable> = 
+    Mutex::new({
+        let mut x = pki::KeyTable {
+            map: BTreeMap::new(),
+        };
+        x 
+    });
+}
+// // this is the registry
+// static mut the_reg: pki::KeyTable =
+//     // MENDME plz: make this proper with setters/getters/init
+//     pki::KeyTable {
+//         map: BTreeMap::new(),
+//     };
 const DUMMY_SIG: [u8; 64] = [0; 64];
 fn main() {
-    // // this is an example on how to use REGISTRY
+    // // this is an example on how to use the_reg
     // use ed25519_consensus::VerificationKey;
     // use pki::*;
     // match VerificationKey::try_from([0; 32]) {
     //     Ok(vk) => {
     //         //
     //         let dumm_sig = [0; 64];// this would be a signature of the key
-    //         REGISTRY.register_key(Id::from(0), vk, dumm_sig);
+    //         the_reg.register_key(Id::from(0), vk, dumm_sig);
     //     }
     //     Err(_) => {
     //         // this is probably unreachable ❓
