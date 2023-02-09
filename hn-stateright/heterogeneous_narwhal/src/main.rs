@@ -15,7 +15,7 @@ use std::fmt::Debug;
 // we use the following 8 (eight) lines of code:
 use std::collections::hash_map::DefaultHasher;
 use std::collections::BTreeMap;
-use std::collections::HashMap;
+use std::collections::{HashMap,VecDeque};
 // fn hash_to_btree<K:std::cmp::Ord,V>(
 //     hash: HashMap<K, V>
 // ) -> BTreeMap<K, V> {
@@ -241,7 +241,7 @@ struct WorkerState {
     // the buffer for received transactions
     tx_buffer: Vec<(TxData, ClientId)>,
     // storing the pending worker hashes
-    pending_hxs : Vec<(WorkerId, WorkerHashData, WorkerHashSignature)>,
+    pending_hxs : VecDeque<(WorkerId, WorkerHashData, WorkerHashSignature)>,
     // hashmap to stores of transaction copies
     tx_buffer_map: BTreeMap<WorkerId, Vec<(TxData, ClientId, usize, u32)>>,
     // a copy of the primary information ()
@@ -489,6 +489,52 @@ impl Vactor for ClientActor {
     }
 }
 
+
+fn is_valid_signature(
+    // src is the signing id
+    src: WorkerId,
+    w_hash: &WorkerHashData,
+    sig: WorkerHashSignature,
+) -> bool {
+    //fn verify(&self, &Signature, &[u8]) -> Result<(), Error>
+    use ed25519_consensus::{Signature, VerificationKey};
+    use pki::*;
+    let mut the_reg = REG_MUTEX.lock().unwrap();
+    let key = VerificationKey::from(the_reg.lookup_vk(src).unwrap());
+    let w_bytes = &bincode::serialize(&w_hash).unwrap();
+    match key.verify(&Signature::from(sig), w_bytes) {
+        Ok(_) => true,
+        Err(_) => {
+            println!("got a bad signature from worker #{}", src);
+            false
+        }
+    }
+}// end `fn check_signature`
+
+// we need to order transaction vectors to produce worker hashes
+// the order is induced by the sequence number 
+// after filtering the take `tk`
+// the code is pretty generic
+fn filter_n_sort<T: Clone, C: Clone, U: Ord + Clone>(
+    vector: &mut Vec<(T, C, U, u32)>,
+    tk: u32,
+) -> Vec<(T, C, U, u32)> {
+    let iter = vector.iter().filter(|x| x.3 == tk);
+    // the next two lines _should_ be just `let mut x = i.collect();`
+    let mut x = vec![];
+    for el in iter {
+        x.push(el.clone());
+    }
+    // x is the vector of transaction data of the same “take”
+    x.sort_by(|a, b| a.2.cmp(&b.2));
+    // and sorted, ascending in the sequence number (within the take)
+    // guess sequence number should be frame number ;-)
+    x
+} // end `fn filter_n_sort`
+
+
+
+
 // the behaviour of workers, according to the spec
 impl WorkerActor {
     fn process_tx_req(
@@ -556,7 +602,36 @@ impl WorkerActor {
     //     vec![]
     // }
 
-    // checking a worker hash and forwarding it
+    fn process_checked_w_hx(
+        &self,
+        src: WorkerId,
+        w_hash: &WorkerHashData,
+        sig: WorkerHashSignature,
+        state: &mut WorkerState,
+    ) -> Vec<Outputs<Id, <WorkerActor as Vactor>::Msg>> {
+        let mut res = vec![];
+        let hash_take = w_hash.take;
+        let mut all_src_txs = state.tx_buffer_map[&src].clone();
+        let relevant_txs = filter_n_sort(&mut all_src_txs, hash_take);
+        if relevant_txs.len() == w_hash.length {
+            if cfg!(debug_assertions) {
+                println!(
+                    "uploading worker hash {:?} at primary {:?}",
+                    w_hash,
+                    state.primary
+                );
+            }
+            self.send(state.primary, WHxFwd(w_hash.clone(), sig), &mut res);
+        } else {
+            // we have some pending worker hash
+            let pending = (src, w_hash.clone(), sig);
+            state.pending_hxs.push_back(pending);
+            self.check_back_later(&mut res);
+        }
+        res
+    }
+
+    // checking a worker hash and processing it if ok
     fn process_w_hx(
         &self,
         src: WorkerId,
@@ -564,70 +639,11 @@ impl WorkerActor {
         sig: WorkerHashSignature,
         state: &mut WorkerState,
     ) -> Vec<Outputs<Id, <WorkerActor as Vactor>::Msg>> {
-        fn check_signature(
-            // src is the signing id
-            src: WorkerId,
-            w_hash: &WorkerHashData,
-            sig: WorkerHashSignature,
-        ) -> bool {
-            //fn verify(&self, &Signature, &[u8]) -> Result<(), Error>
-            use ed25519_consensus::{Signature, VerificationKey};
-            use pki::*;
-            let mut the_reg = REG_MUTEX.lock().unwrap();
-            let key = VerificationKey::from(the_reg.lookup_vk(src).unwrap());
-            let w_bytes = &bincode::serialize(&w_hash).unwrap();
-            match key.verify(&Signature::from(sig), w_bytes) {
-                Ok(_) => true,
-                Err(_) => {
-                    println!("got a bad signature from worker #{}", src);
-                    false
-                }
-            }
-        }// end `fn check_signature`
-
-        // we need to have the transactions ordered
-        // the order is induced by the sequence number
-        // also we first filter the tak
-        fn filter_n_sort<T: Clone, C: Clone, U: Ord + Clone>(
-            vector: &mut Vec<(T, C, U, u32)>,
-            tk: u32,
-        ) -> Vec<(T, C, U, u32)> {
-            let iter = vector.iter().filter(|x| x.3 == tk);
-            // the next two lines _should_ be just `let mut x = i.collect();`
-            let mut x = vec![];
-            for el in iter {
-                x.push(el.clone());
-            }
-            // x is the vector of transaction data of the same “take”
-            x.sort_by(|a, b| a.2.cmp(&b.2));
-            // and sorted, ascending in the sequence number (within the take)
-            // guess sequence number should be frame number ;-)
-            x
-        }
-
         let mut res = vec![];
-        if check_signature(src, w_hash, sig) {
+        if is_valid_signature(src, w_hash, sig) {
             // NB:
             // each worker has an independent counter of “takes/chunks”
-            let hash_take = w_hash.take;
-            let mut all_src_txs = state.tx_buffer_map[&src].clone();
-            let relevant_txs = filter_n_sort(&mut all_src_txs, hash_take);
-            if relevant_txs.len() == w_hash.length {
-                if cfg!(debug_assertions) {
-                    println!(
-                        "uploading worker hash {:?} at primary {:?}",
-                        w_hash,
-                        state.primary
-                    );
-                }
-                self.send(state.primary, WHxFwd(w_hash.clone(), sig), &mut res)
-            } else {
-                // we have some pending worker hash
-                let pending = (src, w_hash.clone(), sig);
-                state.pending_hxs.push(pending);
-                self.check_back_later(&mut res);
-            }
-        } else {
+            res = self.process_checked_w_hx(src, w_hash, sig, state)                     } else {
             println!("Got bad worker hash");
         }
         res
@@ -636,14 +652,24 @@ impl WorkerActor {
     fn on_timeout_vec(
         &self,
         _id: Id,
-        _state: &mut Cow<'_, <WorkerActor as Vactor>::State>,
+        state: &mut Cow<'_, <WorkerActor as Vactor>::State>,
     ) -> Vec<
             Outputs<Id, <WorkerActor as Vactor>::Msg>
             > {
-        // TODO check again the worker hashes as if a new worker hash arrived
-        // specifically check pending_hxs
-        
-        vec![]
+        // specifically check pending_hxs, fifo style, one at a time
+        if let StateEnum::Worker(ref mut state, key, id) = state.to_mut() {
+            let mut res = vec![];
+            if state.pending_hxs.is_empty(){
+                println!("got a spurious timer");
+            } else {
+                let (src, w_hash, sig) = state.pending_hxs.pop_front().unwrap();
+                res = self.process_checked_w_hx(src, &w_hash, sig, state);
+            }
+            res
+        } else {
+            vec![]
+        }
+
     }
 }
 
@@ -668,7 +694,7 @@ impl Vactor for WorkerActor {
         let worker_state = WorkerState {
             tx_buffer: vec![], // empty transaction buffer
             tx_buffer_map: map.into_iter().collect(),
-            pending_hxs: vec![],
+            pending_hxs: VecDeque::new(),
             primary: self.primary,                // copy the primary
             take: FIRST_TAKE,                     // start at 0
             mirrors: self.mirror_workers.clone(), // copy mirror_workers
