@@ -74,6 +74,7 @@ mod learner_graph {
     }
 }
 
+
 // this module is for the purpose of “faking” a PKI-infrastructure
 mod pki {
     // elliptic curve signatures imports (kudos to Daniel)
@@ -320,6 +321,7 @@ struct ClientActor {
     // my_expected_id (for debugging)
     my_expected_id: Id,
 }
+
 
 // -----------------------------------------------------------------------------
 // // experiment _delegation_ begin
@@ -715,16 +717,6 @@ impl Vactor for WorkerActor {
             self.key_seed, // copy key
             id,            // copy id
         );
-        // match ed25519_consensus::VerificationKey::try_from(self.key_seed) {
-        //     // MENDME (code copies!!): move key registration to Vactor trait
-        //     Ok(vk) => {
-        //         use pki::*;
-        //         the_reg.register_key(id, vk, DUMMY_SIG);
-        //     }
-        //     _ => {
-        //         panic!("bad key at worker {:?}", self);
-        //     }
-        // }
         (state, vec![])
     }
 
@@ -778,7 +770,7 @@ impl Vactor for WorkerActor {
                 //   we got a worker hash from a mirror worker to process
                 if cfg!(debug_assertions) {
                     // FIXME: worker hashes do not arrive !! BUG ALERT
-                    // probably hiccup in the setup of (worker-)ids etc. 
+                    // probably hiccup in the setup of (worker-)ids etc.
                     println!("Worker {} got a worker hash {:?}", w_id, w_hash);
                 }
                 self.process_w_hx(src, &w_hash, sig, worker_state)
@@ -806,16 +798,6 @@ impl Vactor for PrimaryActor {
     fn on_start_vec(&self, id: Id) -> (Self::State, Vec<Outputs<Id, Self::Msg>>) {
         println!("start primary {}", id);
         let key_seed = self.key_seed;
-        // match ed25519_consensus::VerificationKey::try_from(key_seed) {
-        //     // MENDME (code copies!!): move key registration to Vactor trait
-        //     Ok(vk) => {
-        //         use pki::*;
-        //         the_reg.register_key(id, vk, DUMMY_SIG);
-        //     }
-        //     _ => {
-        //         panic!("bad key at primary {:?}", self);
-        //     }
-        // }
         let map: HashMap<WorkerId, Vec<WorkerHashData>> = c! {
             key => vec![],
             for key in self.local_workers.clone()
@@ -850,7 +832,7 @@ impl Vactor for PrimaryActor {
     }
 }
 
-// the enumeration of all possible kinds of actor
+// ActorEnum wraps up all actor structs into an enum
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
 enum ActorEnum {
     Client(ClientActor),
@@ -1103,12 +1085,28 @@ use ThisEnum::*;
 //const SUP:ThisEnum = Spawn;
 const SUP: ThisEnum = Explore;
 
+#[macro_use]
+extern crate lazy_static;
+
+
+lazy_static! {
+    static ref ALL_ACTORS : Vec<ActorEnum> = {
+        let mut v = vec![];
+        // CONTINUE HERE
+        // add all actors, used “uniformly” for
+        // all modes of SUP
+        v
+    };
+}
+
+
+
+
 
 // right now, the registry is a global variable 
 // ... wrapped into a mutex 
+// usages should start `REG_MUTEX.lock()` followed by unwrap
 // NTH: make this _immutable_ lazy static
-#[macro_use]
-extern crate lazy_static;
 use std::sync::Mutex;
 lazy_static! {
     static ref REG_MUTEX:Mutex<pki::KeyTable> = 
@@ -1119,28 +1117,12 @@ lazy_static! {
         x 
     });
 }
-// // this is the registry
-// static mut the_reg: pki::KeyTable =
-//     // MENDME plz: make this proper with setters/getters/init
-//     pki::KeyTable {
-//         map: BTreeMap::new(),
-//     };
+
+
+
+
 const DUMMY_SIG: [u8; 64] = [0; 64];
 fn main() {
-    // // this is an example on how to use the_reg
-    // use ed25519_consensus::VerificationKey;
-    // use pki::*;
-    // match VerificationKey::try_from([0; 32]) {
-    //     Ok(vk) => {
-    //         //
-    //         let dumm_sig = [0; 64];// this would be a signature of the key
-    //         the_reg.register_key(Id::from(0), vk, dumm_sig);
-    //     }
-    //     Err(_) => {
-    //         // this is probably unreachable ❓
-    //         println!("too bad");
-    //     }
-    // }
     match SUP {
         Spawn => {
             println!(" about to spawn HNarwhal");
