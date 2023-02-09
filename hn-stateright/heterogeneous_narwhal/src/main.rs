@@ -569,9 +569,13 @@ impl WorkerActor {
             );
             //
             state.take = state.take + 1;
+            if cfg!(debug_assertions) {
+                println!("Worker {:?} at take {}", self, state.take); 
+            }
 
             // check if we can finish a batch
             if state.tx_buffer.len() >= BATCH_SIZE {
+                
                 // create and process batch hash
                 let w_hash = WorkerHashData {
                     hash: hash_of(&state.tx_buffer),
@@ -589,6 +593,9 @@ impl WorkerActor {
 
                 // broadcast the worker hash to
                 // aka worker hash broadcast
+                if cfg!(debug_assertions) {
+                    println!("Worker {:?} broadcasting {:?}", self, w_hash);
+                }
                 self.send_(state.mirrors.clone(), WHxToAll(w_hash, sig), &mut o);
             }
             o
@@ -641,6 +648,9 @@ impl WorkerActor {
     ) -> Vec<Outputs<Id, <WorkerActor as Vactor>::Msg>> {
         let mut res = vec![];
         if is_valid_signature(src, w_hash, sig) {
+            if cfg!(debug_assertions) {
+                println!("Worker {:?} got valid worker hash {:?}", self, w_hash );
+            }
             // NB:
             // each worker has an independent counter of “takes/chunks”
             res = self.process_checked_w_hx(src, w_hash, sig, state)                     } else {
@@ -766,6 +776,11 @@ impl Vactor for WorkerActor {
             }
             WHxToAll(w_hash, sig) => {
                 //   we got a worker hash from a mirror worker to process
+                if cfg!(debug_assertions) {
+                    // FIXME: worker hashes do not arrive !! BUG ALERT
+                    // probably hiccup in the setup of (worker-)ids etc. 
+                    println!("Worker {} got a worker hash {:?}", w_id, w_hash);
+                }
                 self.process_w_hx(src, &w_hash, sig, worker_state)
             }
             _ => {
