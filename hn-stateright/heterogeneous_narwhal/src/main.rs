@@ -840,6 +840,20 @@ enum ActorEnum {
     Primary(PrimaryActor),
 }
 
+// 
+fn generate_all_actors(
+    cfg :NarwhalModelCfg, 
+    mode : ModesEnum,
+    ports : Vec<u16>
+) -> Vec<ActorEnum>{
+    let mut res = vec![];
+    // match mode {
+    //     ModesEnum::Spawn => 
+    // }
+    res
+}
+
+
 // we collect all above kinds of Vactors into an enum
 // and Vactor-behaviour of the enum obtained by
 // delegating the function calls to the respective type
@@ -1003,7 +1017,13 @@ impl NarwhalModelCfg {
 
     // The actor ids in models of stateright are essentially hard-coded;
     // they are given by the position the `actors` field
-    fn into_model(self) -> ActorModel<HNActor, Self, Vec<Envelope<<HNActor as Actor>::Msg>>> {
+    fn into_model(
+        self
+    ) -> ActorModel<
+            HNActor,
+        Self,
+        Vec<Envelope<<HNActor as Actor>::Msg>>
+            > {
         ActorModel::new(
             self.clone(),
             vec![], // here will go histories, i.e., sequences of
@@ -1074,33 +1094,19 @@ impl NarwhalModelCfg {
 // }
 
 #[derive(PartialEq)]
-enum ThisEnum {
+enum ModesEnum {
     Check,
     Spawn,
     Explore,
 }
-use ThisEnum::*;
+use ModesEnum::*;
 // hardcoded choice, so far
-//const SUP:ThisEnum = Check;
-//const SUP:ThisEnum = Spawn;
-const SUP: ThisEnum = Explore;
+//const SUP:ModesEnum = Check;
+//const SUP:ModesEnum = Spawn;
+const SUP: ModesEnum = Explore;
 
 #[macro_use]
 extern crate lazy_static;
-
-
-lazy_static! {
-    static ref ALL_ACTORS : Vec<ActorEnum> = {
-        let mut v = vec![];
-        // CONTINUE HERE
-        // add all actors, used “uniformly” for
-        // all modes of SUP
-        v
-    };
-}
-
-
-
 
 
 // right now, the registry is a global variable 
