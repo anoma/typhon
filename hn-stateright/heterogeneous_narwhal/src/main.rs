@@ -2,17 +2,17 @@
 // The Heterogeneous Narwhal implementation in stateright
 // -------------------------------------------------------
 //
-// This code is geared toward clarity and correctness,
-// w.r.t. tech report
+// This code aims for clarity and correctness;
+// it complements and can be considered part of the tech report
 // https://github.com/anoma/ ..
 // .. research/tree/master/distributed-systems/heterogeneous-narwhal
 
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 
-// For hashing,
-// based on doc.rust-lang.org/std/hash/index.html,
-// we use the following 8 (eight) lines of code:
+// Hashes are computed
+// as in doc.rust-lang.org/std/hash/index.html,
+// re-using the following 8 (eight) lines of code:
 use std::collections::hash_map::DefaultHasher;
 use std::collections::BTreeMap;
 use std::collections::{HashMap,VecDeque};
@@ -34,23 +34,24 @@ fn iter_to_vec_<T: Clone>(iter: &mut dyn Iterator<Item = T>) -> Vec<T> {
 }
 
 use cute::c; // for “pythonic” vec comprehension
-             // simplest example
-             //const SQUARES = c![x*x, for x in 0..10];
-             //const EVEN_SQUARES = c![x*x, for x in 0..10, if x % 2 == 0];
+             // simplest examples
+             // const SQUARES = c![x*x, for x in 0..10];
+             // const EVEN_SQUARES = c![x*x, for x in 0..10, if x % 2 == 0];
 
-// https://docs.rs/mapcomp/latest/mapcomp/macro.btreemapc.html
-// use mapcomp::btreemapc; // for “pythonic” btree comprehension
 use std::hash::{Hash, Hasher};
-
-
 fn hash_of<T: Hash>(t: &T) -> u64 {
     let mut s = DefaultHasher::new();
-    let mut s_ = DefaultHasher::new();
     t.hash(&mut s);
     let first_hash = s.finish();
-    t.hash(&mut s_);
-    let second_hash = s_.finish();
-    assert!(first_hash == second_hash);
+
+    if cfg!(debug_assertions) {
+        // checking that the new hasher is "the same"
+        let mut s_ = DefaultHasher::new();
+        t.hash(&mut s_);
+        let second_hash = s_.finish();
+        assert!(first_hash == second_hash);
+    }
+        
     first_hash
 }
 
