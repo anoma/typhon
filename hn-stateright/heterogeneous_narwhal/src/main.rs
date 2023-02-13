@@ -357,7 +357,11 @@ struct PrimaryState {
     // local worker hashes
     worker_hash_set: BTreeSet<(WorkerId, WorkerHashData)>,
     // the id
-    the_id: ValidatorId,
+    the_id: ValidatorId, 
+    // peer validators
+    validators: Vec<ValidatorId>,
+    // round
+    rnd: Round,
 }
 
 // the state type of clients
@@ -456,8 +460,11 @@ struct ClientActor {
 // ideally, this _would_ be part of the `Vactor` trait
 // ... well, now it is public :-/
 pub enum Outputs<I, M> {
+    // send a message to a single id
     Snd(I, M),
-    //Cast(M),
+    // broadcast a message to a vec of ids
+    // Cast(Vec<I>, M),
+    // set a timer (so far, we only have one type of timer)
     Timer(core::ops::Range<core::time::Duration>), // timer in seconds
 }
 
@@ -880,6 +887,28 @@ impl Vactor for WorkerActor {
 }
 
 const FULL_HEADER:usize= 5;
+impl PrimaryActor {
+    fn new_header(
+	&self,
+	w_hash: WorkerHashData,
+	p_state: &mut PrimaryState
+    ) -> Vec<Outputs<Id, <PrimaryActor as Vactor> ::Msg>> {
+	let mut res = 	vec![];
+	let msg = NextHeader(
+            p_state.rnd,
+            // list of collector-take pairs, identifying the worker hashes
+            vec![], // Vec<(WorkerId, Take)>,
+            // availability certificate
+            None, // Option<AC>,
+            None // hashes of signed quorums
+	    // Option<Vec<SQHash>>
+	);
+	// CONTINUE HERE 
+	let recipients = p_state.validators.clone();
+	self.send_(p_state.validators.clone(), msg, &mut res);
+	res
+    }
+}
 impl Vactor for PrimaryActor {
     type Msg = MessageEnum;
     type State = StateEnum;
@@ -888,6 +917,8 @@ impl Vactor for PrimaryActor {
         use ed25519_consensus::*;
         VerificationKey::from(&SigningKey::from(self.key_seed)).into()
     }
+
+
     // cf. `on_start` of Actor
     fn on_start_vec(&self, id: Id) -> (Self::State, Vec<Outputs<Id, Self::Msg>>) {
         println!("start primary {}", id);
@@ -896,13 +927,20 @@ impl Vactor for PrimaryActor {
         //     key => vec![],
         //     for key in self.local_workers.clone()
         // };
-        assert!(id == self.my_expected_id);
+	if cfg!(debug_assertions) {
+            assert!(id == self.my_expected_id);
+	    for x in self.peer_validators.clone() {
+		assert!(x != id);
+	    }
+	}
         (
             Primary(
                 PrimaryState {
                     map_of_worker_hashes: BTreeMap::new(),
                     worker_hash_set: BTreeSet::new(),
                     the_id: id,
+		    validators: self.peer_validators.clone(), 
+		    rnd: GENESIS_ROUND,
                 },
                 key_seed,
                 id,
@@ -911,6 +949,7 @@ impl Vactor for PrimaryActor {
         ) // default value for one ping pongk
     }
 
+    // the correct primary's behaviour
     fn on_msg_vec(
         &self,
         _id: Id,
@@ -918,7 +957,7 @@ impl Vactor for PrimaryActor {
         src: Id,
         msg: Self::Msg,
     ) -> Vec<Outputs<Id, Self::Msg>> {
-        let p_state;
+        let mut p_state;
         if let StateEnum::Primary(ref mut state, _, _) = state.to_mut() {
             p_state = state;
         } else {
@@ -939,16 +978,17 @@ impl Vactor for PrimaryActor {
 		// we have stored the new hash, and nothing else to do 
 		vec![]
 	    },
-            WorkerHx(w_hash, sig) => {
+            WorkerHx(ref w_hash, sig) => {
                 // we got a new, locally collected worker hash
-                p_state.worker_hash_set.insert((src,w_hash));
-                // if (p_state.worker_hash_set.len() > FULL_HEADER){
-                //     // TODO CONTINUE HERE 
-		    
-                // } else {
-                //     // nothing to do but (passively) wait for more hashes
-                // }
-                vec![]},
+		let fresh_wh_entry = (src, w_hash.clone());
+                p_state.worker_hash_set.insert(fresh_wh_entry);
+                if (p_state.worker_hash_set.len() > FULL_HEADER){
+		    self.new_header(w_hash.clone(), p_state)
+                } else {
+		    // nothing to do but (passively) wait for more hashes
+		    vec![]
+                }
+	    },
             _ => {
                 vec![]
                 //o.send(src, SomeKindOfMessage(DummyMessageType{}));
