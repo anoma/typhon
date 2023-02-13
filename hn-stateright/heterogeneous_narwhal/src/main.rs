@@ -14,24 +14,25 @@ use std::fmt::Debug;
 // as in doc.rust-lang.org/std/hash/index.html,
 // re-using the following 8 (eight) lines of code:
 use std::collections::hash_map::DefaultHasher;
-use std::collections::BTreeMap;
-use std::collections::{HashMap,VecDeque};
+use std::collections::{BTreeMap,BTreeSet};
+use std::collections::{HashMap, VecDeque};
 // fn hash_to_btree<K:std::cmp::Ord,V>(
 //     hash: HashMap<K, V>
 // ) -> BTreeMap<K, V> {
 //     // make hashmap iterator, then collect
 //     hash.into_iter().collect()
 // }
-fn iter_to_vec<T: Clone>(i: &mut dyn Iterator<Item = T>) -> Vec<T> {
-    i.collect()
-}
-fn iter_to_vec_<T: Clone>(iter: &mut dyn Iterator<Item = T>) -> Vec<T> {
-    let mut x = vec![];
-    for el in iter {
-        x.push(el.clone());
-    }
-    x
-}
+
+// fn iter_to_vec<'a, T: Clone>(iter: &'a mut dyn Iterator<Item = &'a T>) -> Vec<&'a T> {
+//     iter.collect()
+// }
+// fn iter_to_vec_<'a, T: Clone>(iter: &'a mut dyn Iterator<Item = &'a T>) -> Vec<&'a T> {
+//     let mut x = vec![];
+//     for el in iter {
+//         x.push(el);
+//     }
+//     x
+// }
 
 use cute::c; // for “pythonic” vec comprehension
              // simplest examples
@@ -39,20 +40,21 @@ use cute::c; // for “pythonic” vec comprehension
              // const EVEN_SQUARES = c![x*x, for x in 0..10, if x % 2 == 0];
 
 use std::hash::{Hash, Hasher};
-fn hash_of<T: Hash>(t: &T) -> u64 {
+type Digest = u64;
+fn hash_of<T: Hash>(t: &T) -> Digest {
     let mut s = DefaultHasher::new();
     t.hash(&mut s);
-    let first_hash = s.finish();
+    let the_hash = s.finish();
 
     if cfg!(debug_assertions) {
         // checking that the new hasher is "the same"
-        let mut s_ = DefaultHasher::new();
-        t.hash(&mut s_);
-        let second_hash = s_.finish();
-        assert!(first_hash == second_hash);
+        let mut s_prime = DefaultHasher::new();
+        t.hash(&mut s_prime);
+        let second_hash = s_prime.finish();
+        assert!(the_hash == second_hash);
     }
-        
-    first_hash
+
+    the_hash
 }
 
 // the data type of learner graphs
@@ -62,7 +64,7 @@ mod learner_graph {
     use std::iter::Iterator;
 
     // learner graph trait
-    // ... compatible with github.com/isheff/het_paxos_ref
+    // ... based on github.com/isheff/het_paxos_ref
     pub trait LearnerGraph {
         type Learner;
         type Validator;
@@ -75,8 +77,7 @@ mod learner_graph {
     }
 }
 
-
-// this module is for the purpose of “faking” a PKI-infrastructure
+// the module pki features as a simplified PKI-infrastructure
 mod pki {
     // elliptic curve signatures imports (kudos to Daniel)
     use ed25519_consensus::*;
@@ -140,7 +141,26 @@ mod pki {
     //         .is_ok());
     // }
     // -- end ed25519-consensus usage
+} // end `mod pki`
+
+#[macro_use]
+extern crate lazy_static;
+
+// REG_MUTEX is a “global variable” featuring as PKI,
+// more precisly a static mutex holding the KeyTable.
+// Unsing the PKI should start with `REG_MUTEX.lock()` 
+// NTH: make this _immutable_ 
+use std::sync::Mutex;
+lazy_static! {
+    static ref REG_MUTEX: Mutex<pki::KeyTable> = Mutex::new({
+        let x = pki::KeyTable {
+            map: BTreeMap::new(),
+        };
+        x
+    });
 }
+
+
 
 // all about actors from stateright
 use stateright::actor::*;
@@ -150,38 +170,79 @@ use stateright::*;
 // → doc.rust-lang.org/std/borrow/enum.Cow.html
 use std::borrow::Cow;
 
-// -------------------------------
-// actual actor model starts here
-// -------------------------------
+// --------------------------------------------------------------
+// the actor model starts here
+// it describes behaviour for three kinds of actors
+// - clients, requesting transactions to be ordere
+// - workers, receiving and processing transactions
+// - primaries, build the actual mem-dag (with workers hlping)
+// --------------------------------------------------------------
 
 // for spawning actors (locally)
 // use std::net::{SocketAddrV4, Ipv4Addr};
 
-type TxChunk = u64;
-type TxData = Vec<TxChunk>;
+type TxBlob = u64;
+type TxData = Vec<TxBlob>;
+
 
 // FIXME: batches "generic" **and** serializable -- ̈"somehow" ?!
 // right now, a batch is just a vector of TxData
 
+type Take = u32;
+type SeqNum = usize;
+// availability certificate
+type AC = ();
+// hashes of signed quorums
+type SQHash = ();
+
 // worker hash data type
 // serialization matters as in https://crates.io/crates/bincode
-#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, Hash)]
+#[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, Hash, PartialOrd, Ord)]
 struct WorkerHashData {
     // the take (formerly, the round of the primary)
-    take: u32,
+    take: Take,
     // the number of txs of this worker hash
     length: usize,
     // the hash
     hash: u64,
     // the collector
-    // collector: WorkerId
+    collector: WorkerId
 }
+
+// impl Ord for WorkerHashData {
+//     fn cmp(&self, other:&Self) -> std::cmp::Ordering {
+//         use std::cmp::Ordering::*;
+//         if self.hash < other.hash{
+//             Less
+//         } else if self.hash > other.hash {
+//             Greater
+//         } else {
+//             Equal
+//         }
+        
+//     }
+// }
+
 
 // the hashing library uses [u8; 64], which makes us use BigArray
 use serde_big_array::BigArray;
 
 // the type of worker hash signatures
 type WorkerHashSignature = [u8; 64];
+
+// the type of worker hash signatures
+
+#[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
+
+struct HeaderSignature{
+    val : ValidatorId, 
+    #[serde(with = "BigArray")]
+    sig : [u8; 64],
+}
+    
+
+// the type of signed quorum hashes (and any other hash)
+type SignedQuorumHash = u64;
 
 // the IDs of validators is a stateright Id
 type ValidatorId = Id;
@@ -202,19 +263,28 @@ struct HeaderData {
     creator: ValidatorId,
     // the worker hashes (produced by the creator's workers)
     worker_hashes: Vec<WorkerHashData>,
+    // the validity certificate
+    certificate: Option<AC>,
+    // the signed quorum hashes
+    hashes: Option<Vec<SignedQuorumHash>>
 }
+
+
 
 // the enumeration of all possible kinds of messages
 //
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
 enum MessageEnum {
+    // --- transaction level -- 
     // transaction requests, sent by the client/user
     TxReq(TxData, ClientId),
     // acknowledgments of transactions by the worker
     TxAck(TxData, WorkerId),
     // broadcasting a tx (or its erasure code) to mirror workers
-    TxToAll(TxData, ClientId, usize, u32),
-    // Worker Hash (to the primary)
+    TxToAll(TxData, ClientId, SeqNum, Take),
+
+    // --- worker hash level -- 
+    // Worker Hash "upload" (to the primary)
     WorkerHx(
         WorkerHashData,
         #[serde(with = "BigArray")] WorkerHashSignature,
@@ -229,12 +299,35 @@ enum MessageEnum {
         WorkerHashData,
         #[serde(with = "BigArray")] WorkerHashSignature,
     ),
+
+    // --- header level -- 
+    // the request for header signature (tob be sent by header creator)
+    NextHeader(
+        // round Number
+        Round,
+        // list of collector-take pairs, identifying the worker hashes
+        Vec<(WorkerId, Take)>,
+        // availability certificate
+        Option<AC>,
+        // hashes of signed quorums
+        Option<Vec<SQHash>>
+    ),
+
+    HeaderSig(
+        // the creating primary
+        ValidatorId, 
+        // the round number of the header to be
+        Round, 
+        // the signature
+        HeaderSignature,
+    )
 }
 
 use crate::MessageEnum::*;
 
-const GENESIS_ROUND: u64 = 0;
-const FIRST_TAKE: u32 = 0;
+type Round = u64;
+const GENESIS_ROUND: Round = 0;
+const FIRST_TAKE: Take = 0;
 const BATCH_SIZE: usize = 3;
 
 // the state type of workers
@@ -243,15 +336,15 @@ struct WorkerState {
     // the buffer for received transactions
     tx_buffer: Vec<(TxData, ClientId)>,
     // storing the pending worker hashes
-    pending_hxs : VecDeque<(WorkerId, WorkerHashData, WorkerHashSignature)>,
+    pending_hxs: VecDeque<(WorkerId, WorkerHashData, WorkerHashSignature)>,
     // hashmap to stores of transaction copies
-    tx_buffer_map: BTreeMap<WorkerId, Vec<(TxData, ClientId, usize, u32)>>,
+    tx_buffer_map: BTreeMap<WorkerId, Vec<(TxData, ClientId, SeqNum, Take)>>,
     // a copy of the primary information ()
     primary: ValidatorId,
     // a copy of the mirror worker information
     mirrors: Vec<WorkerId>,
     //  ̶r̶o̶u̶n̶d̶ ̶n̶u̶m̶b̶e̶r̶ => take
-    take: u32,
+    take: Take,
     // the id
     the_id: WorkerId,
 }
@@ -259,8 +352,10 @@ struct WorkerState {
 // the state type of primaries
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 struct PrimaryState {
-    // map_of_worker_hashes loal or foreign (right ?)
+    // map_of_worker_hashes, foreign / forwarded
     map_of_worker_hashes: BTreeMap<WorkerId, Vec<WorkerHashData>>,
+    // local worker hashes
+    worker_hash_set: BTreeSet<(WorkerId, WorkerHashData)>,
     // the id
     the_id: ValidatorId,
 }
@@ -294,7 +389,7 @@ struct WorkerActor {
     // my_expected_id is for debugging
     my_expected_id: Id,
     // take number
-    take: u32,
+    take: Take,
 }
 
 // PrimaryActor holds the static information about primaries
@@ -322,7 +417,6 @@ struct ClientActor {
     // my_expected_id (for debugging)
     my_expected_id: Id,
 }
-
 
 // -----------------------------------------------------------------------------
 // // experiment _delegation_ begin
@@ -395,7 +489,7 @@ pub trait Vactor: Sized {
         }
     }
 
-    fn check_back_later(&self, o: &mut Vec<Outputs<Id, Self::Msg>>){
+    fn check_back_later(&self, o: &mut Vec<Outputs<Id, Self::Msg>>) {
         use core::time::Duration;
         let duration = Duration::from_secs(1)..Duration::from_secs(2);
         o.push(Outputs::Timer(duration));
@@ -423,13 +517,15 @@ pub trait Vactor: Sized {
 
 impl ClientActor {
     // a function for generating the next tx
-    fn next_tx(tx: TxData) -> TxChunk {
+    fn next_tx(tx: TxData) -> TxData {
         // could be "random", but, to keep things simple for the moment:
-        if tx[0] % 2 == 0 {
-            tx[0] / 2
-        } else {
-            3 * tx[0] + 1
-        }
+        vec![
+            if tx[0] % 2 == 0 {
+                tx[0] / 2
+            } else {
+                3 * tx[0] + 1
+            }
+        ]
     }
 }
 
@@ -454,7 +550,7 @@ impl Vactor for ClientActor {
         let mut x = 0;
         for k in &self.known_workers {
             x = x + 1;
-            &self.send(*k, TxReq(vec![x], id), &mut o);
+            self.send(*k, TxReq(vec![x], id), &mut o);
         }
 
         let res = (client_state, o);
@@ -478,7 +574,7 @@ impl Vactor for ClientActor {
                 // send the new transaction
                 let new_tx = Self::next_tx(tx.to_vec());
                 let mut o = vec![];
-                self.send(*worker, TxReq(vec![new_tx], id), &mut o);
+                self.send(*worker, TxReq(new_tx, id), &mut o);
                 o
             }
             _ => {
@@ -492,7 +588,6 @@ impl Vactor for ClientActor {
     }
 }
 
-
 fn is_valid_signature(
     // src is the signing id
     src: WorkerId,
@@ -502,7 +597,7 @@ fn is_valid_signature(
     //fn verify(&self, &Signature, &[u8]) -> Result<(), Error>
     use ed25519_consensus::{Signature, VerificationKey};
     use pki::*;
-    let mut the_reg = REG_MUTEX.lock().unwrap();
+    let the_reg = REG_MUTEX.lock().unwrap();
     let key = VerificationKey::from(the_reg.lookup_vk(src).unwrap());
     let w_bytes = &bincode::serialize(&w_hash).unwrap();
     match key.verify(&Signature::from(sig), w_bytes) {
@@ -512,16 +607,16 @@ fn is_valid_signature(
             false
         }
     }
-}// end `fn check_signature`
+} // end `fn check_signature`
 
 // we need to order transaction vectors to produce worker hashes
-// the order is induced by the sequence number 
+// the order is induced by the sequence number
 // after filtering the take `tk`
 // the code is pretty generic
 fn filter_n_sort<T: Clone, C: Clone, U: Ord + Clone>(
-    vector: &mut Vec<(T, C, U, u32)>,
-    tk: u32,
-) -> Vec<(T, C, U, u32)> {
+    vector: &mut Vec<(T, C, U, Take)>,
+    tk: Take,
+) -> Vec<(T, C, U, Take)> {
     let iter = vector.iter().filter(|x| x.3 == tk);
     // the next two lines _should_ be just `let mut x = i.collect();`
     let mut x = vec![];
@@ -534,9 +629,6 @@ fn filter_n_sort<T: Clone, C: Clone, U: Ord + Clone>(
     // guess sequence number should be frame number ;-)
     x
 } // end `fn filter_n_sort`
-
-
-
 
 // the behaviour of workers, according to the spec
 impl WorkerActor {
@@ -573,18 +665,21 @@ impl WorkerActor {
             //
             state.take = state.take + 1;
             if cfg!(debug_assertions) {
-                println!("Worker {:?} at take {}", self, state.take); 
+                println!("Worker {:?} at take {}", self, state.take);
             }
 
             // check if we can finish a batch
             if state.tx_buffer.len() >= BATCH_SIZE {
-                
                 // create and process batch hash
                 let w_hash = WorkerHashData {
                     hash: hash_of(&state.tx_buffer),
                     take: state.take,
                     length: state.tx_buffer.len(),
+                    collector: state.the_id,
                 };
+                if cfg!(debug_assertions) {
+                    assert!(w_hash.collector == self.my_expected_id);
+                }
                 let w_bytes: &[u8] = &bincode::serialize(&w_hash).unwrap();
                 use ed25519_consensus::SigningKey;
                 let key = SigningKey::from(key_seed);
@@ -626,9 +721,8 @@ impl WorkerActor {
         if relevant_txs.len() == w_hash.length {
             if cfg!(debug_assertions) {
                 println!(
-                    "uploading worker hash {:?} at primary {:?}",
-                    w_hash,
-                    state.primary
+                    "uploading worker hash {:?} to primary {:?}",
+                    w_hash, state.primary
                 );
             }
             self.send(state.primary, WHxFwd(w_hash.clone(), sig), &mut res);
@@ -652,11 +746,12 @@ impl WorkerActor {
         let mut res = vec![];
         if is_valid_signature(src, w_hash, sig) {
             if cfg!(debug_assertions) {
-                println!("Worker {:?} got valid worker hash {:?}", self, w_hash );
+                println!("Worker {:?} got valid worker hash {:?}", self, w_hash);
             }
             // NB:
             // each worker has an independent counter of “takes/chunks”
-            res = self.process_checked_w_hx(src, w_hash, sig, state)                     } else {
+            res = self.process_checked_w_hx(src, w_hash, sig, state)
+        } else {
             println!("Got bad worker hash");
         }
         res
@@ -666,13 +761,11 @@ impl WorkerActor {
         &self,
         _id: Id,
         state: &mut Cow<'_, <WorkerActor as Vactor>::State>,
-    ) -> Vec<
-            Outputs<Id, <WorkerActor as Vactor>::Msg>
-            > {
+    ) -> Vec<Outputs<Id, <WorkerActor as Vactor>::Msg>> {
         // specifically check pending_hxs, fifo style, one at a time
-        if let StateEnum::Worker(ref mut state, key, id) = state.to_mut() {
+        if let StateEnum::Worker(ref mut state, _, _) = state.to_mut() {
             let mut res = vec![];
-            if state.pending_hxs.is_empty(){
+            if state.pending_hxs.is_empty() {
                 println!("got a spurious timer");
             } else {
                 let (src, w_hash, sig) = state.pending_hxs.pop_front().unwrap();
@@ -682,7 +775,6 @@ impl WorkerActor {
         } else {
             vec![]
         }
-
     }
 }
 
@@ -787,6 +879,7 @@ impl Vactor for WorkerActor {
     }
 }
 
+const FULL_HEADER:usize= 5;
 impl Vactor for PrimaryActor {
     type Msg = MessageEnum;
     type State = StateEnum;
@@ -799,15 +892,16 @@ impl Vactor for PrimaryActor {
     fn on_start_vec(&self, id: Id) -> (Self::State, Vec<Outputs<Id, Self::Msg>>) {
         println!("start primary {}", id);
         let key_seed = self.key_seed;
-        let map: HashMap<WorkerId, Vec<WorkerHashData>> = c! {
-            key => vec![],
-            for key in self.local_workers.clone()
-        };
+        // let map: HashMap<WorkerId, Vec<WorkerHashData>> = c! {
+        //     key => vec![],
+        //     for key in self.local_workers.clone()
+        // };
         assert!(id == self.my_expected_id);
         (
             Primary(
                 PrimaryState {
                     map_of_worker_hashes: BTreeMap::new(),
+                    worker_hash_set: BTreeSet::new(),
                     the_id: id,
                 },
                 key_seed,
@@ -820,11 +914,41 @@ impl Vactor for PrimaryActor {
     fn on_msg_vec(
         &self,
         _id: Id,
-        _state: &mut Cow<Self::State>,
-        _src: Id,
+        state: &mut Cow<Self::State>,
+        src: Id,
         msg: Self::Msg,
     ) -> Vec<Outputs<Id, Self::Msg>> {
+        let p_state;
+        if let StateEnum::Primary(ref mut state, _, _) = state.to_mut() {
+            p_state = state;
+        } else {
+            panic!("wrong primary state");
+        }
         match msg {
+            WHxFwd(wh_data, _)=> {
+		// we have received a foreign worker hash, 
+		// which we have to keep (as it will be part of a header)
+		match p_state.map_of_worker_hashes.get_mut(&wh_data.collector) {
+		    Some(v) => {
+			v.push(wh_data.clone());
+		    },
+		    None => {
+			panic!{"map of worker hashes messed up"};
+		    }
+		}
+		// we have stored the new hash, and nothing else to do 
+		vec![]
+	    },
+            WorkerHx(w_hash, sig) => {
+                // we got a new, locally collected worker hash
+                p_state.worker_hash_set.insert((src,w_hash));
+                // if (p_state.worker_hash_set.len() > FULL_HEADER){
+                //     // TODO CONTINUE HERE 
+		    
+                // } else {
+                //     // nothing to do but (passively) wait for more hashes
+                // }
+                vec![]},
             _ => {
                 vec![]
                 //o.send(src, SomeKindOfMessage(DummyMessageType{}));
@@ -841,19 +965,14 @@ enum ActorEnum {
     Primary(PrimaryActor),
 }
 
-// 
-fn generate_all_actors(
-    cfg :NarwhalModelCfg, 
-    mode : ModesEnum,
-    ports : Vec<u16>
-) -> Vec<ActorEnum>{
+//
+fn generate_all_actors(cfg: NarwhalModelCfg, mode: ModesEnum, ports: Vec<u16>) -> Vec<ActorEnum> {
     let mut res = vec![];
     // match mode {
-    //     ModesEnum::Spawn => 
+    //     ModesEnum::Spawn =>
     // }
     res
 }
-
 
 // we collect all above kinds of Vactors into an enum
 // and Vactor-behaviour of the enum obtained by
@@ -871,11 +990,7 @@ impl Actor for HNActor {
     type Msg = MessageEnum;
     type State = StateEnum;
 
-    fn on_start(
-        &self,
-        id: Id,
-        o: &mut Out<Self>
-    ) -> Self::State {
+    fn on_start(&self, id: Id, o: &mut Out<Self>) -> Self::State {
         let vk_bytes = self.get_vk_bytes();
         match ed25519_consensus::VerificationKey::try_from(vk_bytes) {
             Ok(vk) => {
@@ -1018,13 +1133,7 @@ impl NarwhalModelCfg {
 
     // The actor ids in models of stateright are essentially hard-coded;
     // they are given by the position the `actors` field
-    fn into_model(
-        self
-    ) -> ActorModel<
-            HNActor,
-        Self,
-        Vec<Envelope<<HNActor as Actor>::Msg>>
-            > {
+    fn into_model(self) -> ActorModel<HNActor, Self, Vec<Envelope<<HNActor as Actor>::Msg>>> {
         ActorModel::new(
             self.clone(),
             vec![], // here will go histories, i.e., sequences of
@@ -1094,7 +1203,7 @@ impl NarwhalModelCfg {
 //          pub within_boundary: fn(cfg: &C, state: &ActorModelState<A, H>) -> bool,
 // }
 
-#[derive(PartialEq)]
+#[derive(PartialEq,Debug)]
 enum ModesEnum {
     Check,
     Spawn,
@@ -1106,30 +1215,14 @@ use ModesEnum::*;
 //const SUP:ModesEnum = Spawn;
 const SUP: ModesEnum = Explore;
 
-#[macro_use]
-extern crate lazy_static;
-
-
-// right now, the registry is a global variable 
-// ... wrapped into a mutex 
-// usages should start `REG_MUTEX.lock()` followed by unwrap
-// NTH: make this _immutable_ lazy static
-use std::sync::Mutex;
-lazy_static! {
-    static ref REG_MUTEX:Mutex<pki::KeyTable> = 
-    Mutex::new({
-        let mut x = pki::KeyTable {
-            map: BTreeMap::new(),
-        };
-        x 
-    });
-}
-
-
-
-
 const DUMMY_SIG: [u8; 64] = [0; 64];
 fn main() {
+    println!(
+        "There are three modes of operation {:?}, {:?}, and {:?}",
+        ModesEnum::Check,
+        ModesEnum::Explore,
+        ModesEnum::Spawn
+    );
     match SUP {
         Spawn => {
             println!(" about to spawn HNarwhal");
