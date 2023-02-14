@@ -15,7 +15,7 @@ use std::fmt::Debug;
 // re-using the following 8 (eight) lines of code:
 use std::collections::hash_map::DefaultHasher;
 use std::collections::{BTreeMap,BTreeSet};
-use std::collections::{HashMap, VecDeque};
+use std::collections::VecDeque;
 // fn hash_to_btree<K:std::cmp::Ord,V>(
 //     hash: HashMap<K, V>
 // ) -> BTreeMap<K, V> {
@@ -35,9 +35,9 @@ use std::collections::{HashMap, VecDeque};
 // }
 
 use cute::c; // for “pythonic” vec comprehension
-             // simplest examples
-             // const SQUARES = c![x*x, for x in 0..10];
-             // const EVEN_SQUARES = c![x*x, for x in 0..10, if x % 2 == 0];
+// simplest examples
+// const SQUARES = c![x*x, for x in 0..10];
+// const EVEN_SQUARES = c![x*x, for x in 0..10, if x % 2 == 0];
 
 use std::hash::{Hash, Hasher};
 type Digest = u64;
@@ -141,7 +141,7 @@ mod pki {
     //         .is_ok());
     // }
     // -- end ed25519-consensus usage
-} // end `mod pki`
+}
 
 #[macro_use]
 extern crate lazy_static;
@@ -219,7 +219,7 @@ struct WorkerHashData {
 //         } else {
 //             Equal
 //         }
-        
+
 //     }
 // }
 
@@ -239,7 +239,7 @@ struct HeaderSignature{
     #[serde(with = "BigArray")]
     sig : [u8; 64],
 }
-    
+
 
 // the type of signed quorum hashes (and any other hash)
 type SignedQuorumHash = u64;
@@ -614,7 +614,7 @@ fn is_valid_signature(
             false
         }
     }
-} // end `fn check_signature`
+}
 
 // we need to order transaction vectors to produce worker hashes
 // the order is induced by the sequence number
@@ -624,18 +624,16 @@ fn filter_n_sort<T: Clone, C: Clone, U: Ord + Clone>(
     vector: &mut Vec<(T, C, U, Take)>,
     tk: Take,
 ) -> Vec<(T, C, U, Take)> {
-    let iter = vector.iter().filter(|x| x.3 == tk);
-    // the next two lines _should_ be just `let mut x = i.collect();`
-    let mut x = vec![];
-    for el in iter {
-        x.push(el.clone());
-    }
-    // x is the vector of transaction data of the same “take”
+    // let x be the vector of transaction whose “take” is tk
+    let mut x = vector.clone()
+        .into_iter()
+        .filter(|x| x.3 == tk)
+        .collect::<Vec<(T, C, U, Take)>>();
+    // sort x, ascending in the sequence number (within the take)
     x.sort_by(|a, b| a.2.cmp(&b.2));
-    // and sorted, ascending in the sequence number (within the take)
-    // guess sequence number should be frame number ;-)
+    // "return" x
     x
-} // end `fn filter_n_sort`
+}
 
 // the behaviour of workers, according to the spec
 impl WorkerActor {
@@ -889,24 +887,34 @@ impl Vactor for WorkerActor {
 const FULL_HEADER:usize= 5;
 impl PrimaryActor {
     fn new_header(
-	&self,
-	w_hash: WorkerHashData,
-	p_state: &mut PrimaryState
+	      &self,
+	      w_hash: WorkerHashData,
+	      p_state: &mut PrimaryState
     ) -> Vec<Outputs<Id, <PrimaryActor as Vactor> ::Msg>> {
-	let mut res = 	vec![];
-	let msg = NextHeader(
+        // the result of "outputs" (in the sense of stateright)
+	      let mut res =	vec![];
+        // let mut the_list = vec![];
+        // for (i,w) in p_state.worker_hash_set.clone(){
+        //     let tuple = (i, w.take);
+        //     the_list.push(tuple);
+        // } 
+        let the_list :Vec<(WorkerId, Take)> =
+            p_state.worker_hash_set.clone()
+            .into_iter().map(|(i,w)| (i,w.take)).collect();
+        // the message to be sent to all fellow validators
+	      let msg = NextHeader(
             p_state.rnd,
-            // list of collector-take pairs, identifying the worker hashes
-            vec![], // Vec<(WorkerId, Take)>,
+            // vector of collector-take pairs, identifying the worker hashes
+            the_list, // Vec<(WorkerId, Take)>,
             // availability certificate
             None, // Option<AC>,
             None // hashes of signed quorums
-	    // Option<Vec<SQHash>>
-	);
-	// CONTINUE HERE 
-	let recipients = p_state.validators.clone();
-	self.send_(p_state.validators.clone(), msg, &mut res);
-	res
+	          // Option<Vec<SQHash>>
+	      );
+	      // CONTINUE HERE 
+	      let recipients = p_state.validators.clone();
+	      self.send_(recipients, msg, &mut res);
+	      res
     }
 }
 impl Vactor for PrimaryActor {
@@ -927,20 +935,20 @@ impl Vactor for PrimaryActor {
         //     key => vec![],
         //     for key in self.local_workers.clone()
         // };
-	if cfg!(debug_assertions) {
+	      if cfg!(debug_assertions) {
             assert!(id == self.my_expected_id);
-	    for x in self.peer_validators.clone() {
-		assert!(x != id);
-	    }
-	}
+	          for x in self.peer_validators.clone() {
+		            assert!(x != id);
+	          }
+	      }
         (
             Primary(
                 PrimaryState {
                     map_of_worker_hashes: BTreeMap::new(),
                     worker_hash_set: BTreeSet::new(),
                     the_id: id,
-		    validators: self.peer_validators.clone(), 
-		    rnd: GENESIS_ROUND,
+		                validators: self.peer_validators.clone(), 
+		                rnd: GENESIS_ROUND,
                 },
                 key_seed,
                 id,
@@ -965,30 +973,30 @@ impl Vactor for PrimaryActor {
         }
         match msg {
             WHxFwd(wh_data, _)=> {
-		// we have received a foreign worker hash, 
-		// which we have to keep (as it will be part of a header)
-		match p_state.map_of_worker_hashes.get_mut(&wh_data.collector) {
-		    Some(v) => {
-			v.push(wh_data.clone());
-		    },
-		    None => {
-			panic!{"map of worker hashes messed up"};
-		    }
-		}
-		// we have stored the new hash, and nothing else to do 
-		vec![]
-	    },
+		            // we have received a foreign worker hash, 
+		            // which we have to keep (as it will be part of a header)
+		            match p_state.map_of_worker_hashes.get_mut(&wh_data.collector) {
+		                Some(v) => {
+			                  v.push(wh_data.clone());
+		                },
+		                None => {
+			                  panic!{"map of worker hashes messed up"};
+		                }
+		            }
+		            // we have stored the new hash, and nothing else to do 
+		            vec![]
+	          },
             WorkerHx(ref w_hash, sig) => {
                 // we got a new, locally collected worker hash
-		let fresh_wh_entry = (src, w_hash.clone());
+		            let fresh_wh_entry = (src, w_hash.clone());
                 p_state.worker_hash_set.insert(fresh_wh_entry);
                 if (p_state.worker_hash_set.len() > FULL_HEADER){
-		    self.new_header(w_hash.clone(), p_state)
+		                self.new_header(w_hash.clone(), p_state)
                 } else {
-		    // nothing to do but (passively) wait for more hashes
-		    vec![]
+		                // nothing to do but (passively) wait for more hashes
+		                vec![]
                 }
-	    },
+	          },
             _ => {
                 vec![]
                 //o.send(src, SomeKindOfMessage(DummyMessageType{}));
@@ -1138,8 +1146,8 @@ impl NarwhalModelCfg {
     fn calculate_mirror_workers_and_id(&self, index: usize, primary: usize) -> (Vec<Id>, Id) {
         (
             c![Id::from(self.get_worker_idx(index, j)),
-           for j in 0..self.primary_count,
-           if j != primary],
+               for j in 0..self.primary_count,
+               if j != primary],
             self.get_worker_idx(index, primary).into(),
         )
     }
@@ -1185,7 +1193,7 @@ impl NarwhalModelCfg {
         // 1. workers: 0..wic*pc
         // 2. primaries: wic*pc..(wic+1)*pc
         // 3. clients: (wic+1)*pc..(wic+1)*pc+cc
-        .actors(c![WorkerActor(WorkerActor{
+            .actors(c![WorkerActor(WorkerActor{
                 index: i as u64,
                 primary: Id::from(self.get_primary_idx(j)),
                 mirror_workers: self.calculate_mirror_workers_and_id(i,j).0,
@@ -1195,21 +1203,21 @@ impl NarwhalModelCfg {
             }),
                        for i in 0..self.worker_index_count,
                        for j in 0..self.primary_count])
-        .actors(c![PrimaryActor(PrimaryActor{
+            .actors(c![PrimaryActor(PrimaryActor{
                 peer_validators: self.calculate_peer_validators_and_id(p).0,
                 my_expected_id: self.calculate_peer_validators_and_id(p).1,
                 key_seed: fresh_key_seed(),
                 local_workers:self.calculate_local_workers(p),
             }), for p in 0..self.primary_count])
-        .actors(c![ClientActor(ClientActor{
+            .actors(c![ClientActor(ClientActor{
                 known_workers: self.calculate_known_workers(),
                 my_expected_id: self.get_client_idx(c).into(),
                 key_seed: fresh_key_seed(),
             }), for c in 0..self.client_count])
-        .init_network(self.network)
-        .property(Expectation::Eventually, "trivial progress", |_, state| {
-            state.history.len() > 1
-        })
+            .init_network(self.network)
+            .property(Expectation::Eventually, "trivial progress", |_, state| {
+                state.history.len() > 1
+            })
         //  .property(Expectation::Always, "linearizable", |_, state| {
         //      state.history.serialized_history().is_some()
         //  })
@@ -1221,8 +1229,8 @@ impl NarwhalModelCfg {
         //      }
         //      false
         //  })
-        .record_msg_in(NarwhalModelCfg::record_msg_in)
-        .record_msg_out(NarwhalModelCfg::record_msg_out)
+            .record_msg_in(NarwhalModelCfg::record_msg_in)
+            .record_msg_out(NarwhalModelCfg::record_msg_out)
     }
 }
 
@@ -1417,7 +1425,7 @@ fn main() {
                 |bytes| serde_json::from_slice(bytes),
                 all_vactor_vec,
             )
-            .unwrap();
+                .unwrap();
 
             // "the
             use ed25519_consensus::{SigningKey, VerificationKey};
@@ -1447,8 +1455,8 @@ fn main() {
 
             // Verify the signature
             assert!(VerificationKey::try_from(vk_bytes)
-                .and_then(|vk| vk.verify(&sig_bytes.into(), msg))
-                .is_ok());
+                    .and_then(|vk| vk.verify(&sig_bytes.into(), msg))
+                    .is_ok());
 
             // -- end elliptic curves usage
         }
@@ -1463,10 +1471,10 @@ fn main() {
                 network: nw,
             }
             .into_model()
-            .checker()
-            .threads(num_cpus::get())
-            .spawn_dfs()
-            .report(&mut std::io::stdout());
+                .checker()
+                .threads(num_cpus::get())
+                .spawn_dfs()
+                .report(&mut std::io::stdout());
         }
         Explore => {
             let c_count = 3;
@@ -1483,11 +1491,11 @@ fn main() {
                 network: nw,
             }
             .into_model()
-            .checker()
-            .threads(num_cpus::get())
-            .serve(address);
+                .checker()
+                .threads(num_cpus::get())
+                .serve(address);
         } // _ => {
-          //     panic!("noooo, SUP?!")
-          // }
+        //     panic!("noooo, SUP?!")
+        // }
     }
 }
