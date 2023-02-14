@@ -888,7 +888,6 @@ const FULL_HEADER:usize= 5;
 impl PrimaryActor {
     fn new_header(
 	      &self,
-	      w_hash: WorkerHashData,
 	      p_state: &mut PrimaryState
     ) -> Vec<Outputs<Id, <PrimaryActor as Vactor> ::Msg>> {
         // the result of "outputs" (in the sense of stateright)
@@ -965,7 +964,7 @@ impl Vactor for PrimaryActor {
         src: Id,
         msg: Self::Msg,
     ) -> Vec<Outputs<Id, Self::Msg>> {
-        let mut p_state;
+        let p_state;
         if let StateEnum::Primary(ref mut state, _, _) = state.to_mut() {
             p_state = state;
         } else {
@@ -986,12 +985,11 @@ impl Vactor for PrimaryActor {
 		            // we have stored the new hash, and nothing else to do 
 		            vec![]
 	          },
-            WorkerHx(ref w_hash, sig) => {
+            WorkerHx(w_hash, _) => {
                 // we got a new, locally collected worker hash
-		            let fresh_wh_entry = (src, w_hash.clone());
-                p_state.worker_hash_set.insert(fresh_wh_entry);
-                if (p_state.worker_hash_set.len() > FULL_HEADER){
-		                self.new_header(w_hash.clone(), p_state)
+                p_state.worker_hash_set.insert((src, w_hash));
+                if p_state.worker_hash_set.len() > FULL_HEADER {
+		                self.new_header(p_state)
                 } else {
 		                // nothing to do but (passively) wait for more hashes
 		                vec![]
@@ -1014,13 +1012,14 @@ enum ActorEnum {
 }
 
 //
-fn generate_all_actors(cfg: NarwhalModelCfg, mode: ModesEnum, ports: Vec<u16>) -> Vec<ActorEnum> {
-    let mut res = vec![];
-    // match mode {
-    //     ModesEnum::Spawn =>
-    // }
-    res
-}
+
+// fn generate_all_actors(cfg: NarwhalModelCfg, mode: ModesEnum, ports: Vec<u16>) -> Vec<ActorEnum> {
+//     let mut res = vec![];
+//     // match mode {
+//     //     ModesEnum::Spawn =>
+//     // }
+//     res
+// }
 
 // we collect all above kinds of Vactors into an enum
 // and Vactor-behaviour of the enum obtained by
