@@ -878,24 +878,27 @@ impl Vactor for WorkerActor {
 
 const FULL_HEADER: usize = 5;
 impl PrimaryActor {
-    fn new_header(
+
+    fn process_new_header(
         &self,
         p_state: &mut PrimaryState,
     ) -> Vec<Outputs<Id, <PrimaryActor as Vactor>::Msg>> {
-        let the_list: Vec<(WorkerId, Take)> = p_state
+        let wh_list: Vec<(WorkerId, Take)> = 
+            p_state
             .worker_hash_set
             .clone()
             .into_iter()
-            .map(|(i, w)| (i, w.take))
+        // the WorkerId an Take 
+            .map(|(i, w)| (i, w.take)) 
             .collect();
         // the message to be sent to all fellow validators
         let msg;
         if p_state.rnd == GENESIS_ROUND {
             msg = NextHeader(
-                // the current round
+                // the current round, i.e., GENESIS_ROUND
                 p_state.rnd,
                 // vector of collector-take pairs, identifying the worker hashes
-                the_list,
+                wh_list,
                 // availability certificate
                 None, // Option<AC>,
                 None, // hashes of signed quorums
@@ -905,10 +908,10 @@ impl PrimaryActor {
             panic!("not implemented yet");
             // NextHeader(
             //     p_state.rnd,
-            //     the_list,
-            //     None, // PLACEHOLDER this is to be filled in for the typical rounds
+            //     wh_list,
+            //     None, // PLACEHOLDER for proper availability certificate
             //     // Option<AC>
-            //     None, // PLACEHOLDER this is to be filled in for the typical rounds
+            //     None, // PLACEHOLDER for signed quorum information
             // )
         }
 
@@ -920,6 +923,18 @@ impl PrimaryActor {
             &mut res
         );
         res
+    }
+
+    fn process_sign_request(
+        &self,
+        whxs: Vec<(WorkerId,Take)>
+    ) -> Vec<Outputs<Id, <PrimaryActor as Vactor>::Msg>> {
+        // 1. retrieve the relevant worker hashes
+        // 2. sign the worker hash
+        // 3. “commit” to the signed worker hash, by sending it back 
+        // -- 
+        vec![]
+        
     }
 }
 impl Vactor for PrimaryActor {
@@ -984,7 +999,7 @@ impl Vactor for PrimaryActor {
                         v.push(wh_data.clone());
                     }
                     None => {
-                        panic! {"map of worker hashes messed up"};
+                        panic! {"map of worker hashes messed up at {:?}", self};
                     }
                 }
                 // we have stored the new hash, and nothing else to do
@@ -994,11 +1009,21 @@ impl Vactor for PrimaryActor {
                 // we got a new, locally collected worker hash
                 p_state.worker_hash_set.insert((src, w_hash));
                 if p_state.worker_hash_set.len() > FULL_HEADER {
-                    self.new_header(p_state)
+                    self.process_new_header(p_state)
                 } else {
                     // nothing to do but (passively) wait for more hashes
                     vec![]
                 }
+            }
+            NextHeader(r, _whxs, _ac, _sqhx) => {
+                // check if we have all relevant worker hashes
+                // if so, sign (if this is the first header)
+                // otherwise, wait some
+                
+                if r > GENESIS_ROUND {
+                    println!("not genessi");
+                }
+                vec![]
             }
             _ => {
                 vec![]
