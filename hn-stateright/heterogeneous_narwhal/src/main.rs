@@ -14,8 +14,8 @@ use std::fmt::Debug;
 // as in doc.rust-lang.org/std/hash/index.html,
 // re-using the following 8 (eight) lines of code:
 use std::collections::hash_map::DefaultHasher;
-use std::collections::{BTreeMap,BTreeSet};
 use std::collections::VecDeque;
+use std::collections::{BTreeMap, BTreeSet};
 // fn hash_to_btree<K:std::cmp::Ord,V>(
 //     hash: HashMap<K, V>
 // ) -> BTreeMap<K, V> {
@@ -35,9 +35,9 @@ use std::collections::VecDeque;
 // }
 
 use cute::c; // for “pythonic” vec comprehension
-// simplest examples
-// const SQUARES = c![x*x, for x in 0..10];
-// const EVEN_SQUARES = c![x*x, for x in 0..10, if x % 2 == 0];
+             // simplest examples
+             // const SQUARES = c![x*x, for x in 0..10];
+             // const EVEN_SQUARES = c![x*x, for x in 0..10, if x % 2 == 0];
 
 use std::hash::{Hash, Hasher};
 type Digest = u64;
@@ -148,8 +148,8 @@ extern crate lazy_static;
 
 // REG_MUTEX is a “global variable” featuring as PKI,
 // more precisly a static mutex holding the KeyTable.
-// Unsing the PKI should start with `REG_MUTEX.lock()` 
-// NTH: make this _immutable_ 
+// Unsing the PKI should start with `REG_MUTEX.lock()`
+// NTH: make this _immutable_
 use std::sync::Mutex;
 lazy_static! {
     static ref REG_MUTEX: Mutex<pki::KeyTable> = Mutex::new({
@@ -159,8 +159,6 @@ lazy_static! {
         x
     });
 }
-
-
 
 // all about actors from stateright
 use stateright::actor::*;
@@ -184,7 +182,6 @@ use std::borrow::Cow;
 type TxBlob = u64;
 type TxData = Vec<TxBlob>;
 
-
 // FIXME: batches "generic" **and** serializable -- ̈"somehow" ?!
 // right now, a batch is just a vector of TxData
 
@@ -206,7 +203,7 @@ struct WorkerHashData {
     // the hash
     hash: u64,
     // the collector
-    collector: WorkerId
+    collector: WorkerId,
 }
 
 // impl Ord for WorkerHashData {
@@ -223,7 +220,6 @@ struct WorkerHashData {
 //     }
 // }
 
-
 // the hashing library uses [u8; 64], which makes us use BigArray
 use serde_big_array::BigArray;
 
@@ -234,12 +230,11 @@ type WorkerHashSignature = [u8; 64];
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
 
-struct HeaderSignature{
-    val : ValidatorId, 
+struct HeaderSignature {
+    val: ValidatorId,
     #[serde(with = "BigArray")]
-    sig : [u8; 64],
+    sig: [u8; 64],
 }
-
 
 // the type of signed quorum hashes (and any other hash)
 type SignedQuorumHash = u64;
@@ -266,16 +261,14 @@ struct HeaderData {
     // the validity certificate
     certificate: Option<AC>,
     // the signed quorum hashes
-    hashes: Option<Vec<SignedQuorumHash>>
+    hashes: Option<Vec<SignedQuorumHash>>,
 }
-
-
 
 // the enumeration of all possible kinds of messages
 //
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
 enum MessageEnum {
-    // --- transaction level -- 
+    // --- transaction level --
     // transaction requests, sent by the client/user
     TxReq(TxData, ClientId),
     // acknowledgments of transactions by the worker
@@ -283,7 +276,7 @@ enum MessageEnum {
     // broadcasting a tx (or its erasure code) to mirror workers
     TxToAll(TxData, ClientId, SeqNum, Take),
 
-    // --- worker hash level -- 
+    // --- worker hash level --
     // Worker Hash "upload" (to the primary)
     WorkerHx(
         WorkerHashData,
@@ -300,7 +293,7 @@ enum MessageEnum {
         #[serde(with = "BigArray")] WorkerHashSignature,
     ),
 
-    // --- header level -- 
+    // --- header level --
     // the request for header signature (tob be sent by header creator)
     NextHeader(
         // round Number
@@ -310,17 +303,17 @@ enum MessageEnum {
         // availability certificate
         Option<AC>,
         // hashes of signed quorums
-        Option<Vec<SQHash>>
+        Option<Vec<SQHash>>,
     ),
 
     HeaderSig(
         // the creating primary
-        ValidatorId, 
+        ValidatorId,
         // the round number of the header to be
-        Round, 
+        Round,
         // the signature
         HeaderSignature,
-    )
+    ),
 }
 
 use crate::MessageEnum::*;
@@ -357,7 +350,7 @@ struct PrimaryState {
     // local worker hashes
     worker_hash_set: BTreeSet<(WorkerId, WorkerHashData)>,
     // the id
-    the_id: ValidatorId, 
+    the_id: ValidatorId,
     // peer validators
     validators: Vec<ValidatorId>,
     // round
@@ -526,13 +519,11 @@ impl ClientActor {
     // a function for generating the next tx
     fn next_tx(tx: TxData) -> TxData {
         // could be "random", but, to keep things simple for the moment:
-        vec![
-            if tx[0] % 2 == 0 {
-                tx[0] / 2
-            } else {
-                3 * tx[0] + 1
-            }
-        ]
+        vec![if tx[0] % 2 == 0 {
+            tx[0] / 2
+        } else {
+            3 * tx[0] + 1
+        }]
     }
 }
 
@@ -625,7 +616,8 @@ fn filter_n_sort<T: Clone, C: Clone, U: Ord + Clone>(
     tk: Take,
 ) -> Vec<(T, C, U, Take)> {
     // let x be the vector of transaction whose “take” is tk
-    let mut x = vector.clone()
+    let mut x = vector
+        .clone()
         .into_iter()
         .filter(|x| x.3 == tk)
         .collect::<Vec<(T, C, U, Take)>>();
@@ -884,36 +876,50 @@ impl Vactor for WorkerActor {
     }
 }
 
-const FULL_HEADER:usize= 5;
+const FULL_HEADER: usize = 5;
 impl PrimaryActor {
     fn new_header(
-	      &self,
-	      p_state: &mut PrimaryState
-    ) -> Vec<Outputs<Id, <PrimaryActor as Vactor> ::Msg>> {
-        // the result of "outputs" (in the sense of stateright)
-	      let mut res =	vec![];
-        // let mut the_list = vec![];
-        // for (i,w) in p_state.worker_hash_set.clone(){
-        //     let tuple = (i, w.take);
-        //     the_list.push(tuple);
-        // } 
-        let the_list :Vec<(WorkerId, Take)> =
-            p_state.worker_hash_set.clone()
-            .into_iter().map(|(i,w)| (i,w.take)).collect();
+        &self,
+        p_state: &mut PrimaryState,
+    ) -> Vec<Outputs<Id, <PrimaryActor as Vactor>::Msg>> {
+        let the_list: Vec<(WorkerId, Take)> = p_state
+            .worker_hash_set
+            .clone()
+            .into_iter()
+            .map(|(i, w)| (i, w.take))
+            .collect();
         // the message to be sent to all fellow validators
-	      let msg = NextHeader(
-            p_state.rnd,
-            // vector of collector-take pairs, identifying the worker hashes
-            the_list, // Vec<(WorkerId, Take)>,
-            // availability certificate
-            None, // Option<AC>,
-            None // hashes of signed quorums
-	          // Option<Vec<SQHash>>
-	      );
-	      // CONTINUE HERE 
-	      let recipients = p_state.validators.clone();
-	      self.send_(recipients, msg, &mut res);
-	      res
+        let msg;
+        if p_state.rnd == GENESIS_ROUND {
+            msg = NextHeader(
+                // the current round
+                p_state.rnd,
+                // vector of collector-take pairs, identifying the worker hashes
+                the_list,
+                // availability certificate
+                None, // Option<AC>,
+                None, // hashes of signed quorums
+                      // Option<Vec<SQHash>>
+            );
+        } else {
+            panic!("not implemented yet");
+            // NextHeader(
+            //     p_state.rnd,
+            //     the_list,
+            //     None, // PLACEHOLDER this is to be filled in for the typical rounds
+            //     // Option<AC>
+            //     None, // PLACEHOLDER this is to be filled in for the typical rounds
+            // )
+        }
+
+        // the result of "outputs" (in the sense of stateright)
+        let mut res = vec![];
+        self.send_(
+            p_state.validators.clone(), 
+            msg, 
+            &mut res
+        );
+        res
     }
 }
 impl Vactor for PrimaryActor {
@@ -925,7 +931,6 @@ impl Vactor for PrimaryActor {
         VerificationKey::from(&SigningKey::from(self.key_seed)).into()
     }
 
-
     // cf. `on_start` of Actor
     fn on_start_vec(&self, id: Id) -> (Self::State, Vec<Outputs<Id, Self::Msg>>) {
         println!("start primary {}", id);
@@ -934,20 +939,20 @@ impl Vactor for PrimaryActor {
         //     key => vec![],
         //     for key in self.local_workers.clone()
         // };
-	      if cfg!(debug_assertions) {
+        if cfg!(debug_assertions) {
             assert!(id == self.my_expected_id);
-	          for x in self.peer_validators.clone() {
-		            assert!(x != id);
-	          }
-	      }
+            for x in self.peer_validators.clone() {
+                assert!(x != id);
+            }
+        }
         (
             Primary(
                 PrimaryState {
                     map_of_worker_hashes: BTreeMap::new(),
                     worker_hash_set: BTreeSet::new(),
                     the_id: id,
-		                validators: self.peer_validators.clone(), 
-		                rnd: GENESIS_ROUND,
+                    validators: self.peer_validators.clone(),
+                    rnd: GENESIS_ROUND,
                 },
                 key_seed,
                 id,
@@ -971,30 +976,30 @@ impl Vactor for PrimaryActor {
             panic!("wrong primary state");
         }
         match msg {
-            WHxFwd(wh_data, _)=> {
-		            // we have received a foreign worker hash, 
-		            // which we have to keep (as it will be part of a header)
-		            match p_state.map_of_worker_hashes.get_mut(&wh_data.collector) {
-		                Some(v) => {
-			                  v.push(wh_data.clone());
-		                },
-		                None => {
-			                  panic!{"map of worker hashes messed up"};
-		                }
-		            }
-		            // we have stored the new hash, and nothing else to do 
-		            vec![]
-	          },
+            WHxFwd(wh_data, _) => {
+                // we have received a foreign worker hash,
+                // which we have to keep (as it will be part of a header)
+                match p_state.map_of_worker_hashes.get_mut(&wh_data.collector) {
+                    Some(v) => {
+                        v.push(wh_data.clone());
+                    }
+                    None => {
+                        panic! {"map of worker hashes messed up"};
+                    }
+                }
+                // we have stored the new hash, and nothing else to do
+                vec![]
+            }
             WorkerHx(w_hash, _) => {
                 // we got a new, locally collected worker hash
                 p_state.worker_hash_set.insert((src, w_hash));
                 if p_state.worker_hash_set.len() > FULL_HEADER {
-		                self.new_header(p_state)
+                    self.new_header(p_state)
                 } else {
-		                // nothing to do but (passively) wait for more hashes
-		                vec![]
+                    // nothing to do but (passively) wait for more hashes
+                    vec![]
                 }
-	          },
+            }
             _ => {
                 vec![]
                 //o.send(src, SomeKindOfMessage(DummyMessageType{}));
@@ -1012,7 +1017,6 @@ enum ActorEnum {
 }
 
 //
-
 // fn generate_all_actors(cfg: NarwhalModelCfg, mode: ModesEnum, ports: Vec<u16>) -> Vec<ActorEnum> {
 //     let mut res = vec![];
 //     // match mode {
@@ -1192,7 +1196,7 @@ impl NarwhalModelCfg {
         // 1. workers: 0..wic*pc
         // 2. primaries: wic*pc..(wic+1)*pc
         // 3. clients: (wic+1)*pc..(wic+1)*pc+cc
-            .actors(c![WorkerActor(WorkerActor{
+        .actors(c![WorkerActor(WorkerActor{
                 index: i as u64,
                 primary: Id::from(self.get_primary_idx(j)),
                 mirror_workers: self.calculate_mirror_workers_and_id(i,j).0,
@@ -1202,21 +1206,21 @@ impl NarwhalModelCfg {
             }),
                        for i in 0..self.worker_index_count,
                        for j in 0..self.primary_count])
-            .actors(c![PrimaryActor(PrimaryActor{
+        .actors(c![PrimaryActor(PrimaryActor{
                 peer_validators: self.calculate_peer_validators_and_id(p).0,
                 my_expected_id: self.calculate_peer_validators_and_id(p).1,
                 key_seed: fresh_key_seed(),
                 local_workers:self.calculate_local_workers(p),
             }), for p in 0..self.primary_count])
-            .actors(c![ClientActor(ClientActor{
+        .actors(c![ClientActor(ClientActor{
                 known_workers: self.calculate_known_workers(),
                 my_expected_id: self.get_client_idx(c).into(),
                 key_seed: fresh_key_seed(),
             }), for c in 0..self.client_count])
-            .init_network(self.network)
-            .property(Expectation::Eventually, "trivial progress", |_, state| {
-                state.history.len() > 1
-            })
+        .init_network(self.network)
+        .property(Expectation::Eventually, "trivial progress", |_, state| {
+            state.history.len() > 1
+        })
         //  .property(Expectation::Always, "linearizable", |_, state| {
         //      state.history.serialized_history().is_some()
         //  })
@@ -1228,8 +1232,8 @@ impl NarwhalModelCfg {
         //      }
         //      false
         //  })
-            .record_msg_in(NarwhalModelCfg::record_msg_in)
-            .record_msg_out(NarwhalModelCfg::record_msg_out)
+        .record_msg_in(NarwhalModelCfg::record_msg_in)
+        .record_msg_out(NarwhalModelCfg::record_msg_out)
     }
 }
 
@@ -1250,7 +1254,7 @@ impl NarwhalModelCfg {
 //          pub within_boundary: fn(cfg: &C, state: &ActorModelState<A, H>) -> bool,
 // }
 
-#[derive(PartialEq,Debug)]
+#[derive(PartialEq, Debug)]
 enum ModesEnum {
     Check,
     Spawn,
@@ -1424,7 +1428,7 @@ fn main() {
                 |bytes| serde_json::from_slice(bytes),
                 all_vactor_vec,
             )
-                .unwrap();
+            .unwrap();
 
             // "the
             use ed25519_consensus::{SigningKey, VerificationKey};
@@ -1454,8 +1458,8 @@ fn main() {
 
             // Verify the signature
             assert!(VerificationKey::try_from(vk_bytes)
-                    .and_then(|vk| vk.verify(&sig_bytes.into(), msg))
-                    .is_ok());
+                .and_then(|vk| vk.verify(&sig_bytes.into(), msg))
+                .is_ok());
 
             // -- end elliptic curves usage
         }
@@ -1470,10 +1474,10 @@ fn main() {
                 network: nw,
             }
             .into_model()
-                .checker()
-                .threads(num_cpus::get())
-                .spawn_dfs()
-                .report(&mut std::io::stdout());
+            .checker()
+            .threads(num_cpus::get())
+            .spawn_dfs()
+            .report(&mut std::io::stdout());
         }
         Explore => {
             let c_count = 3;
@@ -1490,11 +1494,11 @@ fn main() {
                 network: nw,
             }
             .into_model()
-                .checker()
-                .threads(num_cpus::get())
-                .serve(address);
+            .checker()
+            .threads(num_cpus::get())
+            .serve(address);
         } // _ => {
-        //     panic!("noooo, SUP?!")
-        // }
+          //     panic!("noooo, SUP?!")
+          // }
     }
 }
