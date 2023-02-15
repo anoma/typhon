@@ -41,6 +41,11 @@ use cute::c; // for “pythonic” vec comprehension
 
 use std::hash::{Hash, Hasher};
 type Digest = u64;
+type KeySeed = [u8; 32];
+type VKBytes = [u8; 32];
+type Sig  = [u8; 64];
+
+// computing hashes
 fn hash_of<T: Hash>(t: &T) -> Digest {
     let mut s = DefaultHasher::new();
     t.hash(&mut s);
@@ -53,9 +58,46 @@ fn hash_of<T: Hash>(t: &T) -> Digest {
         let second_hash = s_prime.finish();
         assert!(the_hash == second_hash);
     }
-
-    the_hash
+    the_hash // return
 }
+
+fn sign_bytes(
+    k : KeySeed,
+    bytes : &[u8]
+) -> Sig {
+    let key = ed25519_consensus::SigningKey::from(k);
+    key.sign(bytes).to_bytes()
+}
+
+fn sign_serializable<T: ?Sized>(
+    k : KeySeed,
+    x : &T
+) -> Sig where T: serde::Serialize+Debug {
+    let bytes = &bincode::serialize(x); // : Result<Vec<u8>>
+    let bytes_slice: &[u8] = match bytes {
+        Ok(bytes) => bytes,
+        Err(e) => 
+            if cfg!(debug_assertions) {
+                panic!("wow, serializing {:?} failed with error {}", x, e);
+            } else {
+                eprintln!("serializaion error {} for {:?}", e, x);
+                b"anoma"
+            },
+    };
+    // let key = ed25519_consensus::SigningKey::from(k);
+    // key.sign(bytes_slice).to_bytes() // return
+    sign_bytes(k, bytes_slice)
+}
+
+// fn hash_n_sign<T: ?Sized>(
+//     k : KeySeed,
+//     x : &T
+// ) -> Sig where T: serde::Serialize+Debug {
+
+//     [0;64] // rerturn
+// }
+
+
 
 // the data type of learner graphs
 mod learner_graph {
@@ -90,7 +132,7 @@ mod pki {
     // - lookup of verification keys via `lookup_vk`
     pub trait Registry {
         // registering a verification key for the id
-        fn register_key(&mut self, _: Id, _: VerificationKey, _: [u8; 64]) -> bool;
+        fn register_key(&mut self, _: Id, _: VerificationKey, _: Signature) -> bool;
 
         // looking up the key for the id
         fn lookup_vk(&self, _: Id) -> Option<VerificationKey>;
@@ -101,7 +143,7 @@ mod pki {
     }
 
     impl Registry for KeyTable {
-        fn register_key(&mut self, id: Id, vk: VerificationKey, _sig: [u8; 64]) -> bool {
+        fn register_key(&mut self, id: Id, vk: VerificationKey, _sig: Signature) -> bool {
             // MENDME, add some form of authentication
             self.map.insert(id, vk) != None
         }
@@ -127,9 +169,9 @@ mod pki {
     //         let sig = sk.sign(msg);
     //
     //         // Types can be converted to raw byte arrays with From/Into
-    //         let sig_bytes: [u8; 64];
+    //         let sig_bytes: Signature;
     //         sig_bytes = sig.into();
-    //         let vk_bytes: [u8; 32];
+    //         let vk_bytes: VKBytes;
     //         vk_bytes = VerificationKey::from(&sk).into();
     //
     //         (vk_bytes, sig_bytes)
@@ -196,14 +238,14 @@ type SQHash = ();
 // serialization matters as in https://crates.io/crates/bincode
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, Hash, PartialOrd, Ord)]
 struct WorkerHashData {
-    // the take (formerly, the round of the primary)
-    take: Take,
-    // the number of txs of this worker hash
-    length: usize,
     // the hash
     hash: u64,
+    // the number of txs of this worker hash
+    length: usize,
+    // the take (formerly, the round of the primary)
+    take: Take,
     // the collector
-    collector: WorkerId,
+    collector : WorkerId,
 }
 
 // impl Ord for WorkerHashData {
@@ -224,7 +266,7 @@ struct WorkerHashData {
 use serde_big_array::BigArray;
 
 // the type of worker hash signatures
-type WorkerHashSignature = [u8; 64];
+type WorkerHashSignature = Sig;
 
 // the type of worker hash signatures
 
@@ -233,7 +275,7 @@ type WorkerHashSignature = [u8; 64];
 struct HeaderSignature {
     val: ValidatorId,
     #[serde(with = "BigArray")]
-    sig: [u8; 64],
+    sig: Sig,
 }
 
 // the type of signed quorum hashes (and any other hash)
@@ -346,7 +388,7 @@ struct WorkerState {
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 struct PrimaryState {
     // map_of_worker_hashes, foreign / forwarded
-    map_of_worker_hashes: BTreeMap<WorkerId, Vec<WorkerHashData>>,
+    map_of_worker_hashes: BTreeMap<WorkerId, BTreeMap<Take, WorkerHashData>>,
     // local worker hashes
     worker_hash_set: BTreeSet<(WorkerId, WorkerHashData)>,
     // the id
@@ -365,9 +407,9 @@ type ClientState = Vec<WorkerId>;
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 enum StateEnum {
     // every actor has a signing key (seed)
-    Worker(WorkerState, [u8; 32], Id),
-    Primary(PrimaryState, [u8; 32], Id),
-    Client(ClientState, [u8; 32], Id),
+    Worker(WorkerState, KeySeed, Id),
+    Primary(PrimaryState, KeySeed, Id),
+    Client(ClientState, KeySeed, Id),
 }
 
 use crate::StateEnum::*;
@@ -376,7 +418,7 @@ use crate::StateEnum::*;
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
 struct WorkerActor {
     // key (as seed)
-    key_seed: [u8; 32],
+    key_seed: KeySeed,
     // the index of a worker
     index: WorkerIndex,
     // the primary
@@ -393,7 +435,7 @@ struct WorkerActor {
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
 struct PrimaryActor {
     // key (as seed) -- NB: this needs to be fixed before `on_start`
-    key_seed: [u8; 32],
+    key_seed: KeySeed,
     // the ids of all (known) peer validators
     peer_validators: Vec<ValidatorId>,
     // my_expected_id (for debugging)
@@ -406,7 +448,7 @@ struct PrimaryActor {
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
 struct ClientActor {
     // key (as seed) -- NB: this needs to be fixed before `on_start`
-    key_seed: [u8; 32],
+    key_seed: KeySeed,
     // verification key,
 
     // the vector of workers to which requests can/will be sent
@@ -478,7 +520,7 @@ pub trait Vactor: Sized {
     type Msg: Clone + Debug + Eq + Hash;
     type State: Clone + Debug + PartialEq + Hash;
 
-    fn get_vk_bytes(&self) -> [u8; 32];
+    fn get_vk_bytes(&self) -> VKBytes;
 
     fn send(&self, id: Id, m: Self::Msg, o: &mut Vec<Outputs<Id, Self::Msg>>) {
         o.push(Outputs::Snd(id, m));
@@ -532,7 +574,7 @@ impl Vactor for ClientActor {
     type Msg = MessageEnum;
     type State = StateEnum;
 
-    fn get_vk_bytes(&self) -> [u8; 32] {
+    fn get_vk_bytes(&self) -> VKBytes {
         use ed25519_consensus::*;
         VerificationKey::from(&SigningKey::from(self.key_seed)).into()
     }
@@ -592,7 +634,7 @@ fn is_valid_signature(
     w_hash: &WorkerHashData,
     sig: WorkerHashSignature,
 ) -> bool {
-    //fn verify(&self, &Signature, &[u8]) -> Result<(), Error>
+    //fn verify(&self, &Sig, &[u8]) -> Result<(), Error>
     use ed25519_consensus::{Signature, VerificationKey};
     use pki::*;
     let the_reg = REG_MUTEX.lock().unwrap();
@@ -636,7 +678,7 @@ impl WorkerActor {
         tx: TxData,
         ack: <WorkerActor as Vactor>::Msg,
         state: &mut WorkerState,
-        key_seed: [u8; 32],
+        key_seed: KeySeed,
     ) -> Vec<Outputs<Id, <WorkerActor as Vactor>::Msg>> {
         let mut o = vec![];
         if client != src {
@@ -677,10 +719,12 @@ impl WorkerActor {
                 if cfg!(debug_assertions) {
                     assert!(w_hash.collector == self.my_expected_id);
                 }
-                let w_bytes: &[u8] = &bincode::serialize(&w_hash).unwrap();
-                use ed25519_consensus::SigningKey;
-                let key = SigningKey::from(key_seed);
-                let sig: WorkerHashSignature = key.sign(w_bytes).to_bytes();
+                let sig: WorkerHashSignature = 
+                    sign_serializable(
+                    key_seed,
+                    &w_hash
+                );
+
 
                 // notify primary that a new batch hash is out
                 // aka worker hash provision
@@ -779,7 +823,7 @@ impl Vactor for WorkerActor {
     type Msg = MessageEnum;
     type State = StateEnum;
 
-    fn get_vk_bytes(&self) -> [u8; 32] {
+    fn get_vk_bytes(&self) -> VKBytes {
         use ed25519_consensus::*;
         VerificationKey::from(&SigningKey::from(self.key_seed)).into()
     }
@@ -823,7 +867,7 @@ impl Vactor for WorkerActor {
         }
         // check if state is proper
         let mut worker_state: &mut WorkerState;
-        let key_seed: [u8; 32];
+        let key_seed: KeySeed;
         if let Worker(ref mut s, k, _i) = state.to_mut() {
             worker_state = s;
             key_seed = *k;
@@ -925,23 +969,54 @@ impl PrimaryActor {
         res
     }
 
+    // when a primary gets a "bump" from a peer validator 
     fn process_sign_request(
         &self,
-        whxs: Vec<(WorkerId,Take)>
+        whxs: Vec<(WorkerId, Take)>,
+        p_state: &mut PrimaryState,
+        key_seed: KeySeed
     ) -> Vec<Outputs<Id, <PrimaryActor as Vactor>::Msg>> {
         // 1. retrieve the relevant worker hashes
-        // 2. sign the worker hash
-        // 3. “commit” to the signed worker hash, by sending it back 
-        // -- 
-        vec![]
-        
+        let mut the_list = vec![];
+        let mut no_misses = true;
+        for (i,t) in whxs.into_iter(){
+            if let Some(i_takes) = p_state.map_of_worker_hashes.get(&i){
+                if let Some(wh) = i_takes.get(&t){
+                    the_list.push(wh);
+                }
+            } else {
+                no_misses = false;
+                break;
+            }
+        }
+        if no_misses {
+            // ok, we got everything
+            // 2. (hash-)sign the worker hash
+            let the_sig = sign_serializable(key_seed, &the_list);
+            let signature = HeaderSignature{
+                sig: the_sig,
+                val : p_state.the_id,
+            };
+            // 3. “commit” to the signed worker hash, by sending it back
+            let msg = HeaderSig(p_state.the_id, p_state.rnd, signature);
+            let mut outs = vec![];
+            self.send_(p_state.validators.clone(),msg, &mut outs);
+            outs // "return"
+        } else {
+            // we set a timer
+            // 2'. push the signing request to the stack of pending headers
+            
+            // 3'. set a timer
+            vec![] // "return"
+        }
+
     }
 }
 impl Vactor for PrimaryActor {
     type Msg = MessageEnum;
     type State = StateEnum;
 
-    fn get_vk_bytes(&self) -> [u8; 32] {
+    fn get_vk_bytes(&self) -> VKBytes {
         use ed25519_consensus::*;
         VerificationKey::from(&SigningKey::from(self.key_seed)).into()
     }
@@ -979,16 +1054,24 @@ impl Vactor for PrimaryActor {
     // the correct primary's behaviour
     fn on_msg_vec(
         &self,
-        _id: Id,
+        id: Id,
         state: &mut Cow<Self::State>,
         src: Id,
         msg: Self::Msg,
     ) -> Vec<Outputs<Id, Self::Msg>> {
         let p_state;
-        if let StateEnum::Primary(ref mut state, _, _) = state.to_mut() {
+        let key_seed;
+        if let StateEnum::Primary(ref mut state, key, _) = state.to_mut() {
             p_state = state;
+            if cfg!(debug_assertions) {
+                assert!(p_state.the_id == id);
+                assert!(p_state.the_id == self.my_expected_id);
+            }
+            key_seed = key.clone();
         } else {
-            panic!("wrong primary state");
+            // the following would be fatal bug
+            panic!("The state {:?} is not even of the right kind", state);
+
         }
         match msg {
             WHxFwd(wh_data, _) => {
@@ -996,7 +1079,7 @@ impl Vactor for PrimaryActor {
                 // which we have to keep (as it will be part of a header)
                 match p_state.map_of_worker_hashes.get_mut(&wh_data.collector) {
                     Some(v) => {
-                        v.push(wh_data.clone());
+                        v.insert(wh_data.take, wh_data.clone());
                     }
                     None => {
                         panic! {"map of worker hashes messed up at {:?}", self};
@@ -1015,15 +1098,16 @@ impl Vactor for PrimaryActor {
                     vec![]
                 }
             }
-            NextHeader(r, _whxs, _ac, _sqhx) => {
+            NextHeader(r, whxs, _ac, _sqhx) => {
                 // check if we have all relevant worker hashes
                 // if so, sign (if this is the first header)
                 // otherwise, wait some
-                
                 if r > GENESIS_ROUND {
-                    println!("not genessi");
+                    println!("not genesis");
+                    vec![]
+                } else {
+                    self.process_sign_request(whxs, p_state, key_seed)
                 }
-                vec![]
             }
             _ => {
                 vec![]
@@ -1072,7 +1156,7 @@ impl Actor for HNActor {
             Ok(vk) => {
                 use pki::*;
                 let mut the_reg = REG_MUTEX.lock().unwrap();
-                the_reg.register_key(id, vk, DUMMY_SIG);
+                the_reg.register_key(id, vk, *DUMMY_SIG);
             }
             _ => {
                 panic!("bad key at `HNactor` {:?}", self);
@@ -1126,7 +1210,7 @@ struct NarwhalModelCfg {
 
 // generates a key_seed,
 // using ed25519_consensus::SigningKey rand::thread_rng
-fn fresh_key_seed() -> [u8; 32] {
+fn fresh_key_seed() -> KeySeed {
     use ed25519_consensus::SigningKey;
     use rand::thread_rng;
     let key = SigningKey::new(thread_rng());
@@ -1290,8 +1374,9 @@ use ModesEnum::*;
 //const SUP:ModesEnum = Check;
 //const SUP:ModesEnum = Spawn;
 const SUP: ModesEnum = Explore;
-
-const DUMMY_SIG: [u8; 64] = [0; 64];
+lazy_static! {
+    static ref DUMMY_SIG: ed25519_consensus::Signature = [0; 64].into();
+}
 fn main() {
     println!(
         "There are three modes of operation {:?}, {:?}, and {:?}",
@@ -1456,7 +1541,7 @@ fn main() {
             .unwrap();
 
             // "the
-            use ed25519_consensus::{SigningKey, VerificationKey};
+            use ed25519_consensus::{Signature,SigningKey, VerificationKey};
             use rand::thread_rng;
 
             let key = SigningKey::new(thread_rng());
@@ -1475,8 +1560,8 @@ fn main() {
                 let sig = sk.sign(msg);
 
                 // Types can be converted to raw byte arrays with From/Into
-                let sig_bytes: [u8; 64] = sig.into();
-                let vk_bytes: [u8; 32] = VerificationKey::from(&sk).into();
+                let sig_bytes: Signature = sig.into();
+                let vk_bytes: VKBytes = VerificationKey::from(&sk).into();
 
                 (vk_bytes, sig_bytes)
             };
