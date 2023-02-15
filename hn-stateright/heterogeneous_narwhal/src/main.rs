@@ -145,15 +145,16 @@ mod pki {
     impl Registry for KeyTable {
         fn register_key(&mut self, id: Id, vk: VerificationKey, _sig: Signature) -> bool {
             // MENDME, add some form of authentication
-            self.map.insert(id, vk) != None
+            self.map.insert(id, vk).is_some()
         }
 
         fn lookup_vk(&self, id: Id) -> Option<VerificationKey> {
-            if let Some(vk) = self.map.get(&id) {
-                Some(*vk)
-            } else {
-                None
-            }
+            // if let Some(vk) = self.map.get(&id) {
+            //     Some(*vk)
+            // } else {
+            //     None
+            // }
+            self.map.get(&id).copied()
         }
     }
 
@@ -195,10 +196,9 @@ extern crate lazy_static;
 use std::sync::Mutex;
 lazy_static! {
     static ref REG_MUTEX: Mutex<pki::KeyTable> = Mutex::new({
-        let x = pki::KeyTable {
+        pki::KeyTable {
             map: BTreeMap::new(),
-        };
-        x
+        }
     });
 }
 
@@ -397,6 +397,8 @@ struct PrimaryState {
     validators: Vec<ValidatorId>,
     // round
     rnd: Round,
+    // the pending signing requests
+    pending_requests: VecDeque<(Round, Vec<(WorkerId, Take)>)>,
 }
 
 // the state type of clients
@@ -589,12 +591,11 @@ impl Vactor for ClientActor {
         // send a different tx to every worker, to get started
         let mut x = 0;
         for k in &self.known_workers {
-            x = x + 1;
+            x += 1;
             self.send(*k, TxReq(vec![x], id), &mut o);
         }
 
-        let res = (client_state, o);
-        res
+        (client_state, o) // return
     }
 
     fn on_msg_vec(
@@ -635,10 +636,10 @@ fn is_valid_signature(
     sig: WorkerHashSignature,
 ) -> bool {
     //fn verify(&self, &Sig, &[u8]) -> Result<(), Error>
-    use ed25519_consensus::{Signature, VerificationKey};
+    use ed25519_consensus::Signature;
     use pki::*;
     let the_reg = REG_MUTEX.lock().unwrap();
-    let key = VerificationKey::from(the_reg.lookup_vk(src).unwrap());
+    let key = the_reg.lookup_vk(src).unwrap();
     let w_bytes = &bincode::serialize(&w_hash).unwrap();
     match key.verify(&Signature::from(sig), w_bytes) {
         Ok(_) => true,
@@ -654,13 +655,12 @@ fn is_valid_signature(
 // after filtering the take `tk`
 // the code is pretty generic
 fn filter_n_sort<T: Clone, C: Clone, U: Ord + Clone>(
-    vector: &mut Vec<(T, C, U, Take)>,
+    vector: &[(T, C, U, Take)],
     tk: Take,
 ) -> Vec<(T, C, U, Take)> {
     // let x be the vector of transaction whose “take” is tk
     let mut x = vector
-        .clone()
-        .into_iter()
+        .iter().cloned()
         .filter(|x| x.3 == tk)
         .collect::<Vec<(T, C, U, Take)>>();
     // sort x, ascending in the sequence number (within the take)
@@ -702,7 +702,7 @@ impl WorkerActor {
                 &mut o,
             );
             //
-            state.take = state.take + 1;
+            state.take += 1;
             if cfg!(debug_assertions) {
                 println!("Worker {:?} at take {}", self, state.take);
             }
@@ -972,24 +972,25 @@ impl PrimaryActor {
     // when a primary gets a "bump" from a peer validator 
     fn process_sign_request(
         &self,
+        r:Round,
         whxs: Vec<(WorkerId, Take)>,
         p_state: &mut PrimaryState,
         key_seed: KeySeed
     ) -> Vec<Outputs<Id, <PrimaryActor as Vactor>::Msg>> {
         // 1. retrieve the relevant worker hashes
         let mut the_list = vec![];
-        let mut no_misses = true;
-        for (i,t) in whxs.into_iter(){
+        let mut no_takes_missing = true;
+        for (i,t) in whxs.clone().into_iter(){
             if let Some(i_takes) = p_state.map_of_worker_hashes.get(&i){
                 if let Some(wh) = i_takes.get(&t){
                     the_list.push(wh);
                 }
             } else {
-                no_misses = false;
+                no_takes_missing = false;
                 break;
             }
         }
-        if no_misses {
+        if no_takes_missing {
             // ok, we got everything
             // 2. (hash-)sign the worker hash
             let the_sig = sign_serializable(key_seed, &the_list);
@@ -1000,18 +1001,20 @@ impl PrimaryActor {
             // 3. “commit” to the signed worker hash, by sending it back
             let msg = HeaderSig(p_state.the_id, p_state.rnd, signature);
             let mut outs = vec![];
-            self.send_(p_state.validators.clone(),msg, &mut outs);
+            self.send_(p_state.validators.clone(), msg, &mut outs);
             outs // "return"
         } else {
             // we set a timer
             // 2'. push the signing request to the stack of pending headers
-            
+            p_state.pending_requests.push_back((r,whxs));
             // 3'. set a timer
-            vec![] // "return"
+            let mut outs = vec![];
+            self.check_back_later(&mut outs);
+            outs // "return"  
         }
 
     }
-}
+} 
 impl Vactor for PrimaryActor {
     type Msg = MessageEnum;
     type State = StateEnum;
@@ -1043,6 +1046,7 @@ impl Vactor for PrimaryActor {
                     the_id: id,
                     validators: self.peer_validators.clone(),
                     rnd: GENESIS_ROUND,
+                    pending_requests: VecDeque::new(),
                 },
                 key_seed,
                 id,
@@ -1106,7 +1110,7 @@ impl Vactor for PrimaryActor {
                     println!("not genesis");
                     vec![]
                 } else {
-                    self.process_sign_request(whxs, p_state, key_seed)
+                    self.process_sign_request(r, whxs, p_state, key_seed)
                 }
             }
             _ => {
