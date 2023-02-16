@@ -14,7 +14,8 @@ use std::fmt::Debug;
 // as in doc.rust-lang.org/std/hash/index.html,
 // re-using the following 8 (eight) lines of code:
 use std::collections::hash_map::DefaultHasher;
-use std::collections::{LinkedList,VecDeque};
+// use std::collections::{LinkedList,VecDeque};
+use std::collections::VecDeque;
 use std::collections::{BTreeMap, BTreeSet};
 // fn hash_to_btree<K:std::cmp::Ord,V>(
 //     hash: HashMap<K, V>
@@ -1275,35 +1276,39 @@ impl NarwhalModelCfg {
         ]
     }
 
+    // we need the Copy trait for histories in stateright
+    #[allow(clippy::ptr_arg)]
     fn record_msg_in
         ( _cfg: &Self,
-           history: &LinkedList<Envelope<<HNActor as Actor>::Msg>>,
+           history: &Vec<Envelope<<HNActor as Actor>::Msg>>,
            env: Envelope<&
                          <HNActor as Actor>::Msg>,
-        ) -> Option<LinkedList<Envelope<<HNActor as Actor>::Msg>>> {
+        ) -> Option<Vec<Envelope<<HNActor as Actor>::Msg>>> {
             let mut h = history.clone();
             let e = env.to_cloned_msg();
-            h.push_back(e);
+            h.push(e);
             Some(h)
         }
 
+    // we need the Copy trait for histories in stateright
+    #[allow(clippy::ptr_arg)] 
     fn record_msg_out(
         _cfg: &Self,
-        history: &LinkedList<Envelope<<HNActor as Actor>::Msg>>,
+        history: &Vec<Envelope<<HNActor as Actor>::Msg>>,
         env: Envelope<&<HNActor as Actor>::Msg>,
-    ) -> Option<LinkedList<Envelope<<HNActor as Actor>::Msg>>> {
+    ) -> Option<Vec<Envelope<<HNActor as Actor>::Msg>>> {
         let mut h = history.clone();
         let e = env.to_cloned_msg();
-        h.push_back(e);
+        h.push(e);
         Some(h)
         }
 
     // The actor ids in models of stateright are essentially hard-coded;
     // they are given by the position the `actors` field
-    fn into_model(self) -> ActorModel<HNActor, Self, LinkedList<Envelope<<HNActor as Actor>::Msg>>> {
+    fn into_model(self) -> ActorModel<HNActor, Self, Vec<Envelope<<HNActor as Actor>::Msg>>> {
         ActorModel::new(
             self.clone(),
-            LinkedList::new(), // here will go histories, i.e., sequences of
+            Vec::new(), // here will go histories, i.e., sequences of
         )
         // we **have**add actors in the following order
         // wic = worker_index_count
