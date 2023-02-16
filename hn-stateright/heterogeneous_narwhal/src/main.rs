@@ -14,7 +14,7 @@ use std::fmt::Debug;
 // as in doc.rust-lang.org/std/hash/index.html,
 // re-using the following 8 (eight) lines of code:
 use std::collections::hash_map::DefaultHasher;
-use std::collections::VecDeque;
+use std::collections::{LinkedList,VecDeque};
 use std::collections::{BTreeMap, BTreeSet};
 // fn hash_to_btree<K:std::cmp::Ord,V>(
 //     hash: HashMap<K, V>
@@ -414,11 +414,10 @@ enum StateEnum {
     Client(ClientState, KeySeed, Id),
 }
 
-use crate::StateEnum::*;
 
 // WorkerActor holds the static information about actors
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
-struct WorkerActor {
+struct Worker {
     // key (as seed)
     key_seed: KeySeed,
     // the index of a worker
@@ -435,7 +434,7 @@ struct WorkerActor {
 
 // PrimaryActor holds the static information about primaries
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
-struct PrimaryActor {
+struct Primary {
     // key (as seed) -- NB: this needs to be fixed before `on_start`
     key_seed: KeySeed,
     // the ids of all (known) peer validators
@@ -448,7 +447,7 @@ struct PrimaryActor {
 
 // ClientActor holds the static information about clients
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
-struct ClientActor {
+struct Client {
     // key (as seed) -- NB: this needs to be fixed before `on_start`
     key_seed: KeySeed,
     // verification key,
@@ -559,7 +558,7 @@ pub trait Vactor: Sized {
     }
 }
 
-impl ClientActor {
+impl Client {
     // a function for generating the next tx
     fn next_tx(tx: TxData) -> TxData {
         // could be "random", but, to keep things simple for the moment:
@@ -572,7 +571,7 @@ impl ClientActor {
 }
 
 // the client's behaviour: on_start_vec, on_msg_vec
-impl Vactor for ClientActor {
+impl Vactor for Client {
     type Msg = MessageEnum;
     type State = StateEnum;
 
@@ -585,7 +584,11 @@ impl Vactor for ClientActor {
         if cfg!(debug_assertions) {
             print!("Start client {}", id);
         }
-        let client_state = Client(self.known_workers.clone(), self.key_seed, id);
+        let client_state = 
+            StateEnum::Client(
+                self.known_workers.clone(),
+                self.key_seed, id
+            );
         let mut o = vec![];
 
         // send a different tx to every worker, to get started
@@ -670,16 +673,16 @@ fn filter_n_sort<T: Clone, C: Clone, U: Ord + Clone>(
 }
 
 // the behaviour of workers, according to the spec
-impl WorkerActor {
+impl Worker {
     fn process_tx_req(
         &self,
         src: Id,
         client: ClientId,
         tx: TxData,
-        ack: <WorkerActor as Vactor>::Msg,
+        ack: <Worker as Vactor>::Msg,
         state: &mut WorkerState,
         key_seed: KeySeed,
-    ) -> Vec<Outputs<Id, <WorkerActor as Vactor>::Msg>> {
+    ) -> Vec<Outputs<Id, <Worker as Vactor>::Msg>> {
         let mut o = vec![];
         if client != src {
             panic!("sender of transaction request is not tx's client");
@@ -754,11 +757,11 @@ impl WorkerActor {
         w_hash: &WorkerHashData,
         sig: WorkerHashSignature,
         state: &mut WorkerState,
-    ) -> Vec<Outputs<Id, <WorkerActor as Vactor>::Msg>> {
+    ) -> Vec<Outputs<Id, <Worker as Vactor>::Msg>> {
         let mut res = vec![];
         let hash_take = w_hash.take;
-        let mut all_src_txs = state.tx_buffer_map[&src].clone();
-        let relevant_txs = filter_n_sort(&mut all_src_txs, hash_take);
+        let all_src_txs = state.tx_buffer_map[&src].clone();
+        let relevant_txs = filter_n_sort(&all_src_txs, hash_take);
         if relevant_txs.len() == w_hash.length {
             if cfg!(debug_assertions) {
                 println!(
@@ -783,7 +786,7 @@ impl WorkerActor {
         w_hash: &WorkerHashData,
         sig: WorkerHashSignature,
         state: &mut WorkerState,
-    ) -> Vec<Outputs<Id, <WorkerActor as Vactor>::Msg>> {
+    ) -> Vec<Outputs<Id, <Worker as Vactor>::Msg>> {
         let mut res = vec![];
         if is_valid_signature(src, w_hash, sig) {
             if cfg!(debug_assertions) {
@@ -801,8 +804,8 @@ impl WorkerActor {
     fn on_timeout_vec(
         &self,
         _id: Id,
-        state: &mut Cow<'_, <WorkerActor as Vactor>::State>,
-    ) -> Vec<Outputs<Id, <WorkerActor as Vactor>::Msg>> {
+        state: &mut Cow<'_, <Worker as Vactor>::State>,
+    ) -> Vec<Outputs<Id, <Worker as Vactor>::Msg>> {
         // specifically check pending_hxs, fifo style, one at a time
         if let StateEnum::Worker(ref mut state, _, _) = state.to_mut() {
             let mut res = vec![];
@@ -819,7 +822,7 @@ impl WorkerActor {
     }
 }
 
-impl Vactor for WorkerActor {
+impl Vactor for Worker {
     type Msg = MessageEnum;
     type State = StateEnum;
 
@@ -846,7 +849,7 @@ impl Vactor for WorkerActor {
             mirrors: self.mirror_workers.clone(), // copy mirror_workers
             the_id: id,                           // copy id
         };
-        let state = Worker(
+        let state = StateEnum::Worker(
             worker_state,
             self.key_seed, // copy key
             id,            // copy id
@@ -866,9 +869,9 @@ impl Vactor for WorkerActor {
             println!("Worker {} got a message {:?}", w_id, msg);
         }
         // check if state is proper
-        let mut worker_state: &mut WorkerState;
+        let worker_state: &mut WorkerState;
         let key_seed: KeySeed;
-        if let Worker(ref mut s, k, _i) = state.to_mut() {
+        if let StateEnum::Worker(ref mut s, k, _i) = state.to_mut() {
             worker_state = s;
             key_seed = *k;
             // ok
@@ -884,7 +887,7 @@ impl Vactor for WorkerActor {
                 // this is the expected ack
                 let msg = TxAck(tx.clone(), w_id);
                 // further processing
-                self.process_tx_req(src, client, tx, msg, &mut worker_state, key_seed)
+                self.process_tx_req(src, client, tx, msg, worker_state, key_seed)
             }
             TxToAll(tx, client, seq_num, r) => {
                 // we got a transaction copy (erasure code)
@@ -921,12 +924,12 @@ impl Vactor for WorkerActor {
 }
 
 const FULL_HEADER: usize = 5;
-impl PrimaryActor {
+impl Primary {
 
     fn process_new_header(
         &self,
         p_state: &mut PrimaryState,
-    ) -> Vec<Outputs<Id, <PrimaryActor as Vactor>::Msg>> {
+    ) -> Vec<Outputs<Id, <Primary as Vactor>::Msg>> {
         let wh_list: Vec<(WorkerId, Take)> = 
             p_state
             .worker_hash_set
@@ -936,9 +939,8 @@ impl PrimaryActor {
             .map(|(i, w)| (i, w.take)) 
             .collect();
         // the message to be sent to all fellow validators
-        let msg;
-        if p_state.rnd == GENESIS_ROUND {
-            msg = NextHeader(
+        let msg = if p_state.rnd == GENESIS_ROUND {
+            NextHeader(
                 // the current round, i.e., GENESIS_ROUND
                 p_state.rnd,
                 // vector of collector-take pairs, identifying the worker hashes
@@ -946,8 +948,8 @@ impl PrimaryActor {
                 // availability certificate
                 None, // Option<AC>,
                 None, // hashes of signed quorums
-                      // Option<Vec<SQHash>>
-            );
+                // Option<Vec<SQHash>>
+            )
         } else {
             panic!("not implemented yet");
             // NextHeader(
@@ -957,7 +959,7 @@ impl PrimaryActor {
             //     // Option<AC>
             //     None, // PLACEHOLDER for signed quorum information
             // )
-        }
+        };
 
         // the result of "outputs" (in the sense of stateright)
         let mut res = vec![];
@@ -976,7 +978,7 @@ impl PrimaryActor {
         whxs: Vec<(WorkerId, Take)>,
         p_state: &mut PrimaryState,
         key_seed: KeySeed
-    ) -> Vec<Outputs<Id, <PrimaryActor as Vactor>::Msg>> {
+    ) -> Vec<Outputs<Id, <Primary as Vactor>::Msg>> {
         // 1. retrieve the relevant worker hashes
         let mut the_list = vec![];
         let mut no_takes_missing = true;
@@ -1015,7 +1017,7 @@ impl PrimaryActor {
 
     }
 } 
-impl Vactor for PrimaryActor {
+impl Vactor for Primary {
     type Msg = MessageEnum;
     type State = StateEnum;
 
@@ -1039,7 +1041,7 @@ impl Vactor for PrimaryActor {
             }
         }
         (
-            Primary(
+            StateEnum::Primary(
                 PrimaryState {
                     map_of_worker_hashes: BTreeMap::new(),
                     worker_hash_set: BTreeSet::new(),
@@ -1071,7 +1073,7 @@ impl Vactor for PrimaryActor {
                 assert!(p_state.the_id == id);
                 assert!(p_state.the_id == self.my_expected_id);
             }
-            key_seed = key.clone();
+            key_seed = *key;
         } else {
             // the following would be fatal bug
             panic!("The state {:?} is not even of the right kind", state);
@@ -1124,9 +1126,9 @@ impl Vactor for PrimaryActor {
 // ActorEnum wraps up all actor structs into an enum
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
 enum ActorEnum {
-    Client(ClientActor),
-    Worker(WorkerActor),
-    Primary(PrimaryActor),
+    Client(Client),
+    Worker(Worker),
+    Primary(Primary),
 }
 
 //
@@ -1144,12 +1146,12 @@ enum ActorEnum {
 #[derive(Delegate, Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
 #[delegate(Vactor)]
 enum HNActor {
-    ClientActor(ClientActor),
-    WorkerActor(WorkerActor),
-    PrimaryActor(PrimaryActor),
+    Client(Client),
+    Worker(Worker),
+    Primary(Primary),
 }
 
-use HNActor::*;
+
 impl Actor for HNActor {
     type Msg = MessageEnum;
     type State = StateEnum;
@@ -1273,34 +1275,35 @@ impl NarwhalModelCfg {
         ]
     }
 
-    fn record_msg_in<'a, 'b, 'c>(
-        _cfg: &'a Self,
-        history: &'b Vec<Envelope<<HNActor as Actor>::Msg>>,
-        env: Envelope<&'c <HNActor as Actor>::Msg>,
-    ) -> Option<Vec<Envelope<<HNActor as Actor>::Msg>>> {
-        let mut h = history.clone();
-        let e = env.to_cloned_msg();
-        h.push(e);
-        Some(h)
-    }
+    fn record_msg_in
+        ( _cfg: &Self,
+           history: &LinkedList<Envelope<<HNActor as Actor>::Msg>>,
+           env: Envelope<&
+                         <HNActor as Actor>::Msg>,
+        ) -> Option<LinkedList<Envelope<<HNActor as Actor>::Msg>>> {
+            let mut h = history.clone();
+            let e = env.to_cloned_msg();
+            h.push_back(e);
+            Some(h)
+        }
 
-    fn record_msg_out<'a, 'b, 'c>(
-        _cfg: &'a Self,
-        history: &'b Vec<Envelope<<HNActor as Actor>::Msg>>,
-        env: Envelope<&'c <HNActor as Actor>::Msg>,
-    ) -> Option<Vec<Envelope<<HNActor as Actor>::Msg>>> {
+    fn record_msg_out(
+        _cfg: &Self,
+        history: &LinkedList<Envelope<<HNActor as Actor>::Msg>>,
+        env: Envelope<&<HNActor as Actor>::Msg>,
+    ) -> Option<LinkedList<Envelope<<HNActor as Actor>::Msg>>> {
         let mut h = history.clone();
         let e = env.to_cloned_msg();
-        h.push(e);
+        h.push_back(e);
         Some(h)
-    }
+        }
 
     // The actor ids in models of stateright are essentially hard-coded;
     // they are given by the position the `actors` field
-    fn into_model(self) -> ActorModel<HNActor, Self, Vec<Envelope<<HNActor as Actor>::Msg>>> {
+    fn into_model(self) -> ActorModel<HNActor, Self, LinkedList<Envelope<<HNActor as Actor>::Msg>>> {
         ActorModel::new(
             self.clone(),
-            vec![], // here will go histories, i.e., sequences of
+            LinkedList::new(), // here will go histories, i.e., sequences of
         )
         // we **have**add actors in the following order
         // wic = worker_index_count
@@ -1309,7 +1312,7 @@ impl NarwhalModelCfg {
         // 1. workers: 0..wic*pc
         // 2. primaries: wic*pc..(wic+1)*pc
         // 3. clients: (wic+1)*pc..(wic+1)*pc+cc
-        .actors(c![WorkerActor(WorkerActor{
+            .actors(c![HNActor::Worker(Worker{
                 index: i as u64,
                 primary: Id::from(self.get_primary_idx(j)),
                 mirror_workers: self.calculate_mirror_workers_and_id(i,j).0,
@@ -1319,13 +1322,13 @@ impl NarwhalModelCfg {
             }),
                        for i in 0..self.worker_index_count,
                        for j in 0..self.primary_count])
-        .actors(c![PrimaryActor(PrimaryActor{
+            .actors(c![HNActor::Primary(Primary{
                 peer_validators: self.calculate_peer_validators_and_id(p).0,
                 my_expected_id: self.calculate_peer_validators_and_id(p).1,
                 key_seed: fresh_key_seed(),
                 local_workers:self.calculate_local_workers(p),
             }), for p in 0..self.primary_count])
-        .actors(c![ClientActor(ClientActor{
+            .actors(c![HNActor::Client(Client{
                 known_workers: self.calculate_known_workers(),
                 my_expected_id: self.get_client_idx(c).into(),
                 key_seed: fresh_key_seed(),
@@ -1381,6 +1384,8 @@ const SUP: ModesEnum = Explore;
 lazy_static! {
     static ref DUMMY_SIG: ed25519_consensus::Signature = [0; 64].into();
 }
+
+#[allow(clippy::assertions_on_constants)]
 fn main() {
     println!(
         "There are three modes of operation {:?}, {:?}, and {:?}",
@@ -1409,6 +1414,8 @@ fn main() {
                 for y in 0..PRIMARY_COUNT
             ];
             let primary_port = 4000; // hopefully big enough ...
+
+
             assert!(4000 > 3000 + (WORKER_INDEX_COUNT + 1) * PRIMARY_COUNT);
 
             // and their primaries
@@ -1432,7 +1439,7 @@ fn main() {
 
             // create actor structs:
             let clients = c![
-                ClientActor{
+                Client{
                     known_workers:worker_ids.clone(),
                     my_expected_id:Id::from(SocketAddrV4::new(Ipv4Addr::LOCALHOST, client_port + y)),
                     key_seed: fresh_key_seed(),
@@ -1442,7 +1449,7 @@ fn main() {
             // create primary structs:
 
             let primaries = c![
-                PrimaryActor{peer_validators : primary_ids.clone(),
+                Primary{peer_validators : primary_ids.clone(),
                              my_expected_id: Id::from(SocketAddrV4::new(Ipv4Addr::LOCALHOST, primary_port + y)),
                              key_seed: fresh_key_seed(),
                              local_workers:
@@ -1457,7 +1464,7 @@ fn main() {
             ];
             // create worker structs:
             let workers = c![
-                WorkerActor{
+                Worker{
                     index : x as u64,
                     primary : primary_ids[x as usize],
                     mirror_workers : c![
@@ -1528,13 +1535,13 @@ fn main() {
 
             let mut all_vactor_vec: Vec<(Id, HNActor)> = Vec::new();
             for (i, a) in client_actor_vec {
-                all_vactor_vec.push((i, HNActor::ClientActor(a)));
+                all_vactor_vec.push((i, HNActor::Client(a)));
             }
             for (i, a) in primary_actor_vec {
-                all_vactor_vec.push((i, HNActor::PrimaryActor(a)));
+                all_vactor_vec.push((i, HNActor::Primary(a)));
             }
             for (i, a) in worker_actor_vec {
-                all_vactor_vec.push((i, HNActor::WorkerActor(a)));
+                all_vactor_vec.push((i, HNActor::Worker(a)));
             }
 
             spawn(
@@ -1564,7 +1571,7 @@ fn main() {
                 let sig = sk.sign(msg);
 
                 // Types can be converted to raw byte arrays with From/Into
-                let sig_bytes: Signature = sig.into();
+                let sig_bytes: Signature = sig;
                 let vk_bytes: VKBytes = VerificationKey::from(&sk).into();
 
                 (vk_bytes, sig_bytes)
@@ -1572,7 +1579,7 @@ fn main() {
 
             // Verify the signature
             assert!(VerificationKey::try_from(vk_bytes)
-                .and_then(|vk| vk.verify(&sig_bytes.into(), msg))
+                .and_then(|vk| vk.verify(&sig_bytes, msg))
                 .is_ok());
 
             // -- end elliptic curves usage
