@@ -225,8 +225,7 @@ use std::borrow::Cow;
 type TxBlob = u64;
 type TxData = Vec<TxBlob>;
 
-// FIXME: batches "generic" **and** serializable -- ̈"somehow" ?!
-// right now, a batch is just a vector of TxData
+
 
 type Take = u32;
 type SeqNum = usize;
@@ -357,6 +356,8 @@ enum MessageEnum {
         // the signature
         HeaderSignature,
     ),
+    
+
 }
 
 use crate::MessageEnum::*;
@@ -399,7 +400,8 @@ struct PrimaryState {
     // round
     rnd: Round,
     // the pending signing requests
-    pending_requests: VecDeque<(Round, Vec<(WorkerId, Take)>)>,
+    pending_requests: 
+    BTreeMap<ValidatorId, Option<(Round, Vec<(WorkerId, Take)>)>>,
 }
 
 // the state type of clients
@@ -711,8 +713,13 @@ impl Worker {
                 println!("Worker {:?} at take {}", self, state.take);
             }
 
+
             // check if we can finish a batch
             if state.tx_buffer.len() >= BATCH_SIZE {
+                // MENDME: batches "generic" **and** serializable -- ̈"somehow" ?!
+                // right now, a batch is just a vector of TxData, Vec<TxData>
+
+
                 // create and process batch hash
                 let w_hash = WorkerHashData {
                     hash: hash_of(&state.tx_buffer),
@@ -781,7 +788,7 @@ impl Worker {
     }
 
     // checking a worker hash and processing it if ok
-    fn process_w_hx(
+    fn process_whx(
         &self,
         src: WorkerId,
         w_hash: &WorkerHashData,
@@ -911,7 +918,7 @@ impl Vactor for Worker {
                     // probably hiccup in the setup of (worker-)ids etc.
                     println!("Worker {} got a worker hash {:?}", w_id, w_hash);
                 }
-                self.process_w_hx(src, &w_hash, sig, worker_state)
+                self.process_whx(src, &w_hash, sig, worker_state)
             }
             _ => {
                 println!(
@@ -927,11 +934,40 @@ impl Vactor for Worker {
 const FULL_HEADER: usize = 5;
 impl Primary {
 
-    fn process_new_header(
+
+    fn check_n_update_pending_requests(
         &self,
+        _i : ValidatorId,
+        _rnd : Round,
+        _whxs : Vec<(WorkerId, Take)>,
+        _p_state: &mut PrimaryState
+    ) -> bool {
+        // let res : bool;
+        // p_state.pending_requests.push_back((r,whxs));
+        // CONTINUE HERE
+        // match p_state.pending_requests.get(&i) {
+        //     Some(x) => {
+        //         match x {
+        //             Some((r, whxs)) => {
+        //             }
+        //             None => {
+        //             }
+        //         }
+        //     },
+        //     None => {
+        //     }
+        // }
+        false // res
+    }
+
+    fn new_header_announcement(
+        &self,
+        // the generating validator's id
+        v : ValidatorId,
         p_state: &mut PrimaryState,
     ) -> Vec<Outputs<Id, <Primary as Vactor>::Msg>> {
-        let wh_list: Vec<(WorkerId, Take)> = 
+        // prepare the “table of contents”
+        let wh_contents: Vec<(WorkerId, Take)> = 
             p_state
             .worker_hash_set
             .clone()
@@ -945,7 +981,7 @@ impl Primary {
                 // the current round, i.e., GENESIS_ROUND
                 p_state.rnd,
                 // vector of collector-take pairs, identifying the worker hashes
-                wh_list,
+                wh_contents,
                 // availability certificate
                 None, // Option<AC>,
                 None, // hashes of signed quorums
@@ -972,21 +1008,31 @@ impl Primary {
         res
     }
 
-    // when a primary gets a "bump" from a peer validator 
-    fn process_sign_request(
+    // react to a forwarded worker hash (WHxFwd-msg)
+    fn check_whx_fwd(
         &self,
+        wh_hash: WorkerHashData,
+        p_state: &mut PrimaryState
+    ) -> Vec<Outputs<Id, <Primary as Vactor>::Msg>> {
+        // check if it belongs to a wanted header
+        
+        vec![]
+    }
+
+
+    fn check_availability(
+        &self,
+        i: ValidatorId,
         r:Round,
         whxs: Vec<(WorkerId, Take)>,
         p_state: &mut PrimaryState,
-        key_seed: KeySeed
-    ) -> Vec<Outputs<Id, <Primary as Vactor>::Msg>> {
-        // 1. retrieve the relevant worker hashes
+    ) -> Vec<WorkerHashData> {
         let mut the_list = vec![];
         let mut no_takes_missing = true;
         for (i,t) in whxs.clone().into_iter(){
             if let Some(i_takes) = p_state.map_of_worker_hashes.get(&i){
                 if let Some(wh) = i_takes.get(&t){
-                    the_list.push(wh);
+                    the_list.push(wh.clone());
                 }
             } else {
                 no_takes_missing = false;
@@ -994,9 +1040,30 @@ impl Primary {
             }
         }
         if no_takes_missing {
+            the_list
+        } else {
+            vec![]
+        }
+    }
+
+    // when a primary gets a "bump" from a peer validator 
+    // it tries to generate a header, signs it, and commits
+    fn process_sign_request(
+        &self,
+        i: ValidatorId,
+        r:Round,
+        whxs: Vec<(WorkerId, Take)>,
+        p_state: &mut PrimaryState,
+        key_seed: KeySeed
+    ) -> Vec<Outputs<Id, <Primary as Vactor>::Msg>> {
+        // 1. retrieve the relevant worker hashes
+        let list_to_sign = self.check_availability(
+            i, r, whxs, p_state
+        );
+        if !list_to_sign.is_empty() {
             // ok, we got everything
             // 2. (hash-)sign the worker hash
-            let the_sig = sign_serializable(key_seed, &the_list);
+            let the_sig = sign_serializable(key_seed, &list_to_sign);
             let signature = HeaderSignature{
                 sig: the_sig,
                 val : p_state.the_id,
@@ -1004,16 +1071,14 @@ impl Primary {
             // 3. “commit” to the signed worker hash, by sending it back
             let msg = HeaderSig(p_state.the_id, p_state.rnd, signature);
             let mut outs = vec![];
-            self.send_(p_state.validators.clone(), msg, &mut outs);
+            self.send_(p_state.validators.clone(), msg, &mut outs);// FIXME this should go back to the creator
             outs // "return"
         } else {
             // we set a timer
-            // 2'. push the signing request to the stack of pending headers
-            p_state.pending_requests.push_back((r,whxs));
-            // 3'. set a timer
+            // 2'. set a timer
             let mut outs = vec![];
             self.check_back_later(&mut outs);
-            outs // "return"  
+            outs // "return"
         }
 
     }
@@ -1049,7 +1114,7 @@ impl Vactor for Primary {
                     the_id: id,
                     validators: self.peer_validators.clone(),
                     rnd: GENESIS_ROUND,
-                    pending_requests: VecDeque::new(),
+                    pending_requests: BTreeMap::new(),
                 },
                 key_seed,
                 id,
@@ -1066,7 +1131,7 @@ impl Vactor for Primary {
         src: Id,
         msg: Self::Msg,
     ) -> Vec<Outputs<Id, Self::Msg>> {
-        let p_state;
+        let mut p_state;
         let key_seed;
         if let StateEnum::Primary(ref mut state, key, _) = state.to_mut() {
             p_state = state;
@@ -1081,25 +1146,35 @@ impl Vactor for Primary {
 
         }
         match msg {
-            WHxFwd(wh_data, _) => {
+            WHxFwd(wh_data, sig) => {
                 // we have received a foreign worker hash,
                 // which we have to keep (as it will be part of a header)
-                match p_state.map_of_worker_hashes.get_mut(&wh_data.collector) {
-                    Some(v) => {
-                        v.insert(wh_data.take, wh_data.clone());
+                // 1. check_signature
+                if !is_valid_signature(src, &wh_data, sig) {
+                    // well, that's not good (behavior)
+                    if cfg!(debug_assertions) {
+                        println!("signature check failed for WHxFwd");
                     }
-                    None => {
-                        panic! {"map of worker hashes messed up at {:?}", self};
+                    vec![]  // return 
+                } else {
+                    match p_state.map_of_worker_hashes.get_mut(&wh_data.collector) {
+                        Some(v) => {
+                            v.insert(wh_data.take, wh_data.clone());
+                            // check if this triggers a header signature
+                            self.check_whx_fwd(wh_data, &mut p_state) // "return" 
+                        }
+                        None => {
+                            // panic!{"map of worker hashes messed up at {:?}", self};
+                            vec![]
+                        }
                     }
                 }
-                // we have stored the new hash, and nothing else to do
-                vec![]
             }
             WorkerHx(w_hash, _) => {
                 // we got a new, locally collected worker hash
                 p_state.worker_hash_set.insert((src, w_hash));
                 if p_state.worker_hash_set.len() > FULL_HEADER {
-                    self.process_new_header(p_state)
+                    self.new_header_announcement(src, p_state)
                 } else {
                     // nothing to do but (passively) wait for more hashes
                     vec![]
@@ -1108,12 +1183,12 @@ impl Vactor for Primary {
             NextHeader(r, whxs, _ac, _sqhx) => {
                 // check if we have all relevant worker hashes
                 // if so, sign (if this is the first header)
-                // otherwise, wait some
+                // otherwise, the **next arriving WHxFwd-msg** will trigger a check
                 if r > GENESIS_ROUND {
                     println!("not genesis");
                     vec![]
                 } else {
-                    self.process_sign_request(r, whxs, p_state, key_seed)
+                    self.process_sign_request(src, r, whxs, p_state, key_seed)
                 }
             }
             _ => {
