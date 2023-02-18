@@ -8,45 +8,20 @@
 // .. research/tree/master/distributed-systems/heterogeneous-narwhal
 
 use serde::{Deserialize, Serialize};
-use std::fmt::Debug;
-
-// Hashes are computed
-// as in doc.rust-lang.org/std/hash/index.html,
-// re-using the following 8 (eight) lines of code:
 use std::collections::hash_map::DefaultHasher;
+use std::fmt::Debug;
 // use std::collections::{LinkedList,VecDeque};
-use std::collections::VecDeque;
-use std::collections::{BTreeMap, BTreeSet};
-// fn hash_to_btree<K:std::cmp::Ord,V>(
-//     hash: HashMap<K, V>
-// ) -> BTreeMap<K, V> {
-//     // make hashmap iterator, then collect
-//     hash.into_iter().collect()
-// }
-
-// fn iter_to_vec<'a, T: Clone>(iter: &'a mut dyn Iterator<Item = &'a T>) -> Vec<&'a T> {
-//     iter.collect()
-// }
-// fn iter_to_vec_<'a, T: Clone>(iter: &'a mut dyn Iterator<Item = &'a T>) -> Vec<&'a T> {
-//     let mut x = vec![];
-//     for el in iter {
-//         x.push(el);
-//     }
-//     x
-// }
-
 use cute::c; // for “pythonic” vec comprehension
              // simplest examples
              // const SQUARES = c![x*x, for x in 0..10];
              // const EVEN_SQUARES = c![x*x, for x in 0..10, if x % 2 == 0];
 
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::hash::{Hash, Hasher};
-type Digest = u64;
-type KeySeed = [u8; 32];
-type VKBytes = [u8; 32];
-type Sig  = [u8; 64];
 
 // computing hashes
+// Hashes are computed
+// as in doc.rust-lang.org/std/hash/index.html,
 fn hash_of<T: Hash>(t: &T) -> Digest {
     let mut s = DefaultHasher::new();
     t.hash(&mut s);
@@ -62,45 +37,42 @@ fn hash_of<T: Hash>(t: &T) -> Digest {
     the_hash // return
 }
 
-fn sign_bytes(
-    k : KeySeed,
-    bytes : &[u8]
-) -> Sig {
+// Digest is one alias for the type of hashes
+type Digest = u64;
+// key-seed (bytes) (as in ed25519_consensus)
+type KeySeed = [u8; 32];
+// verification key (as  in ed25519_consensus)
+type VKBytes = [u8; 32];
+// signature (as  in ed25519_consensus)
+type Sig = [u8; 64];
+
+// signing byte slices with ed25519_consensus
+fn sign_bytes(k: KeySeed, bytes: &[u8]) -> Sig {
     let key = ed25519_consensus::SigningKey::from(k);
     key.sign(bytes).to_bytes()
 }
 
-fn sign_serializable<T: ?Sized>(
-    k : KeySeed,
-    x : &T
-) -> Sig where T: serde::Serialize+Debug {
+// signing serializable data via ed25519_consensus
+fn sign_serializable<T: ?Sized>(k: KeySeed, x: &T) -> Sig
+where
+    T: serde::Serialize + Debug,
+{
     let bytes = &bincode::serialize(x); // : Result<Vec<u8>>
     let bytes_slice: &[u8] = match bytes {
         Ok(bytes) => bytes,
-        Err(e) => 
+        Err(e) => {
             if cfg!(debug_assertions) {
                 panic!("wow, serializing {:?} failed with error {}", x, e);
             } else {
                 eprintln!("serializaion error {} for {:?}", e, x);
                 b"anoma"
-            },
+            }
+        }
     };
-    // let key = ed25519_consensus::SigningKey::from(k);
-    // key.sign(bytes_slice).to_bytes() // return
     sign_bytes(k, bytes_slice)
 }
 
-// fn hash_n_sign<T: ?Sized>(
-//     k : KeySeed,
-//     x : &T
-// ) -> Sig where T: serde::Serialize+Debug {
-
-//     [0;64] // rerturn
-// }
-
-
-
-// the data type of learner graphs
+// a module for learner graphs
 mod learner_graph {
     // the learner graph trait uses
     use std::collections::{HashMap, HashSet};
@@ -120,16 +92,15 @@ mod learner_graph {
     }
 }
 
-// the module pki features as a simplified PKI-infrastructure
+// a module for a PKI-infrastructure placeholder
 mod pki {
     // elliptic curve signatures imports (kudos to Daniel)
     use ed25519_consensus::*;
     use stateright::actor::Id;
     use std::collections::BTreeMap;
-    // use std::convert::TryFrom;
 
-    // The Registry is responsible for
-    // - regsitering keys via `register_key`
+    // The Registry has the following functionality:
+    // - registering verification keys via `register_key`
     // - lookup of verification keys via `lookup_vk`
     pub trait Registry {
         // registering a verification key for the id
@@ -139,28 +110,27 @@ mod pki {
         fn lookup_vk(&self, _: Id) -> Option<VerificationKey>;
     }
 
+    // map of "type" id => verification key 
     pub struct KeyTable {
         pub map: BTreeMap<Id, VerificationKey>,
     }
 
+    // implementing the registry based on a BTreeMap
     impl Registry for KeyTable {
+
+        // insert key and report success as true
         fn register_key(&mut self, id: Id, vk: VerificationKey, _sig: Signature) -> bool {
             // MENDME, add some form of authentication
             self.map.insert(id, vk).is_some()
         }
 
         fn lookup_vk(&self, id: Id) -> Option<VerificationKey> {
-            // if let Some(vk) = self.map.get(&id) {
-            //     Some(*vk)
-            // } else {
-            //     None
-            // }
             self.map.get(&id).copied()
         }
     }
 
+    // // ------- ed25519-consensus signatures example usage
     // fn private_test_ed25519_consensus() {
-    //     // ------- ed25519-consensus signatures example usage
     //     use rand::thread_rng;
     //     let msg = b"ed25519-consensus";
     //
@@ -187,13 +157,12 @@ mod pki {
     // -- end ed25519-consensus usage
 }
 
-#[macro_use]
-extern crate lazy_static;
-
 // REG_MUTEX is a “global variable” featuring as PKI,
 // more precisly a static mutex holding the KeyTable.
 // Unsing the PKI should start with `REG_MUTEX.lock()`
 // NTH: make this _immutable_
+#[macro_use]
+extern crate lazy_static;
 use std::sync::Mutex;
 lazy_static! {
     static ref REG_MUTEX: Mutex<pki::KeyTable> = Mutex::new({
@@ -203,13 +172,6 @@ lazy_static! {
     });
 }
 
-// all about actors from stateright
-use stateright::actor::*;
-use stateright::*;
-
-// stateright uses clone-on-write for state-changes
-// → doc.rust-lang.org/std/borrow/enum.Cow.html
-use std::borrow::Cow;
 
 // --------------------------------------------------------------
 // the actor model starts here
@@ -219,13 +181,17 @@ use std::borrow::Cow;
 // - primaries, build the actual mem-dag (with workers hlping)
 // --------------------------------------------------------------
 
-// for spawning actors (locally)
-// use std::net::{SocketAddrV4, Ipv4Addr};
+// all about actors from stateright
+use stateright::actor::*;
+use stateright::*;
+
+// stateright uses clone-on-write for state-changes
+// → doc.rust-lang.org/std/borrow/enum.Cow.html
+use std::borrow::Cow;
+
 
 type TxBlob = u64;
 type TxData = Vec<TxBlob>;
-
-
 
 type Take = u32;
 type SeqNum = usize;
@@ -245,7 +211,7 @@ struct WorkerHashData {
     // the take (formerly, the round of the primary)
     take: Take,
     // the collector
-    collector : WorkerId,
+    collector: WorkerId,
 }
 
 // impl Ord for WorkerHashData {
@@ -356,8 +322,6 @@ enum MessageEnum {
         // the signature
         HeaderSignature,
     ),
-    
-
 }
 
 use crate::MessageEnum::*;
@@ -400,8 +364,9 @@ struct PrimaryState {
     // round
     rnd: Round,
     // the pending signing requests
-    pending_requests: 
-    BTreeMap<ValidatorId, Option<(Round, Vec<(WorkerId, Take)>)>>,
+    pending_requests: BTreeMap<ValidatorId, Option<(Round, Vec<(WorkerId, Take)>)>>,
+    // trigger map, from worker,take pairs to the pending validator
+    expected_takes: BTreeMap<WorkerId, BTreeMap<Take, ValidatorId>>,
 }
 
 // the state type of clients
@@ -416,7 +381,6 @@ enum StateEnum {
     Primary(PrimaryState, KeySeed, Id),
     Client(ClientState, KeySeed, Id),
 }
-
 
 // WorkerActor holds the static information about actors
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
@@ -587,11 +551,7 @@ impl Vactor for Client {
         if cfg!(debug_assertions) {
             print!("Start client {}", id);
         }
-        let client_state = 
-            StateEnum::Client(
-                self.known_workers.clone(),
-                self.key_seed, id
-            );
+        let client_state = StateEnum::Client(self.known_workers.clone(), self.key_seed, id);
         let mut o = vec![];
 
         // send a different tx to every worker, to get started
@@ -666,7 +626,8 @@ fn filter_n_sort<T: Clone, C: Clone, U: Ord + Clone>(
 ) -> Vec<(T, C, U, Take)> {
     // let x be the vector of transaction whose “take” is tk
     let mut x = vector
-        .iter().cloned()
+        .iter()
+        .cloned()
         .filter(|x| x.3 == tk)
         .collect::<Vec<(T, C, U, Take)>>();
     // sort x, ascending in the sequence number (within the take)
@@ -713,12 +674,10 @@ impl Worker {
                 println!("Worker {:?} at take {}", self, state.take);
             }
 
-
             // check if we can finish a batch
             if state.tx_buffer.len() >= BATCH_SIZE {
                 // MENDME: batches "generic" **and** serializable -- ̈"somehow" ?!
                 // right now, a batch is just a vector of TxData, Vec<TxData>
-
 
                 // create and process batch hash
                 let w_hash = WorkerHashData {
@@ -730,12 +689,7 @@ impl Worker {
                 if cfg!(debug_assertions) {
                     assert!(w_hash.collector == self.my_expected_id);
                 }
-                let sig: WorkerHashSignature = 
-                    sign_serializable(
-                    key_seed,
-                    &w_hash
-                );
-
+                let sig: WorkerHashSignature = sign_serializable(key_seed, &w_hash);
 
                 // notify primary that a new batch hash is out
                 // aka worker hash provision
@@ -933,14 +887,12 @@ impl Vactor for Worker {
 
 const FULL_HEADER: usize = 5;
 impl Primary {
-
-
     fn check_n_update_pending_requests(
         &self,
-        _i : ValidatorId,
-        _rnd : Round,
-        _whxs : Vec<(WorkerId, Take)>,
-        _p_state: &mut PrimaryState
+        _i: ValidatorId,
+        _rnd: Round,
+        _whxs: Vec<(WorkerId, Take)>,
+        _p_state: &mut PrimaryState,
     ) -> bool {
         // let res : bool;
         // p_state.pending_requests.push_back((r,whxs));
@@ -963,17 +915,16 @@ impl Primary {
     fn new_header_announcement(
         &self,
         // the generating validator's id
-        v : ValidatorId,
+        v: ValidatorId,
         p_state: &mut PrimaryState,
     ) -> Vec<Outputs<Id, <Primary as Vactor>::Msg>> {
         // prepare the “table of contents”
-        let wh_contents: Vec<(WorkerId, Take)> = 
-            p_state
+        let wh_contents: Vec<(WorkerId, Take)> = p_state
             .worker_hash_set
             .clone()
             .into_iter()
-        // the WorkerId an Take 
-            .map(|(i, w)| (i, w.take)) 
+            // the WorkerId an Take
+            .map(|(i, w)| (i, w.take))
             .collect();
         // the message to be sent to all fellow validators
         let msg = if p_state.rnd == GENESIS_ROUND {
@@ -985,7 +936,7 @@ impl Primary {
                 // availability certificate
                 None, // Option<AC>,
                 None, // hashes of signed quorums
-                // Option<Vec<SQHash>>
+                      // Option<Vec<SQHash>>
             )
         } else {
             panic!("not implemented yet");
@@ -1000,38 +951,33 @@ impl Primary {
 
         // the result of "outputs" (in the sense of stateright)
         let mut res = vec![];
-        self.send_(
-            p_state.validators.clone(), 
-            msg, 
-            &mut res
-        );
+        self.send_(p_state.validators.clone(), msg, &mut res);
         res
     }
 
     // react to a forwarded worker hash (WHxFwd-msg)
-    fn check_whx_fwd(
+    fn follow_up_whx_fwd(
         &self,
         wh_hash: WorkerHashData,
-        p_state: &mut PrimaryState
+        p_state: &mut PrimaryState,
     ) -> Vec<Outputs<Id, <Primary as Vactor>::Msg>> {
         // check if it belongs to a wanted header
-        
+
         vec![]
     }
-
 
     fn check_availability(
         &self,
         i: ValidatorId,
-        r:Round,
+        r: Round,
         whxs: Vec<(WorkerId, Take)>,
         p_state: &mut PrimaryState,
     ) -> Vec<WorkerHashData> {
         let mut the_list = vec![];
         let mut no_takes_missing = true;
-        for (i,t) in whxs.clone().into_iter(){
-            if let Some(i_takes) = p_state.map_of_worker_hashes.get(&i){
-                if let Some(wh) = i_takes.get(&t){
+        for (i, t) in whxs.clone().into_iter() {
+            if let Some(i_takes) = p_state.map_of_worker_hashes.get(&i) {
+                if let Some(wh) = i_takes.get(&t) {
                     the_list.push(wh.clone());
                 }
             } else {
@@ -1046,32 +992,30 @@ impl Primary {
         }
     }
 
-    // when a primary gets a "bump" from a peer validator 
+    // when a primary gets a "bump" from a peer validator
     // it tries to generate a header, signs it, and commits
     fn process_sign_request(
         &self,
         i: ValidatorId,
-        r:Round,
+        r: Round,
         whxs: Vec<(WorkerId, Take)>,
         p_state: &mut PrimaryState,
-        key_seed: KeySeed
+        key_seed: KeySeed,
     ) -> Vec<Outputs<Id, <Primary as Vactor>::Msg>> {
         // 1. retrieve the relevant worker hashes
-        let list_to_sign = self.check_availability(
-            i, r, whxs, p_state
-        );
+        let list_to_sign = self.check_availability(i, r, whxs, p_state);
         if !list_to_sign.is_empty() {
             // ok, we got everything
             // 2. (hash-)sign the worker hash
             let the_sig = sign_serializable(key_seed, &list_to_sign);
-            let signature = HeaderSignature{
+            let signature = HeaderSignature {
                 sig: the_sig,
-                val : p_state.the_id,
+                val: p_state.the_id,
             };
             // 3. “commit” to the signed worker hash, by sending it back
             let msg = HeaderSig(p_state.the_id, p_state.rnd, signature);
             let mut outs = vec![];
-            self.send_(p_state.validators.clone(), msg, &mut outs);// FIXME this should go back to the creator
+            self.send_(p_state.validators.clone(), msg, &mut outs); // FIXME this should go back to the creator
             outs // "return"
         } else {
             // we set a timer
@@ -1080,9 +1024,8 @@ impl Primary {
             self.check_back_later(&mut outs);
             outs // "return"
         }
-
     }
-} 
+}
 impl Vactor for Primary {
     type Msg = MessageEnum;
     type State = StateEnum;
@@ -1115,6 +1058,7 @@ impl Vactor for Primary {
                     validators: self.peer_validators.clone(),
                     rnd: GENESIS_ROUND,
                     pending_requests: BTreeMap::new(),
+                    expected_takes: BTreeMap::new(),
                 },
                 key_seed,
                 id,
@@ -1143,7 +1087,6 @@ impl Vactor for Primary {
         } else {
             // the following would be fatal bug
             panic!("The state {:?} is not even of the right kind", state);
-
         }
         match msg {
             WHxFwd(wh_data, sig) => {
@@ -1155,13 +1098,13 @@ impl Vactor for Primary {
                     if cfg!(debug_assertions) {
                         println!("signature check failed for WHxFwd");
                     }
-                    vec![]  // return 
+                    vec![] // return
                 } else {
                     match p_state.map_of_worker_hashes.get_mut(&wh_data.collector) {
                         Some(v) => {
                             v.insert(wh_data.take, wh_data.clone());
                             // check if this triggers a header signature
-                            self.check_whx_fwd(wh_data, &mut p_state) // "return" 
+                            self.follow_up_whx_fwd(wh_data, &mut p_state) // "return"
                         }
                         None => {
                             // panic!{"map of worker hashes messed up at {:?}", self};
@@ -1228,6 +1171,11 @@ enum HNActor {
 }
 
 
+
+lazy_static! {
+    // a dummy signature for keys
+    static ref DUMMY_SIG: ed25519_consensus::Signature = [0; 64].into();
+}
 impl Actor for HNActor {
     type Msg = MessageEnum;
     type State = StateEnum;
@@ -1353,20 +1301,19 @@ impl NarwhalModelCfg {
 
     // we need the Copy trait for histories in stateright
     #[allow(clippy::ptr_arg)]
-    fn record_msg_in
-        ( _cfg: &Self,
-           history: &Vec<Envelope<<HNActor as Actor>::Msg>>,
-           env: Envelope<&
-                         <HNActor as Actor>::Msg>,
-        ) -> Option<Vec<Envelope<<HNActor as Actor>::Msg>>> {
-            let mut h = history.clone();
-            let e = env.to_cloned_msg();
-            h.push(e);
-            Some(h)
-        }
+    fn record_msg_in(
+        _cfg: &Self,
+        history: &Vec<Envelope<<HNActor as Actor>::Msg>>,
+        env: Envelope<&<HNActor as Actor>::Msg>,
+    ) -> Option<Vec<Envelope<<HNActor as Actor>::Msg>>> {
+        let mut h = history.clone();
+        let e = env.to_cloned_msg();
+        h.push(e);
+        Some(h)
+    }
 
     // we need the Copy trait for histories in stateright
-    #[allow(clippy::ptr_arg)] 
+    #[allow(clippy::ptr_arg)]
     fn record_msg_out(
         _cfg: &Self,
         history: &Vec<Envelope<<HNActor as Actor>::Msg>>,
@@ -1376,7 +1323,7 @@ impl NarwhalModelCfg {
         let e = env.to_cloned_msg();
         h.push(e);
         Some(h)
-        }
+    }
 
     // The actor ids in models of stateright are essentially hard-coded;
     // they are given by the position the `actors` field
@@ -1392,7 +1339,7 @@ impl NarwhalModelCfg {
         // 1. workers: 0..wic*pc
         // 2. primaries: wic*pc..(wic+1)*pc
         // 3. clients: (wic+1)*pc..(wic+1)*pc+cc
-            .actors(c![HNActor::Worker(Worker{
+        .actors(c![HNActor::Worker(Worker{
                 index: i as u64,
                 primary: Id::from(self.get_primary_idx(j)),
                 mirror_workers: self.calculate_mirror_workers_and_id(i,j).0,
@@ -1402,13 +1349,13 @@ impl NarwhalModelCfg {
             }),
                        for i in 0..self.worker_index_count,
                        for j in 0..self.primary_count])
-            .actors(c![HNActor::Primary(Primary{
+        .actors(c![HNActor::Primary(Primary{
                 peer_validators: self.calculate_peer_validators_and_id(p).0,
                 my_expected_id: self.calculate_peer_validators_and_id(p).1,
                 key_seed: fresh_key_seed(),
                 local_workers:self.calculate_local_workers(p),
             }), for p in 0..self.primary_count])
-            .actors(c![HNActor::Client(Client{
+        .actors(c![HNActor::Client(Client{
                 known_workers: self.calculate_known_workers(),
                 my_expected_id: self.get_client_idx(c).into(),
                 key_seed: fresh_key_seed(),
@@ -1457,13 +1404,16 @@ enum ModesEnum {
     Explore,
 }
 use ModesEnum::*;
-// hardcoded choice, so far
+
+// choice for which mode to operate in (hardcoded)
 //const SUP:ModesEnum = Check;
 //const SUP:ModesEnum = Spawn;
 const SUP: ModesEnum = Explore;
-lazy_static! {
-    static ref DUMMY_SIG: ed25519_consensus::Signature = [0; 64].into();
-}
+
+// for spawning actors (locally)
+// use std::net::{SocketAddrV4, Ipv4Addr};
+
+
 
 #[allow(clippy::assertions_on_constants)]
 fn main() {
@@ -1494,7 +1444,6 @@ fn main() {
                 for y in 0..PRIMARY_COUNT
             ];
             let primary_port = 4000; // hopefully big enough ...
-
 
             assert!(4000 > 3000 + (WORKER_INDEX_COUNT + 1) * PRIMARY_COUNT);
 
@@ -1632,7 +1581,7 @@ fn main() {
             .unwrap();
 
             // "the
-            use ed25519_consensus::{Signature,SigningKey, VerificationKey};
+            use ed25519_consensus::{Signature, SigningKey, VerificationKey};
             use rand::thread_rng;
 
             let key = SigningKey::new(thread_rng());
