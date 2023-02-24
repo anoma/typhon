@@ -4,11 +4,11 @@
 //
 // This code aims for clarity and correctness;
 // it complements and can be considered part of the tech report
-// https://github.com/anoma/ ..
-// .. research/tree/master/distributed-systems/heterogeneous-narwhal
+// https://github.com/anoma/…
+// …research/tree/master/distributed-systems/heterogeneous-narwhal
 
 use serde::{Deserialize, Serialize};
-use std::collections::hash_map::DefaultHasher;
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::fmt::Debug;
 // use std::collections::{LinkedList,VecDeque};
 use cute::c; // for “pythonic” vec comprehension
@@ -16,10 +16,11 @@ use cute::c; // for “pythonic” vec comprehension
              // const SQUARES = c![x*x, for x in 0..10];
              // const EVEN_SQUARES = c![x*x, for x in 0..10, if x % 2 == 0];
 
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
+// ----------------------------------------------------------------------
+// Computing Hashes
+// ----------------------------------------------------------------------
+use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
-
-// computing hashes
 // Hashes are computed
 // as in doc.rust-lang.org/std/hash/index.html,
 fn hash_of<T: Hash>(t: &T) -> Digest {
@@ -37,14 +38,20 @@ fn hash_of<T: Hash>(t: &T) -> Digest {
     the_hash // return
 }
 
+// ----------------------------------------------------------------------
+// basic data structures
+// ----------------------------------------------------------------------
+
 // Digest is one alias for the type of hashes
 type Digest = u64;
 // key-seed (bytes) (as in ed25519_consensus)
 type KeySeed = [u8; 32];
-// verification key (as  in ed25519_consensus)
+// verification key / “public key” (as  in ed25519_consensus)
 type VKBytes = [u8; 32];
 // signature (as  in ed25519_consensus)
 type Sig = [u8; 64];
+// these signatures are [u8; 64], which we serialize using BigArray
+use serde_big_array::BigArray;
 
 // signing byte slices with ed25519_consensus
 fn sign_bytes(k: KeySeed, bytes: &[u8]) -> Sig {
@@ -57,7 +64,8 @@ fn sign_serializable<T: ?Sized>(k: KeySeed, x: &T) -> Sig
 where
     T: serde::Serialize + Debug,
 {
-    let bytes = &bincode::serialize(x); // : Result<Vec<u8>>
+    use bincode::serialize;
+    let bytes: &bincode::Result<Vec<u8>> = &serialize(x);
     let bytes_slice: &[u8] = match bytes {
         Ok(bytes) => bytes,
         Err(e) => {
@@ -72,7 +80,7 @@ where
     sign_bytes(k, bytes_slice)
 }
 
-// a module for learner graphs
+// a module for learner graphs (cf. Heterogeneous Paxos)
 mod learner_graph {
     // the learner graph trait uses
     use std::collections::{HashMap, HashSet};
@@ -92,8 +100,10 @@ mod learner_graph {
     }
 }
 
-// a module for a PKI-infrastructure placeholder
-mod pki {
+// a module for managing state-right ids with other types of ids, such as
+// - ip-addresses
+// - anoma's external identities
+mod id_mapping {
     // elliptic curve signatures imports (kudos to Daniel)
     use ed25519_consensus::*;
     use stateright::actor::Id;
@@ -110,14 +120,13 @@ mod pki {
         fn lookup_vk(&self, _: Id) -> Option<VerificationKey>;
     }
 
-    // map of "type" id => verification key 
+    // map of "type" id => verification key
     pub struct KeyTable {
         pub map: BTreeMap<Id, VerificationKey>,
     }
 
     // implementing the registry based on a BTreeMap
     impl Registry for KeyTable {
-
         // insert key and report success as true
         fn register_key(&mut self, id: Id, vk: VerificationKey, _sig: Signature) -> bool {
             // MENDME, add some form of authentication
@@ -157,89 +166,97 @@ mod pki {
     // -- end ed25519-consensus usage
 }
 
-// REG_MUTEX is a “global variable” featuring as PKI,
+// REG_MUTEX is a “global variable” for id managment,
 // more precisly a static mutex holding the KeyTable.
-// Unsing the PKI should start with `REG_MUTEX.lock()`
+// Unsing the “REGistry” should start with `REG_MUTEX.lock()`
 // NTH: make this _immutable_
 #[macro_use]
 extern crate lazy_static;
 use std::sync::Mutex;
 lazy_static! {
-    static ref REG_MUTEX: Mutex<pki::KeyTable> = Mutex::new({
-        pki::KeyTable {
+    static ref REG_MUTEX: Mutex<id_mapping::KeyTable> = Mutex::new({
+        id_mapping::KeyTable {
             map: BTreeMap::new(),
         }
     });
 }
 
 
+// ----------------------------------------------------------------------
+// TODO: implement additional behavior for receiving ̈"pending" messages,
+// ie, when receiving a message, we discern two cases:
+// 1. the message is not being waited for;
+// 2. it is "pending" and needs additional action to be taken.
+// This can be done by having a general post-processing for messages,
+// taking care of the non-trivial situations.
+// In particular, this means, that the code can be better organized, 
+// in that we can read out the "happy" path from the specs in the code.
+// concretely, each case for `on_msg_vec`, splits into
+// 1. process message
+// 2. post-process message
+// 
+// for practical purposes, 
+// one might have dummy post-processing for starters
+// ----------------------------------------------------------------------
+
+
 // --------------------------------------------------------------
 // the actor model starts here
-// it describes behaviour for three kinds of actors
-// - clients, requesting transactions to be ordere
+// --------------------------------------------------------------
+// the actor model describes behaviour for three kinds of actors
+// - clients, requesting transactions to be ordered
 // - workers, receiving and processing transactions
-// - primaries, build the actual mem-dag (with workers hlping)
+// - primaries, building the actual mem-dag (with workers helping)
 // --------------------------------------------------------------
 
 // all about actors from stateright
 use stateright::actor::*;
 use stateright::*;
-
 // stateright uses clone-on-write for state-changes
-// → doc.rust-lang.org/std/borrow/enum.Cow.html
+// -> doc.rust-lang.org/std/borrow/enum.Cow.html
 use std::borrow::Cow;
 
-
+// a blob of data, part of an (encrypted) transaction
 type TxBlob = u64;
+// a transaction is just an arbitrary "array" of blobs
 type TxData = Vec<TxBlob>;
-
-type Take = u32;
+// each worker assigns a sequence number to transactions
 type SeqNum = usize;
-// availability certificate
-type AC = ();
-// hashes of signed quorums
-type SQHash = ();
+// batches of transactions are numbered as well, dubbed _take_
+type Take = u32;
+const FIRST_TAKE: Take = 0;
 
-// worker hash data type
-// serialization matters as in https://crates.io/crates/bincode
+// availability certificate
+type AC = (); // TO BE REFINED/DEFINED
+
+// hashes of signed quorums
+type SQHash = (); // TO BE REFINED
+
+// worker hash data type `WorkerHash`
+// (see https://crates.io/crates/bincode for serialization matters)
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, Hash, PartialOrd, Ord)]
-struct WorkerHashData {
-    // the hash
+struct WorkerHash {
+    // the hash (of a batch of transactions)
     hash: u64,
-    // the number of txs of this worker hash
+    // the number of txs in (the batch of) this worker hash
     length: usize,
-    // the take (formerly, the round of the primary)
+    // the take (equal to the round number in Narwhal&Tusk)
     take: Take,
-    // the collector
+    // the id of the worker collecting the transactions
     collector: WorkerId,
 }
-
-// impl Ord for WorkerHashData {
-//     fn cmp(&self, other:&Self) -> std::cmp::Ordering {
-//         use std::cmp::Ordering::*;
-//         if self.hash < other.hash{
-//             Less
-//         } else if self.hash > other.hash {
-//             Greater
-//         } else {
-//             Equal
-//         }
-
-//     }
-// }
-
-// the hashing library uses [u8; 64], which makes us use BigArray
-use serde_big_array::BigArray;
+// the (minimum) length of batches used in worker hashes
+const BATCH_SIZE: usize = 3;
 
 // the type of worker hash signatures
 type WorkerHashSignature = Sig;
 
-// the type of worker hash signatures
-
+// the type of header signatures `HeaderSignature`
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
-
 struct HeaderSignature {
+    // the signing validator
     val: ValidatorId,
+    // the signature
     #[serde(with = "BigArray")]
     sig: Sig,
 }
@@ -259,13 +276,13 @@ type ClientId = Id;
 // the indices of workers (globally fixed, for all validators)
 type WorkerIndex = u64;
 
-// header, the data structure for primaries
+// data type of headers (to be signed by primaries)
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, Hash)]
 struct HeaderData {
-    // the creator of the header
+    // the “creator” of the header
     creator: ValidatorId,
     // the worker hashes (produced by the creator's workers)
-    worker_hashes: Vec<WorkerHashData>,
+    worker_hashes: Vec<WorkerHash>,
     // the validity certificate
     certificate: Option<AC>,
     // the signed quorum hashes
@@ -273,36 +290,26 @@ struct HeaderData {
 }
 
 // the enumeration of all possible kinds of messages
-//
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
 enum MessageEnum {
     // --- transaction level --
     // transaction requests, sent by the client/user
     TxReq(TxData, ClientId),
-    // acknowledgments of transactions by the worker
+    // acknowledgments of transactions (by workers)
     TxAck(TxData, WorkerId),
     // broadcasting a tx (or its erasure code) to mirror workers
     TxToAll(TxData, ClientId, SeqNum, Take),
 
     // --- worker hash level --
-    // Worker Hash "upload" (to the primary)
-    WorkerHx(
-        WorkerHashData,
-        #[serde(with = "BigArray")] WorkerHashSignature,
-    ),
-    // Worker Hash Broadcast (to mirror workers)
-    WHxToAll(
-        WorkerHashData,
-        #[serde(with = "BigArray")] WorkerHashSignature,
-    ),
-    // Worker Hash forwarding (to primary, received from mirror workers)
-    WHxFwd(
-        WorkerHashData,
-        #[serde(with = "BigArray")] WorkerHashSignature,
-    ),
+    // Worker Hash "upload"/provision (worker -> primary)
+    WorkerHx(WorkerHash, #[serde(with = "BigArray")] WorkerHashSignature),
+    // Worker Hash Broadcast (worker => worker)
+    WHxToAll(WorkerHash, #[serde(with = "BigArray")] WorkerHashSignature),
+    // Worker Hash forwarding (worker -> primary)
+    WHxFwd(WorkerHash, #[serde(with = "BigArray")] WorkerHashSignature),
 
     // --- header level --
-    // the request for header signature (tob be sent by header creator)
+    // the request for header signature (primary => primary)
     NextHeader(
         // round Number
         Round,
@@ -314,6 +321,7 @@ enum MessageEnum {
         Option<Vec<SQHash>>,
     ),
 
+    // the header signature (primary -> primary)
     HeaderSig(
         // the creating primary
         ValidatorId,
@@ -326,10 +334,14 @@ enum MessageEnum {
 
 use crate::MessageEnum::*;
 
+// the round of a validator (e.g., u64)
 type Round = u64;
+// the first round, aka genesis
 const GENESIS_ROUND: Round = 0;
-const FIRST_TAKE: Take = 0;
-const BATCH_SIZE: usize = 3;
+
+// ----------------------------------------------------------------------
+// state structs, holding the state of each and every actor
+// ----------------------------------------------------------------------
 
 // the state type of workers
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
@@ -337,26 +349,27 @@ struct WorkerState {
     // the buffer for received transactions
     tx_buffer: Vec<(TxData, ClientId)>,
     // storing the pending worker hashes
-    pending_hxs: VecDeque<(WorkerId, WorkerHashData, WorkerHashSignature)>,
+    pending_hxs: VecDeque<(WorkerId, WorkerHash, WorkerHashSignature)>,
     // hashmap to stores of transaction copies
     tx_buffer_map: BTreeMap<WorkerId, Vec<(TxData, ClientId, SeqNum, Take)>>,
-    // a copy of the primary information ()
+    // the primary information
     primary: ValidatorId,
-    // a copy of the mirror worker information
+    // the mirror worker information
     mirrors: Vec<WorkerId>,
-    //  ̶r̶o̶u̶n̶d̶ ̶n̶u̶m̶b̶e̶r̶ => take
+    //  take (corresponds to the round number in Narwhal&Tusk)
     take: Take,
-    // the id
+    // the id of the worker
     the_id: WorkerId,
 }
 
 // the state type of primaries
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
+
 struct PrimaryState {
     // map_of_worker_hashes, foreign / forwarded
-    map_of_worker_hashes: BTreeMap<WorkerId, BTreeMap<Take, WorkerHashData>>,
+    map_of_worker_hashes: BTreeMap<WorkerId, BTreeMap<Take, WorkerHash>>,
     // local worker hashes
-    worker_hash_set: BTreeSet<(WorkerId, WorkerHashData)>,
+    worker_hash_set: BTreeSet<(WorkerId, WorkerHash)>,
     // the id
     the_id: ValidatorId,
     // peer validators
@@ -364,16 +377,17 @@ struct PrimaryState {
     // round
     rnd: Round,
     // the pending signing requests
+    #[allow(clippy::type_complexity)]
     pending_requests: BTreeMap<ValidatorId, Option<(Round, Vec<(WorkerId, Take)>)>>,
     // trigger map, from worker,take pairs to the pending validator
     expected_takes: BTreeMap<WorkerId, BTreeMap<Take, ValidatorId>>,
 }
 
 // the state type of clients
-// it is the number of requests
+// each client knows a list of workers that can serve their requests
 type ClientState = Vec<WorkerId>;
 
-// states can be either of a worker or a primary
+// the enumeration of state types, for workers, primaries, and clients
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 enum StateEnum {
     // every actor has a signing key (seed)
@@ -381,6 +395,10 @@ enum StateEnum {
     Primary(PrimaryState, KeySeed, Id),
     Client(ClientState, KeySeed, Id),
 }
+
+// ----------------------------------------------------------------------
+// -- information about initial states
+// ----------------------------------------------------------------------
 
 // WorkerActor holds the static information about actors
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
@@ -424,41 +442,6 @@ struct Client {
     // my_expected_id (for debugging)
     my_expected_id: Id,
 }
-
-// -----------------------------------------------------------------------------
-// // experiment _delegation_ begin
-// -----------------------------------------------------------------------------
-// #[delegatable_trait]
-// pub trait ExampleTrait : Sized {
-//     fn do_this (&self, o: &mut Vec<Self>);
-// }
-
-// #[derive(Clone)]
-// struct ExOne;
-// #[derive(Clone)]
-// struct ExTwo;
-
-// impl ExampleTrait for ExOne {
-//     fn do_this (&self, o: &mut Vec<Self>){
-//         o.push(self.clone());
-//     }
-// }
-// impl ExampleTrait for ExTwo {
-//     fn do_this (&self, o: &mut Vec<Self>){
-//         o.push(self.clone());
-//     }
-// }
-
-// // this of course does not work, because self is changing its meaning
-// // #[derive(Delegate,Clone)]
-// // #[delegate(ExampleTrait)]
-// // enum ExEnum {
-// //     ExOne(ExOne),
-// //     ExTwo(ExTwo),
-// // }
-// -----------------------------------------------------------------------------
-// // experiment _delegation_ end
-// -----------------------------------------------------------------------------
 
 // ideally, this _would_ be part of the `Vactor` trait
 // ... well, now it is public :-/
@@ -598,12 +581,12 @@ impl Vactor for Client {
 fn is_valid_signature(
     // src is the signing id
     src: WorkerId,
-    w_hash: &WorkerHashData,
+    w_hash: &WorkerHash,
     sig: WorkerHashSignature,
 ) -> bool {
     //fn verify(&self, &Sig, &[u8]) -> Result<(), Error>
     use ed25519_consensus::Signature;
-    use pki::*;
+    use id_mapping::*;
     let the_reg = REG_MUTEX.lock().unwrap();
     let key = the_reg.lookup_vk(src).unwrap();
     let w_bytes = &bincode::serialize(&w_hash).unwrap();
@@ -680,7 +663,7 @@ impl Worker {
                 // right now, a batch is just a vector of TxData, Vec<TxData>
 
                 // create and process batch hash
-                let w_hash = WorkerHashData {
+                let w_hash = WorkerHash {
                     hash: hash_of(&state.tx_buffer),
                     take: state.take,
                     length: state.tx_buffer.len(),
@@ -716,7 +699,7 @@ impl Worker {
     fn process_checked_w_hx(
         &self,
         src: WorkerId,
-        w_hash: &WorkerHashData,
+        w_hash: &WorkerHash,
         sig: WorkerHashSignature,
         state: &mut WorkerState,
     ) -> Vec<Outputs<Id, <Worker as Vactor>::Msg>> {
@@ -745,7 +728,7 @@ impl Worker {
     fn process_whx(
         &self,
         src: WorkerId,
-        w_hash: &WorkerHashData,
+        w_hash: &WorkerHash,
         sig: WorkerHashSignature,
         state: &mut WorkerState,
     ) -> Vec<Outputs<Id, <Worker as Vactor>::Msg>> {
@@ -958,7 +941,7 @@ impl Primary {
     // react to a forwarded worker hash (WHxFwd-msg)
     fn follow_up_whx_fwd(
         &self,
-        wh_hash: WorkerHashData,
+        wh_hash: WorkerHash,
         p_state: &mut PrimaryState,
     ) -> Vec<Outputs<Id, <Primary as Vactor>::Msg>> {
         // check if it belongs to a wanted header
@@ -972,10 +955,10 @@ impl Primary {
         r: Round,
         whxs: Vec<(WorkerId, Take)>,
         p_state: &mut PrimaryState,
-    ) -> Vec<WorkerHashData> {
+    ) -> Vec<WorkerHash> {
         let mut the_list = vec![];
         let mut no_takes_missing = true;
-        for (i, t) in whxs.clone().into_iter() {
+        for (i, t) in whxs.into_iter() {
             if let Some(i_takes) = p_state.map_of_worker_hashes.get(&i) {
                 if let Some(wh) = i_takes.get(&t) {
                     the_list.push(wh.clone());
@@ -1075,7 +1058,7 @@ impl Vactor for Primary {
         src: Id,
         msg: Self::Msg,
     ) -> Vec<Outputs<Id, Self::Msg>> {
-        let mut p_state;
+        let p_state;
         let key_seed;
         if let StateEnum::Primary(ref mut state, key, _) = state.to_mut() {
             p_state = state;
@@ -1104,7 +1087,7 @@ impl Vactor for Primary {
                         Some(v) => {
                             v.insert(wh_data.take, wh_data.clone());
                             // check if this triggers a header signature
-                            self.follow_up_whx_fwd(wh_data, &mut p_state) // "return"
+                            self.follow_up_whx_fwd(wh_data, p_state) // "return"
                         }
                         None => {
                             // panic!{"map of worker hashes messed up at {:?}", self};
@@ -1170,8 +1153,6 @@ enum HNActor {
     Primary(Primary),
 }
 
-
-
 lazy_static! {
     // a dummy signature for keys
     static ref DUMMY_SIG: ed25519_consensus::Signature = [0; 64].into();
@@ -1184,7 +1165,7 @@ impl Actor for HNActor {
         let vk_bytes = self.get_vk_bytes();
         match ed25519_consensus::VerificationKey::try_from(vk_bytes) {
             Ok(vk) => {
-                use pki::*;
+                use id_mapping::*;
                 let mut the_reg = REG_MUTEX.lock().unwrap();
                 the_reg.register_key(id, vk, *DUMMY_SIG);
             }
@@ -1228,8 +1209,6 @@ impl Actor for HNActor {
     }
 }
 
-// in rough analogy to stateright's `examples/paxos.rs`
-// history will simply be state/action pairs
 #[derive(Clone)]
 struct NarwhalModelCfg {
     worker_index_count: usize,
@@ -1238,7 +1217,7 @@ struct NarwhalModelCfg {
     network: Network<<HNActor as Actor>::Msg>,
 }
 
-// generates a key_seed,
+// generates a key_seed : KeySeed
 // using ed25519_consensus::SigningKey rand::thread_rng
 fn fresh_key_seed() -> KeySeed {
     use ed25519_consensus::SigningKey;
@@ -1249,6 +1228,23 @@ fn fresh_key_seed() -> KeySeed {
     assert!(key.to_bytes() == key_again.to_bytes());
     key_seed
 }
+
+// we have to derive an ActorModel from based on a configuration of actors
+// from https://docs.rs/stateright/latest/stateright/actor/struct.ActorModel.html
+//
+// pub struct ActorModel<A, C = (), H = ()> where
+//     A: Actor, // ⇐ this will be A = HNActor
+//     H: Clone + Debug + Hash,  {
+//          pub actors: Vec<A>, // ⇐ that's our array of actors
+//          pub cfg: C, //
+//          pub init_history: H,
+//          pub init_network: Network<A::Msg>, // ⇐ this will be any (non-lossy) nework
+//          pub lossy_network: LossyNetwork,  // ⇐ this will be `LossyNetwork::No`
+//          pub properties: Vec<Property<ActorModel<A, C, H>>>, // ⇐ this is exploratory mode
+//          pub record_msg_in: fn(cfg: &C, history: &H, envelope: Envelope<&A::Msg>) -> Option<H>, //
+//          pub record_msg_out: fn(cfg: &C, history: &H, envelope: Envelope<&A::Msg>) -> Option<H>,
+//          pub within_boundary: fn(cfg: &C, state: &ActorModelState<A, H>) -> bool,
+// }
 
 impl NarwhalModelCfg {
     // `into_model()` is meant for model checking (or exploration).
@@ -1303,6 +1299,7 @@ impl NarwhalModelCfg {
     #[allow(clippy::ptr_arg)]
     fn record_msg_in(
         _cfg: &Self,
+        // history collects the sequence of messages sent (&received ⁈)
         history: &Vec<Envelope<<HNActor as Actor>::Msg>>,
         env: Envelope<&<HNActor as Actor>::Msg>,
     ) -> Option<Vec<Envelope<<HNActor as Actor>::Msg>>> {
@@ -1380,23 +1377,6 @@ impl NarwhalModelCfg {
     }
 }
 
-// we need an ActorModel now
-// from https://docs.rs/stateright/latest/stateright/actor/struct.ActorModel.html
-//
-// pub struct ActorModel<A, C = (), H = ()> where
-//     A: Actor, // ⇐ this will be A = HNActor
-//     H: Clone + Debug + Hash,  {
-//          pub actors: Vec<A>, // ⇐ that's our array of actors
-//          pub cfg: C, //
-//          pub init_history: H,
-//          pub init_network: Network<A::Msg>, // ⇐ this will be any (non-lossy) nework
-//          pub lossy_network: LossyNetwork,  // ⇐ this will be `LossyNetwork::No`
-//          pub properties: Vec<Property<ActorModel<A, C, H>>>, // ⇐ this is exploratory mode
-//          pub record_msg_in: fn(cfg: &C, history: &H, envelope: Envelope<&A::Msg>) -> Option<H>, //
-//          pub record_msg_out: fn(cfg: &C, history: &H, envelope: Envelope<&A::Msg>) -> Option<H>,
-//          pub within_boundary: fn(cfg: &C, state: &ActorModelState<A, H>) -> bool,
-// }
-
 #[derive(PartialEq, Debug)]
 enum ModesEnum {
     Check,
@@ -1412,8 +1392,6 @@ const SUP: ModesEnum = Explore;
 
 // for spawning actors (locally)
 // use std::net::{SocketAddrV4, Ipv4Addr};
-
-
 
 #[allow(clippy::assertions_on_constants)]
 fn main() {
