@@ -3,14 +3,13 @@
 // -------------------------------------------------------
 //
 // This code aims for clarity and correctness;
-// it complements and can be considered part of the tech report
-// https://github.com/anoma/…
+// it supplements the tech report https://github.com/anoma/…
 // …research/tree/master/distributed-systems/heterogeneous-narwhal
 
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::fmt::Debug;
-// use std::collections::{LinkedList,VecDeque};
+
 use cute::c; // for “pythonic” vec comprehension
              // simplest examples
              // const SQUARES = c![x*x, for x in 0..10];
@@ -42,15 +41,15 @@ fn hash_of<T: Hash>(t: &T) -> Digest {
 // basic data structures
 // ----------------------------------------------------------------------
 
-// Digest is one alias for the type of hashes
+// Digest is one of the aliases for the type of hashes
 type Digest = u64;
 // key-seed (bytes) (as in ed25519_consensus)
 type KeySeed = [u8; 32];
-// verification key / “public key” (as  in ed25519_consensus)
+// verification key / “public key” (based on ed25519_consensus)
 type VKBytes = [u8; 32];
-// signature (as  in ed25519_consensus)
+// signature (as in ed25519_consensus)
 type Sig = [u8; 64];
-// these signatures are [u8; 64], which we serialize using BigArray
+// as signatures are [u8; 64], we serialize using BigArray
 use serde_big_array::BigArray;
 
 // signing byte slices with ed25519_consensus
@@ -64,8 +63,7 @@ fn sign_serializable<T: ?Sized>(k: KeySeed, x: &T) -> Sig
 where
     T: serde::Serialize + Debug,
 {
-    use bincode::serialize;
-    let bytes: &bincode::Result<Vec<u8>> = &serialize(x);
+    let bytes = &bincode::serialize(x);
     let bytes_slice: &[u8] = match bytes {
         Ok(bytes) => bytes,
         Err(e) => {
@@ -80,27 +78,8 @@ where
     sign_bytes(k, bytes_slice)
 }
 
-// a module for learner graphs (cf. Heterogeneous Paxos)
-mod learner_graph {
-    // the learner graph trait uses
-    use std::collections::{HashMap, HashSet};
-    use std::iter::Iterator;
 
-    // learner graph trait
-    // ... based on github.com/isheff/het_paxos_ref
-    pub trait LearnerGraph {
-        type Learner;
-        type Validator;
-
-        fn get_learners(&self) -> dyn Iterator<Item = Self::Learner>;
-
-        fn get_quorums(&self) -> HashMap<Self::Learner, HashSet<Self::Validator>>;
-
-        fn are_entangled(&self, learner_a: Self::Learner, learner_b: Self::Learner) -> bool;
-    }
-}
-
-// a module for managing state-right ids with other types of ids, such as
+// a module for associating state-right ids with other types of ids, such as
 // - ip-addresses
 // - anoma's external identities
 mod id_mapping {
@@ -181,7 +160,6 @@ lazy_static! {
     });
 }
 
-
 // ----------------------------------------------------------------------
 // TODO: implement additional behavior for receiving ̈"pending" messages,
 // ie, when receiving a message, we discern two cases:
@@ -189,16 +167,18 @@ lazy_static! {
 // 2. it is "pending" and needs additional action to be taken.
 // This can be done by having a general post-processing for messages,
 // taking care of the non-trivial situations.
-// In particular, this means, that the code can be better organized, 
+// In particular, this means, that the code can be better organized,
 // in that we can read out the "happy" path from the specs in the code.
 // concretely, each case for `on_msg_vec`, splits into
 // 1. process message
-// 2. post-process message
-// 
-// for practical purposes, 
+// 2. post-process message (“wake up” the waiting process)
+// for practical purposes,
 // one might have dummy post-processing for starters
 // ----------------------------------------------------------------------
 
+// ----------------------------------------------------------------------
+// TODO: add weak-links, (also on the level of specs)
+// ----------------------------------------------------------------------
 
 // --------------------------------------------------------------
 // the actor model starts here
@@ -208,6 +188,22 @@ lazy_static! {
 // - workers, receiving and processing transactions
 // - primaries, building the actual mem-dag (with workers helping)
 // --------------------------------------------------------------
+
+// --------------------------------------------------------------
+// how to cope with waiting for expected messages
+// --------------------------------------------------------------
+// sometimes, there we must wait for messages to arrive
+// for each message that we are waiting for
+// 1. we know the id from which it will come
+// 2. the set of all other messages that are missing,
+//    before we can proceed
+// 3. the “exact” type of the message we can expect to receive,
+//    called _message fingerprint_ for want of a better name
+// 4. [conditions that make us stop waiting] 
+// Thus, local states will have
+// a) a map from (id, fingerprint)-pairs to (fingerprint-set, listener)-pairs
+// b) calling the listener happens when the fingerprint-set becomes empty
+
 
 // all about actors from stateright
 use stateright::actor::*;
@@ -1209,6 +1205,27 @@ impl Actor for HNActor {
     }
 }
 
+// a module for learner graphs (cf. Heterogeneous Paxos)
+// mod learner_graph {
+//     // the learner graph trait uses
+//     use std::collections::{HashMap, HashSet};
+//     use std::iter::Iterator;
+
+//     type HashSetMap<K,V> = HashMap<K, HashSet<V>>;
+//     // learner graph trait
+//     // ... based on github.com/isheff/het_paxos_ref
+//     pub trait LearnerGraph {
+//         type Learner;
+//         type Validator;
+
+//         fn get_learners(&self) -> dyn Iterator<Item = Self::Learner>;
+
+//         fn get_quorums(&self) -> HashSetMap<Self::Learner, Self::Validator>;
+
+//         fn are_entangled(&self, _: Self::Learner, _: Self::Learner) -> bool;
+//     }
+// }
+
 #[derive(Clone)]
 struct NarwhalModelCfg {
     worker_index_count: usize,
@@ -1377,6 +1394,10 @@ impl NarwhalModelCfg {
     }
 }
 
+
+
+
+
 #[derive(PartialEq, Debug)]
 enum ModesEnum {
     Check,
@@ -1385,7 +1406,7 @@ enum ModesEnum {
 }
 use ModesEnum::*;
 
-// choice for which mode to operate in (hardcoded)
+// choice for which mode to operate in (hard coded)
 //const SUP:ModesEnum = Check;
 //const SUP:ModesEnum = Spawn;
 const SUP: ModesEnum = Explore;
