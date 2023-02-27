@@ -78,7 +78,6 @@ where
     sign_bytes(k, bytes_slice)
 }
 
-
 // a module for associating state-right ids with other types of ids, such as
 // - ip-addresses
 // - anoma's external identities
@@ -149,9 +148,9 @@ mod id_mapping {
 // more precisly a static mutex holding the KeyTable.
 // Unsing the “REGistry” should start with `REG_MUTEX.lock()`
 // NTH: make this _immutable_
+use std::sync::Mutex;
 #[macro_use]
 extern crate lazy_static;
-use std::sync::Mutex;
 lazy_static! {
     static ref REG_MUTEX: Mutex<id_mapping::KeyTable> = Mutex::new({
         id_mapping::KeyTable {
@@ -198,12 +197,11 @@ lazy_static! {
 // 2. the set of all other messages that are missing,
 //    before we can proceed
 // 3. the “exact” type of the message we can expect to receive,
-//    called _message fingerprint_ for want of a better name
-// 4. [conditions that make us stop waiting] 
+//    called `message fingerprint` for want of a better name
+// 4. [conditions that make us stop waiting]
 // Thus, local states will have
 // a) a map from (id, fingerprint)-pairs to (fingerprint-set, listener)-pairs
 // b) calling the listener happens when the fingerprint-set becomes empty
-
 
 // all about actors from stateright
 use stateright::actor::*;
@@ -329,6 +327,16 @@ enum MessageEnum {
 }
 
 use crate::MessageEnum::*;
+
+enum MessageFingerprint {
+    X(Digest), // a mere hash pointer
+}
+
+impl MessageEnum {
+    fn fingerprint(&self) -> MessageFingerprint {
+        MessageFingerprint::X(hash_of(self))
+    }
+}
 
 // the round of a validator (e.g., u64)
 type Round = u64;
@@ -501,6 +509,54 @@ pub trait Vactor: Sized {
     ) -> Vec<Outputs<Id, Self::Msg>> {
         // by default, “ignore”
         Vec::new()
+    }
+}
+
+#[delegatable_trait]
+pub trait PatientVactor: Vactor {
+    // compute "waiting dependencies", 
+    // - no waiting necessary
+    // - waiting necessary
+    // - trigger (call-back)
+    fn compute_dependecies(&self) -> (bool,Option<(Id, Self::Msg)>);
+    fn waiting_done(&self) -> ();
+    // process a message (no waiting or waiting completed)
+    // this is what each Vactor 
+    fn process_msg(
+        &self,
+        id: Id,
+        state: &mut Cow<'_, Self::State>,
+        src: Id,
+        msg: Self::Msg,
+    ) -> Vec<Outputs<Id, Self::Msg>>;
+    fn on_msg_vec(
+        &self,
+        id: Id,
+        state: &mut Cow<'_, Self::State>,
+        src: Id,
+        msg: Self::Msg,
+    ) -> Vec<Outputs<Id, Self::Msg>>{
+        // compute dependencies
+        let (wait, deps) = self.compute_dependecies();
+        if wait {
+            // nothing to do but wait
+            vec![]
+        } else {
+            match deps {
+                // we did not wait “happy path”
+                None => self.process_msg(
+                    id,
+                    state,
+                    src,
+                    msg),
+                // the waiting is over, resume processing `x`
+                Some(x) => self.process_msg(
+                    id,
+                    state,
+                    x.0,
+                    x.1),
+            }
+        }
     }
 }
 
@@ -1393,10 +1449,6 @@ impl NarwhalModelCfg {
         .record_msg_out(NarwhalModelCfg::record_msg_out)
     }
 }
-
-
-
-
 
 #[derive(PartialEq, Debug)]
 enum ModesEnum {
