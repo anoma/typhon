@@ -328,6 +328,7 @@ enum MessageEnum {
 
 use crate::MessageEnum::*;
 
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
 enum MessageFingerprint {
     X(Digest), // a mere hash pointer
 }
@@ -391,13 +392,22 @@ struct PrimaryState {
 // each client knows a list of workers that can serve their requests
 type ClientState = Vec<WorkerId>;
 
+
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+struct GenericState {
+    key : KeySeed,
+    id : Id,
+    pending_msgs : BTreeMap<Id, BTreeMap<MessageFingerprint, (BTreeSet<MessageEnum>,Id,MessageEnum)>>,
+}
+
+
 // the enumeration of state types, for workers, primaries, and clients
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 enum StateEnum {
     // every actor has a signing key (seed)
-    Worker(WorkerState, KeySeed, Id),
-    Primary(PrimaryState, KeySeed, Id),
-    Client(ClientState, KeySeed, Id),
+    Worker(WorkerState, GenericState),
+    Primary(PrimaryState, GenericState),
+    Client(ClientState, GenericState),
 }
 
 // ----------------------------------------------------------------------
@@ -514,14 +524,20 @@ pub trait Vactor: Sized {
 
 #[delegatable_trait]
 pub trait PatientVactor: Vactor {
-    // compute "waiting dependencies", 
+    // compute "waiting dependencies"
+    // update local state and reply if
     // - no waiting necessary
-    // - waiting necessary
+    // - waiting necessary 
     // - trigger (call-back)
-    fn compute_dependecies(&self) -> (bool,Option<(Id, Self::Msg)>);
-    fn waiting_done(&self) -> ();
+    fn compute_dependecies(
+        &self,
+        id: Id,
+        state: &mut Cow<'_, Self::State>,
+        src: Id,
+        msg: Self::Msg,
+    ) -> (bool, Option<(Id, Self::Msg)>);
     // process a message (no waiting or waiting completed)
-    // this is what each Vactor 
+    // this is what each Vactor
     fn process_msg(
         &self,
         id: Id,
@@ -529,32 +545,25 @@ pub trait PatientVactor: Vactor {
         src: Id,
         msg: Self::Msg,
     ) -> Vec<Outputs<Id, Self::Msg>>;
+    // this should (CHECK!!) override Vactor's `on_msg_vec`
     fn on_msg_vec(
         &self,
         id: Id,
         state: &mut Cow<'_, Self::State>,
         src: Id,
         msg: Self::Msg,
-    ) -> Vec<Outputs<Id, Self::Msg>>{
+    ) -> Vec<Outputs<Id, Self::Msg>> {
         // compute dependencies
-        let (wait, deps) = self.compute_dependecies();
+        let (wait, deps) = self.compute_dependecies(id, state, src, msg.clone());
         if wait {
             // nothing to do but wait
             vec![]
         } else {
             match deps {
-                // we did not wait “happy path”
-                None => self.process_msg(
-                    id,
-                    state,
-                    src,
-                    msg),
+                // we did not wait / we are on the “happy path”
+                None => self.process_msg(id, state, src, msg),
                 // the waiting is over, resume processing `x`
-                Some(x) => self.process_msg(
-                    id,
-                    state,
-                    x.0,
-                    x.1),
+                Some(x) => self.process_msg(id, state, x.0, x.1),
             }
         }
     }
@@ -582,18 +591,23 @@ impl Vactor for Client {
         VerificationKey::from(&SigningKey::from(self.key_seed)).into()
     }
 
-    fn on_start_vec(&self, id: Id) -> (Self::State, Vec<Outputs<Id, Self::Msg>>) {
+    fn on_start_vec(&self, the_id: Id) -> (Self::State, Vec<Outputs<Id, Self::Msg>>) {
         if cfg!(debug_assertions) {
-            print!("Start client {}", id);
+            print!("Start client {}", the_id);
         }
-        let client_state = StateEnum::Client(self.known_workers.clone(), self.key_seed, id);
+        let gen_state = GenericState{
+            key: self.key_seed,
+            id: the_id, 
+            pending_msgs: BTreeMap::new(),
+        };
+        let client_state = StateEnum::Client(self.known_workers.clone(), gen_state);
         let mut o = vec![];
 
         // send a different tx to every worker, to get started
         let mut x = 0;
         for k in &self.known_workers {
             x += 1;
-            self.send(*k, TxReq(vec![x], id), &mut o);
+            self.send(*k, TxReq(vec![x], the_id), &mut o);
         }
 
         (client_state, o) // return
@@ -804,7 +818,7 @@ impl Worker {
         state: &mut Cow<'_, <Worker as Vactor>::State>,
     ) -> Vec<Outputs<Id, <Worker as Vactor>::Msg>> {
         // specifically check pending_hxs, fifo style, one at a time
-        if let StateEnum::Worker(ref mut state, _, _) = state.to_mut() {
+        if let StateEnum::Worker(ref mut state, _) = state.to_mut() {
             let mut res = vec![];
             if state.pending_hxs.is_empty() {
                 println!("got a spurious timer");
@@ -846,10 +860,14 @@ impl Vactor for Worker {
             mirrors: self.mirror_workers.clone(), // copy mirror_workers
             the_id: id,                           // copy id
         };
+        let gen_state = GenericState{
+            key: self.key_seed, // copy key
+            id : id,            // copy id
+            pending_msgs: BTreeMap::new(),
+        };
         let state = StateEnum::Worker(
             worker_state,
-            self.key_seed, // copy key
-            id,            // copy id
+            gen_state
         );
         (state, vec![])
     }
@@ -868,9 +886,9 @@ impl Vactor for Worker {
         // check if state is proper
         let worker_state: &mut WorkerState;
         let key_seed: KeySeed;
-        if let StateEnum::Worker(ref mut s, k, _i) = state.to_mut() {
+        if let StateEnum::Worker(ref mut s, gen_state) = state.to_mut() {
             worker_state = s;
-            key_seed = *k;
+            key_seed = gen_state.key;
             // ok
         } else {
             // issue
@@ -1071,32 +1089,36 @@ impl Vactor for Primary {
     }
 
     // cf. `on_start` of Actor
-    fn on_start_vec(&self, id: Id) -> (Self::State, Vec<Outputs<Id, Self::Msg>>) {
-        println!("start primary {}", id);
+    fn on_start_vec(&self, the_id: Id) -> (Self::State, Vec<Outputs<Id, Self::Msg>>) {
+        println!("start primary {}", the_id);
         let key_seed = self.key_seed;
         // let map: HashMap<WorkerId, Vec<WorkerHashData>> = c! {
         //     key => vec![],
         //     for key in self.local_workers.clone()
         // };
         if cfg!(debug_assertions) {
-            assert!(id == self.my_expected_id);
+            assert!(the_id == self.my_expected_id);
             for x in self.peer_validators.clone() {
-                assert!(x != id);
+                assert!(x != the_id);
             }
         }
+        let gen_state = GenericState{
+            key:key_seed,
+            id:the_id,
+            pending_msgs: BTreeMap::new(),
+        };
         (
             StateEnum::Primary(
                 PrimaryState {
                     map_of_worker_hashes: BTreeMap::new(),
                     worker_hash_set: BTreeSet::new(),
-                    the_id: id,
+                    the_id,
                     validators: self.peer_validators.clone(),
                     rnd: GENESIS_ROUND,
                     pending_requests: BTreeMap::new(),
                     expected_takes: BTreeMap::new(),
                 },
-                key_seed,
-                id,
+                gen_state
             ),
             vec![],
         ) // default value for one ping pongk
@@ -1112,13 +1134,13 @@ impl Vactor for Primary {
     ) -> Vec<Outputs<Id, Self::Msg>> {
         let p_state;
         let key_seed;
-        if let StateEnum::Primary(ref mut state, key, _) = state.to_mut() {
+        if let StateEnum::Primary(ref mut state, gen_state) = state.to_mut() {
             p_state = state;
             if cfg!(debug_assertions) {
                 assert!(p_state.the_id == id);
                 assert!(p_state.the_id == self.my_expected_id);
             }
-            key_seed = *key;
+            key_seed = gen_state.key;
         } else {
             // the following would be fatal bug
             panic!("The state {:?} is not even of the right kind", state);
