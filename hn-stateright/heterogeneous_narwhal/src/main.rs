@@ -172,7 +172,13 @@ lazy_static! {
 // 1. process message
 // 2. post-process message (“wake up” the waiting process)
 // for practical purposes,
-// one might have dummy post-processing for starters
+// one might have dummy post-processing for starters.
+//
+// NB: There are at least two separate challenges to be resolved:
+// a) if the last missing message is delivered via `on_msg` (by stateright),
+//    we must be able to know if it is the last missing message that
+//    we are waiting for in some of the sub-processes of an actor
+// b) we need an efficient data structure, possibly calling for “rust-magic”
 // ----------------------------------------------------------------------
 
 // ----------------------------------------------------------------------
@@ -524,15 +530,15 @@ pub trait Vactor: Sized {
 
 #[delegatable_trait]
 pub trait PatientVactor: Vactor {
-    // compute "waiting dependencies"
+    // compute "waiting dependencies" of a message
     // update local state and reply if
     // - no waiting necessary
     // - waiting necessary 
     // - trigger (call-back)
     fn compute_dependecies(
         &self,
-        id: Id,
-        state: &mut Cow<'_, Self::State>,
+        // id: Id,
+        // state: &mut Cow<'_, Self::State>, 
         src: Id,
         msg: Self::Msg,
     ) -> (bool, Option<(Id, Self::Msg)>);
