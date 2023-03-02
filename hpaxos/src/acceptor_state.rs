@@ -1,22 +1,20 @@
-use super::message::{AcceptorId, BallotId, HPaxosMessage, MessageHash};
-use std::cmp;
-use std::collections::{HashMap, HashSet};
+// use crate::proto::Ballot;
+
+use crate::learner::LearnerId;
+
+use super::configuration::Configuration;
+use super::message::{AcceptorId, BallotId, HPaxosMessage, MessageHash, ValueId};
+use std::collections::{hash_map::Entry, HashMap, HashSet};
 use unwrap_or::unwrap_some_or;
 
 // history branch index
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 struct Index(u64);
 
 impl Index {
     fn next(&self) -> Self {
         // it should never overflow, practically
         Self(self.0 + 1)
-    }
-}
-
-impl Default for Index {
-    fn default() -> Self {
-        Self(0)
     }
 }
 
@@ -38,29 +36,29 @@ impl Default for Index {
 // The graph below displays a history of A-messages, with the message m2 referenced by the new message m and
 // transitively referenced by the latest known message m1.
 //
-//      Index 0   ┌──┐
-//   ┌────...─────┤m1│
-//   ▼            └──┘
+//      Index 0  ┌──┐
+//   ┌────...────┤m1│
+//   ▼           └──┘
 // ┌──┐
 // │m2│
 // └──┘
-//   ▲  Index 1   ┌──┐
-//   └────────────┤m │
-//                └──┘
+//   ▲  Index 1  ┌──┐
+//   └───────────┤m │
+//               └──┘
 //
 // Once the real node detects the divergence, it does not treat the message sender A as adversarial just yet.
 // The adversarial behavior is _caught_ if the real node receives another message m3, originating from any other node,
 // which transitively references both m and m1.
 //
-//      Index 0   ┌──┐
-//   ┌────...─────┤m1│◄───...───┐
-//   ▼            └──┘          │
-// ┌──┐                        ┌┴─┐
-// │m2│                        │m3│
-// └──┘                        └┬─┘
-//   ▲  Index 1   ┌──┐          │
-//   └────────────┤m │◄───...───┘
-//                └──┘
+//      Index 0  ┌──┐
+//   ┌────...────┤m1│◄───...───┐
+//   ▼           └──┘          │
+// ┌──┐                       ┌┴─┐
+// │m2│                       │m3│
+// └──┘                       └┬─┘
+//   ▲  Index 1  ┌──┐          │
+//   └───────────┤m │◄───...───┘
+//               └──┘
 //
 
 // stores indices of messages originating from a fixed acceptor
@@ -85,7 +83,7 @@ impl MessageHistoryTableComponent {
 
     // returns a current maximal history branch index of the component
     fn get_max_index(&self) -> Index {
-        self.max_index.clone()
+        self.max_index
     }
 
     // checks if the given message hash is a leaf of a message history branch
@@ -98,7 +96,7 @@ impl MessageHistoryTableComponent {
         if self.is_leaf(&prev_msg_hash) {
             // the previous message is a leaf -- replace it with the given message
             let (_, index) = self.msg_index_map.remove_entry(&prev_msg_hash).unwrap();
-            self.msg_index_map.insert(msg_hash, index.clone());
+            self.msg_index_map.insert(msg_hash, index);
             index
         } else {
             // the previous message is not a leaf -- register a new branch and update the current
@@ -108,8 +106,8 @@ impl MessageHistoryTableComponent {
                 !self.msg_index_map.contains_key(&msg_hash),
                 "message hash exists in the component"
             );
-            self.msg_index_map.insert(msg_hash, new_index.clone());
-            self.max_index = new_index.clone();
+            self.msg_index_map.insert(msg_hash, new_index);
+            self.max_index = new_index;
             new_index
         }
     }
@@ -135,7 +133,7 @@ impl MessageHistoryTable {
         self.0.get(&acc).unwrap().get_max_index()
     }
 
-    // takes as input a well-formed (relative to the correct acceptor state) message
+    // takes as input a message with valid references
     // TODO improve comment
     fn update_and_get_index(
         &mut self,
@@ -152,9 +150,9 @@ impl MessageHistoryTable {
             // If the previous message (of the sender) exists, `msg` must be known.
             // Since the previous message is referenced by `msg`, it must have been processed and thus,
             // a message component for the message sender must exists.
-            let comp = self.0.get_mut(&prev_msg_sender).unwrap(); // cannot fail
+            let component = self.0.get_mut(&prev_msg_sender).unwrap(); // cannot fail
 
-            comp.update(msg.hash(), prev_msg_hash)
+            component.update(msg.hash(), prev_msg_hash)
         } else {
             // If the previous message (of the sender) does not exist,
             // the message sender is not known -- create a new component.
@@ -187,14 +185,93 @@ impl AcceptorStatus {
 // the messages m1 that are directly referenced by m
 #[derive(Debug)]
 struct LocalRefHistoryTable(HashMap<AcceptorId, AcceptorStatus>);
+#[derive(Debug)]
+struct Last2as(HashMap<LearnerId, (MessageHash, Option<MessageHash>)>);
+
+trait MessageHashResolver {
+    fn resolve(&self, hash: &MessageHash) -> Option<&MessageInfo>;
+}
+
+impl Last2as {
+    fn new() -> Self {
+        Last2as(HashMap::<LearnerId, (MessageHash, Option<MessageHash>)>::default())
+    }
+
+    fn join<R>(resolver: &R, acc: Self, other: &Self) -> Self
+    where
+        R: MessageHashResolver,
+    {
+        let mut acc = acc;
+        for (lrn, (other_t1_hash, other_t2_hash)) in other.0.iter() {
+            if let Entry::Vacant(e) = acc.0.entry(lrn.clone()) {
+                e.insert(*other.0.get(lrn).unwrap());
+            } else {
+                let (t1_hash, t2_hash) = acc.0.get_mut(lrn).unwrap();
+                let t1 = resolver.resolve(t1_hash).unwrap();
+                let other_t1 = resolver.resolve(other_t1_hash).unwrap();
+                if t1.ballot < other_t1.ballot {
+                    if t1.value == other_t1.value {
+                        if let Some(t2_hash) = t2_hash {
+                            let t2 = resolver.resolve(t2_hash).unwrap();
+                            if let Some(other_t2_hash) = other_t2_hash {
+                                let other_t2 = resolver.resolve(other_t2_hash).unwrap();
+                                if t2.ballot < other_t2.ballot {
+                                    *t2_hash = *other_t2_hash;
+                                }
+                            }
+                        } else {
+                            *t2_hash = *other_t2_hash;
+                        }
+                    } else if let Some(other_t2_hash) = other_t2_hash {
+                        let other_t2 = resolver.resolve(other_t2_hash).unwrap();
+                        if t1.ballot < other_t2.ballot {
+                            *t2_hash = Some(*other_t2_hash);
+                        } else {
+                            *t2_hash = Some(*t1_hash);
+                        }
+                    } else {
+                        *t2_hash = Some(*t1_hash);
+                    }
+                    *t1_hash = *other_t1_hash;
+                } else if t1.value == other_t1.value {
+                    if let Some(t2_hash) = t2_hash {
+                        let t2 = resolver.resolve(t2_hash).unwrap();
+                        if let Some(other_t2_hash) = other_t2_hash {
+                            let other_t2 = resolver.resolve(other_t2_hash).unwrap();
+                            if t2.ballot < other_t2.ballot {
+                                *t2_hash = *other_t2_hash;
+                            }
+                        }
+                    } else {
+                        *t2_hash = *other_t2_hash;
+                    }
+                } else if let Some(t2_hash) = t2_hash {
+                    let t2 = resolver.resolve(t2_hash).unwrap();
+                    if t2.ballot < other_t1.ballot {
+                        *t2_hash = *other_t1_hash;
+                    }
+                } else {
+                    *t2_hash = Some(*other_t1_hash);
+                }
+            }
+        }
+        acc
+    }
+}
 
 #[derive(Debug)]
 pub struct MessageInfo {
-    // raw heterogeneous paxos protocol message
+    // heterogeneous paxos message
     msg: HPaxosMessage,
 
     // message ballot id
     ballot: BallotId,
+
+    // message value id
+    value: ValueId,
+
+    // hash of a unique 1a message that determines a ballot / value for this message
+    // ballot_msg: MessageHash,
 
     // previous message sent by the same sender
     // prev: Option<MessageHash>,
@@ -204,6 +281,13 @@ pub struct MessageInfo {
 
     // branch index of the message
     branch_index: Index,
+
+    // for each learner, store:
+    // - the highest ballot number 2a message T1 with learner L in Tran(m)
+    // - the highest ballot number 2a message T2 with learner L in Tran(m) such that V(T1) != V(T2)
+    last_2as: Last2as, // for each unburied 2a message m2a, store:
+                       // the set of senders of messages m such that m.T1 or m.T2 has a value different from m2a.value
+                       // unburied_2as: HashMap<MessageHash, HashSet<AcceptorId>>,
 }
 
 impl MessageInfo {
@@ -215,8 +299,59 @@ impl MessageInfo {
         self.msg.sender()
     }
 
-    pub fn is_1a(&self) -> Option<BallotId> {
+    pub fn learner(&self) -> Option<LearnerId> {
+        self.msg.learner()
+    }
+
+    fn refs(&self) -> Vec<MessageHash> {
+        self.msg.refs()
+    }
+
+    pub fn is_1a(&self) -> Option<(BallotId, ValueId)> {
         self.msg.is_1a()
+    }
+
+    fn is_1b(&self) -> bool {
+        self.msg.is_1b()
+    }
+
+    fn is_2a(&self) -> bool {
+        self.msg.is_2a()
+    }
+
+    // pub fn bal(&self) -> BallotId {
+    //     self.ballot.clone()
+    // }
+
+    // pub fn val(&self) -> ValueId {
+    //     self.value.clone()
+    // }
+
+    fn get_caught(&self) -> HashSet<AcceptorId> {
+        self.referenced_leaves
+            .0
+            .iter()
+            .filter_map(|(aid, s)| {
+                if let AcceptorStatus::Uncaught(_) = s {
+                    Some(aid.to_owned())
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
+    #[cfg(test)]
+    fn mock_1a() -> Self {
+        let msg = HPaxosMessage::mock_1a();
+        Self {
+            msg,
+            ballot: BallotId { ballot: 0 },
+            value: ValueId { value: 0 },
+            referenced_leaves: LocalRefHistoryTable::new(),
+            branch_index: Index(0),
+            last_2as: Last2as::new(),
+        }
     }
 }
 
@@ -252,6 +387,9 @@ impl LocalRefHistoryTable {
 
 #[derive(Debug)]
 pub struct AcceptorState {
+    // configuration
+    config: Configuration,
+
     // processed well-formed messages
     known_msgs: HashMap<MessageHash, MessageInfo>,
 
@@ -285,9 +423,16 @@ pub enum MessageParseError {
     InvalidSender,
 }
 
+impl MessageHashResolver for AcceptorState {
+    fn resolve(&self, hash: &MessageHash) -> Option<&MessageInfo> {
+        self.known_msgs.get(hash)
+    }
+}
+
 impl AcceptorState {
-    pub fn new() -> AcceptorState {
+    pub fn new(config: Configuration) -> AcceptorState {
         Self {
+            config,
             known_msgs: HashMap::new(),
             known_acceptor_id: HashSet::new(),
             recent_msgs: HashSet::<MessageHash>::new(),
@@ -322,12 +467,11 @@ impl AcceptorState {
         self.known_msgs.get(&hash).is_some()
     }
 
-    // checks if the acceptor is known to be caught
+    // checks if the acceptor is known to be caught in any message
     fn is_caught(&self, id: &AcceptorId) -> bool {
         self.caught.get(id).is_some()
     }
 
-    // checks if the message contains valid and known references
     // - Well-formed 1a message must not contain any references.
     // - Well-formed 1b or 2a message must reference other messages.
     //   The message passes the check if
@@ -369,7 +513,7 @@ impl AcceptorState {
         // count known references originating from the same sender
         let mut num_refs_same_sender: u32 = 0;
         for ref_hash in msg_refs {
-            let ref_msg = unwrap_some_or!(self.known_msgs.get(&ref_hash), {
+            let ref_msg = unwrap_some_or!(self.resolve(&ref_hash), {
                 // the reference is unknown -- return error according to condition (1)
                 return Err(MessageParseError::UnknownRef);
             });
@@ -394,28 +538,61 @@ impl AcceptorState {
         }
     }
 
-    // compute ballot id of the given well-formed message
-    fn compute_msg_ballot(&self, msg: &HPaxosMessage) -> BallotId {
-        // assume that msg is well-formed
+    // compute ballot id of the given message with valid references
+    fn compute_msg_ballot_value(&self, msg: &HPaxosMessage) -> (BallotId, ValueId) {
+        // assume that msg has valid references
         debug_assert!(
             self.check_refs(msg).is_ok(),
-            "the message is not well-formed"
+            "the message has invalid references"
         );
 
         // case 1a:      the message contains no references;
-        //               max_ballot is Some initially and will not by altered since a well-formed
-        //               1a message contains no references, i.e., `msg.refs()` is empty.
-        // case 1b / 2a: since the message is well-formed, it must contain at least one reference;
+        //               max_ballot is Some initially and will not be altered since `msg.refs()` is empty.
+        // case 1b / 2a: the message must contain at least one reference;
         //               max_ballot is None initially, but will be reassigned to Some value in the loop below,
-        //               since all the message references are known and every processed message is assigned a respective ballot id.
-        let mut max_ballot: Option<BallotId> = msg.is_1a();
+        //               because all the message references are known and every processed message
+        //               is assigned a respective ballot id / value id
+        let mut max_ballot = msg.is_1a();
 
         for ref_hash in msg.refs() {
-            let ref_msg = self.known_msgs.get(&ref_hash).unwrap();
-            let ref_msg_bal = ref_msg.ballot.clone();
-            max_ballot = Some(max_ballot.map_or_else(|| ref_msg_bal, |b| cmp::max(b, ref_msg_bal)));
+            let ref_msg = self.resolve(&ref_hash).unwrap(); // cannot fail
+            max_ballot = Some(max_ballot.map_or_else(
+                || (ref_msg.ballot, ref_msg.value),
+                |b| {
+                    if b.0 < ref_msg.ballot {
+                        (ref_msg.ballot, ref_msg.value)
+                    } else {
+                        b
+                    }
+                },
+            ));
         }
-        max_ballot.unwrap() // should never panic
+        max_ballot.unwrap() // cannot fail
+    }
+
+    fn is_well_formed(&self, msg: &MessageInfo) -> bool {
+        // assume that msg has valid references
+        debug_assert!(
+            self.check_refs(&msg.msg).is_ok(),
+            "the message has invalid references"
+        );
+
+        // case 1b
+        if msg.is_1b() {
+            for ref_hash in msg.refs() {
+                let ref_msg = self.resolve(&ref_hash).unwrap(); // cannot fail
+                if ref_msg.ballot == msg.ballot && ref_msg.is_1a().is_some() {
+                    return false;
+                }
+            }
+        }
+
+        // case 1b
+        if msg.is_2a() {
+            unimplemented!("TODO")
+        }
+
+        true
     }
 
     // construct joined message history leaves table for all references of the given message,
@@ -424,16 +601,16 @@ impl AcceptorState {
         &self,
         msg: &HPaxosMessage,
     ) -> (LocalRefHistoryTable, HashSet<AcceptorId>) {
-        // assume that `msg` is well-formed
+        // assume that msg has valid references
         debug_assert!(
             self.check_refs(msg).is_ok(),
-            "the message is not well-formed"
+            "the message has invalid references"
         );
 
         msg.refs().iter().fold(
             (LocalRefHistoryTable::new(), HashSet::<AcceptorId>::new()),
             |acc, ref_hash| {
-                let ref_msg = self.known_msgs.get(ref_hash).unwrap(); // cannot fail
+                let ref_msg = self.resolve(ref_hash).unwrap(); // cannot fail
                 if ref_msg.is_1a().is_some() {
                     acc
                 } else {
@@ -444,7 +621,7 @@ impl AcceptorState {
                         acc,
                         (
                             &ref_msg_sender,
-                            &AcceptorStatus::Uncaught(ref_msg.branch_index.clone()),
+                            &AcceptorStatus::Uncaught(ref_msg.branch_index),
                         ),
                     );
                     // process the reference leaves table of the referenced message
@@ -454,15 +631,15 @@ impl AcceptorState {
         )
     }
 
-    // compute the previous message, i.e., a unique message referenced by the given well-formed message
-    // and originating from the same sender
+    // fot the given message with valid references, compute the previous message,
+    // i.e., a unique message referenced by the given message and originating from the same sender
     // returns the previous message hash and sender id, if it exists
     // returns None if the given message is 1a message or the given message is not known
     fn sender_prev_message(&self, msg: &HPaxosMessage) -> Option<(MessageHash, AcceptorId)> {
-        // assume that `msg` is well-formed
+        // assume that msg has valid references
         debug_assert!(
             self.check_refs(msg).is_ok(),
-            "the message is not well-formed"
+            "the message has invalid references"
         );
 
         // 1a message does not have a previous message -- return None
@@ -477,7 +654,7 @@ impl AcceptorState {
             // If the message sender is known, by property (2) of `check_refs` function,
             // the message must contain exactly one reference to a previous message sent by the sender.
             for ref_hash in msg.refs() {
-                let ref_msg = self.known_msgs.get(&ref_hash).unwrap(); // cannot fail
+                let ref_msg = self.resolve(&ref_hash).unwrap(); // cannot fail
                 if let Some(sender) = ref_msg.sender() {
                     if msg_sender == sender {
                         return Some((ref_msg.hash(), sender));
@@ -491,14 +668,40 @@ impl AcceptorState {
         None
     }
 
-    pub fn store(&mut self, msg: HPaxosMessage) {
-        // assume that msg is well-formed
+    fn compute_last_2as(&self, msg: &HPaxosMessage) -> Last2as {
+        // assume that msg has valid references
         debug_assert!(
-            self.check_refs(&msg).is_ok(),
-            "the message is not well-formed"
+            self.check_refs(msg).is_ok(),
+            "the message has invalid references"
         );
 
-        let msg_ballot = self.compute_msg_ballot(&msg);
+        let mut last2as = Last2as::new();
+        if msg.is_2a() {
+            last2as.0.insert(msg.learner().unwrap(), (msg.hash(), None));
+        }
+
+        msg.refs().iter().fold(last2as, |acc, ref_hash| {
+            Last2as::join(self, acc, &self.resolve(ref_hash).unwrap().last_2as)
+        })
+    }
+
+    // fn compute_unburied_2as(
+    //     &self,
+    //     msg: HPaxosMessage,
+    //     msg_ballot: BallotId,
+    //     msg_value: ValueId,
+    // ) -> HashMap<LearnerId, (MessageHash, Option<MessageHash>)> {
+    //     HashMap::<LearnerId, (MessageHash, Option<MessageHash>)>::new()
+    // }
+
+    pub fn store(&mut self, msg: HPaxosMessage) {
+        // assume that msg has valid references
+        debug_assert!(
+            self.check_refs(&msg).is_ok(),
+            "the message has invalid references"
+        );
+
+        let (msg_ballot, msg_value) = self.compute_msg_ballot_value(&msg);
 
         let (joined_ref_leaves_table, new_caught_acceptors) =
             self.compute_joined_reference_leaves_table(&msg);
@@ -514,14 +717,23 @@ impl AcceptorState {
             .message_history_table
             .update_and_get_index(&msg, prev_msg);
 
-        // learn the message and its sender
-        self.add_to_known(MessageInfo {
+        let last_2as = self.compute_last_2as(&msg);
+
+        let msg_info = MessageInfo {
             msg,
             ballot: msg_ballot,
+            value: msg_value,
             // prev: prev_msg.map(|p| p.0),
             referenced_leaves: joined_ref_leaves_table,
             branch_index: msg_branch_index,
-        });
+            last_2as,
+            // unburied_2as: (),
+        };
+
+        if self.is_well_formed(&msg_info) {
+            // if the message is well-formed, learn it and its sender
+            self.add_to_known(msg_info);
+        }
     }
 
     // adds given parsed message to the list of known messages
@@ -542,10 +754,20 @@ impl AcceptorState {
 
     // enqueued message are always well-formed
     pub fn dequeue(&mut self) -> Option<MessageHash> {
-        let hash = self.queued_msg.clone();
+        let hash = self.queued_msg;
         self.queued_msg = None;
         hash
     }
+
+    //     fn q(&self, msg: &HPaxosMessage) -> HashSet<AcceptorId> {
+    //         // assume that msg has valid references
+    //         debug_assert!(
+    //             self.check_refs(&msg).is_ok(),
+    //             "the message has invalid references"
+    //         );
+    //         let mut queue = Vec::<&MessageInfo>::new();
+    //         HashSet::<AcceptorId>::new()
+    //     }
 }
 
 #[cfg(test)]
@@ -554,8 +776,21 @@ mod tests {
 
     #[test]
     fn test_acceptor_state() {
-        let s = AcceptorState::new();
+        let config = Configuration::mock();
+        let s = AcceptorState::new(config);
         assert!(!s.is_known_msg(MessageHash { hash: 0 }));
         assert!(!s.is_caught(&AcceptorId { id: 0 }));
+    }
+
+    #[test]
+    fn test_known_msgs_1a() {
+        let config = Configuration::mock();
+        let mut s = AcceptorState::new(config);
+        let msg = MessageInfo::mock_1a();
+        let msg_hash = msg.hash();
+        assert!(msg.is_1a().is_some());
+        assert!(msg.sender().is_none());
+        s.add_to_known(msg);
+        assert!(s.is_known_msg(msg_hash));
     }
 }
