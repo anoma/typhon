@@ -209,31 +209,7 @@ impl Last2as {
                 let (t1_hash, t2_hash) = acc.0.get_mut(lrn).unwrap();
                 let t1 = resolver.resolve(t1_hash).unwrap();
                 let other_t1 = resolver.resolve(other_t1_hash).unwrap();
-                if t1.ballot < other_t1.ballot {
-                    if t1.value == other_t1.value {
-                        if let Some(t2_hash) = t2_hash {
-                            let t2 = resolver.resolve(t2_hash).unwrap();
-                            if let Some(other_t2_hash) = other_t2_hash {
-                                let other_t2 = resolver.resolve(other_t2_hash).unwrap();
-                                if t2.ballot < other_t2.ballot {
-                                    *t2_hash = *other_t2_hash;
-                                }
-                            }
-                        } else {
-                            *t2_hash = *other_t2_hash;
-                        }
-                    } else if let Some(other_t2_hash) = other_t2_hash {
-                        let other_t2 = resolver.resolve(other_t2_hash).unwrap();
-                        if t1.ballot < other_t2.ballot {
-                            *t2_hash = Some(*other_t2_hash);
-                        } else {
-                            *t2_hash = Some(*t1_hash);
-                        }
-                    } else {
-                        *t2_hash = Some(*t1_hash);
-                    }
-                    *t1_hash = *other_t1_hash;
-                } else if t1.value == other_t1.value {
+                if t1.value == other_t1.value {
                     if let Some(t2_hash) = t2_hash {
                         let t2 = resolver.resolve(t2_hash).unwrap();
                         if let Some(other_t2_hash) = other_t2_hash {
@@ -245,13 +221,34 @@ impl Last2as {
                     } else {
                         *t2_hash = *other_t2_hash;
                     }
+                } else if t1.ballot < other_t1.ballot {
+                    // case t1.value != other_t1.value
+                    if let Some(other_t2_hash) = other_t2_hash {
+                        let other_t2 = resolver.resolve(other_t2_hash).unwrap();
+                        if t1.ballot < other_t2.ballot {
+                            *t2_hash = Some(*other_t2_hash);
+                        } else {
+                            *t2_hash = Some(*t1_hash);
+                        }
+                    } else {
+                        *t2_hash = Some(*t1_hash);
+                    }
                 } else if let Some(t2_hash) = t2_hash {
+                    // case t1.value != other_t1.value
+                    // case t1.ballot >= other_t1.ballot
                     let t2 = resolver.resolve(t2_hash).unwrap();
                     if t2.ballot < other_t1.ballot {
                         *t2_hash = *other_t1_hash;
                     }
                 } else {
+                    // case t1.value != other_t1.value
+                    // case t1.ballot >= other_t1.ballot
+                    // case t2_hash == None
                     *t2_hash = Some(*other_t1_hash);
+                }
+
+                if t1.ballot < other_t1.ballot {
+                    *t1_hash = *other_t1_hash;
                 }
             }
         }
