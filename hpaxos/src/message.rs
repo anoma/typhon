@@ -1,6 +1,9 @@
+use crate::learner::LearnerId;
+
 use super::proto::{Ballot, HPaxos1a, HPaxos1b, HPaxos2a};
 
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+// #[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Debug)]
 pub enum HPaxosMessage {
     HPaxos1a(HPaxos1a),
     HPaxos1b(HPaxos1b),
@@ -8,7 +11,7 @@ pub enum HPaxosMessage {
 }
 
 // TODO
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct MessageHash {
     pub hash: u64,
 }
@@ -31,6 +34,11 @@ pub struct BallotId {
     pub ballot: u64,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ValueId {
+    pub value: u64,
+}
+
 impl HPaxosMessage {
     // TODO
     pub fn hash(&self) -> MessageHash {
@@ -38,12 +46,20 @@ impl HPaxosMessage {
     }
 
     // return Some(ballot_id) if the message is 1a, otherwise returns None
-    pub fn is_1a(&self) -> Option<BallotId> {
+    pub fn is_1a(&self) -> Option<(BallotId, ValueId)> {
         match self {
             // TODO
-            HPaxosMessage::HPaxos1a(_raw) => Some(BallotId { ballot: 0 }),
+            HPaxosMessage::HPaxos1a(_raw) => Some((BallotId { ballot: 0 }, ValueId { value: 0 })),
             _ => None,
         }
+    }
+
+    pub fn is_1b(&self) -> bool {
+        matches!(self, HPaxosMessage::HPaxos1b(_raw))
+    }
+
+    pub fn is_2a(&self) -> bool {
+        matches!(self, HPaxosMessage::HPaxos2a(_raw))
     }
 
     // TODO: implement MessageHashIter
@@ -62,5 +78,25 @@ impl HPaxosMessage {
             HPaxosMessage::HPaxos1b(_msg) => None, // TODO
             HPaxosMessage::HPaxos2a(_msg) => None, // TODO
         }
+    }
+
+    pub fn value(&self) -> ValueId {
+        match self {
+            HPaxosMessage::HPaxos1a(_) => ValueId { value: 0 }, // TODO
+            HPaxosMessage::HPaxos1b(_msg) => ValueId { value: 0 }, // TODO
+            HPaxosMessage::HPaxos2a(_msg) => ValueId { value: 0 }, // TODO
+        }
+    }
+
+    pub fn learner(&self) -> Option<LearnerId> {
+        Some(LearnerId("fix me".to_string()))
+    }
+
+    #[cfg(test)]
+    pub fn mock_1a() -> Self {
+        Self::HPaxos1a(HPaxos1a {
+            ballot: None,
+            sig: None,
+        })
     }
 }

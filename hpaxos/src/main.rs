@@ -6,7 +6,7 @@ pub mod proto;
 
 use stateright::report::WriteReporter;
 use stateright::{Checker, Model, Property};
-use std::hash::Hash;
+// use std::hash::Hash;
 
 use crate::acceptor_state::AcceptorState;
 

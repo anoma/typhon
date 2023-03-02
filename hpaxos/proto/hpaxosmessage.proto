@@ -22,8 +22,10 @@ message HPaxos1a {
 
 message HPaxos1b {
     HashSet hashSet = 1;
+    Signature sig = 2;
 }
 
 message HPaxos2a {
     HashSet hashSet = 1;
+    Signature sig = 2;
 }
