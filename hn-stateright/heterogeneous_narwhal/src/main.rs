@@ -222,9 +222,9 @@ type TxBlob = u64;
 type TxData = Vec<TxBlob>;
 // each worker assigns a sequence number to transactions
 type SeqNum = usize;
-// batches of transactions are numbered as well, dubbed _take_
-type Take = u32;
-const FIRST_TAKE: Take = 0;
+// batches of transactions are numbered as well by the worker
+type BatchNumber = u32;
+const FIRST_BATCH: BatchNumber = 0;
 
 // availability certificate
 type AC = (); // TO BE REFINED/DEFINED
@@ -232,16 +232,16 @@ type AC = (); // TO BE REFINED/DEFINED
 // hashes of signed quorums
 type SQHash = (); // TO BE REFINED
 
-// worker hash data type `WorkerHash`
+// worker hash data type `WorkerHashData`
 // (see https://crates.io/crates/bincode for serialization matters)
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq, Hash, PartialOrd, Ord)]
-struct WorkerHash {
-    // the hash (of a batch of transactions)
+struct WorkerHashData {
+    // the hash (of a batch of transactions) 
     hash: u64,
     // the number of txs in (the batch of) this worker hash
     length: usize,
-    // the take (equal to the round number in Narwhal&Tusk)
-    take: Take,
+    // the batch number (equal to the round number in Narwhal&Tusk)
+    batch: BatchNumber,
     // the id of the worker collecting the transactions
     collector: WorkerId,
 }
@@ -282,7 +282,7 @@ struct HeaderData {
     // the “creator” of the header
     creator: ValidatorId,
     // the worker hashes (produced by the creator's workers)
-    worker_hashes: Vec<WorkerHash>,
+    worker_hashes: Vec<WorkerHashData>,
     // the validity certificate
     certificate: Option<AC>,
     // the signed quorum hashes
@@ -298,23 +298,23 @@ enum MessageEnum {
     // acknowledgments of transactions (by workers)
     TxAck(TxData, WorkerId),
     // broadcasting a tx (or its erasure code) to mirror workers
-    TxToAll(TxData, ClientId, SeqNum, Take),
+    TxToAll(TxData, ClientId, SeqNum, BatchNumber),
 
     // --- worker hash level --
     // Worker Hash "upload"/provision (worker -> primary)
-    WorkerHx(WorkerHash, #[serde(with = "BigArray")] WorkerHashSignature),
+    WorkerHx(WorkerHashData, #[serde(with = "BigArray")] WorkerHashSignature),
     // Worker Hash Broadcast (worker => worker)
-    WHxToAll(WorkerHash, #[serde(with = "BigArray")] WorkerHashSignature),
+    WHxToAll(WorkerHashData, #[serde(with = "BigArray")] WorkerHashSignature),
     // Worker Hash forwarding (worker -> primary)
-    WHxFwd(WorkerHash, #[serde(with = "BigArray")] WorkerHashSignature),
+    WHxFwd(WorkerHashData, #[serde(with = "BigArray")] WorkerHashSignature),
 
     // --- header level --
     // the request for header signature (primary => primary)
     NextHeader(
         // round Number
         Round,
-        // list of collector-take pairs, identifying the worker hashes
-        Vec<(WorkerId, Take)>,
+        // list of collector-batch number pairs, identifying the worker hashes
+        Vec<(WorkerId, BatchNumber)>,
         // availability certificate
         Option<AC>,
         // hashes of signed quorums
@@ -360,15 +360,15 @@ struct WorkerState {
     // the buffer for received transactions
     tx_buffer: Vec<(TxData, ClientId)>,
     // storing the pending worker hashes
-    pending_hxs: VecDeque<(WorkerId, WorkerHash, WorkerHashSignature)>,
+    pending_hxs: VecDeque<(WorkerId, WorkerHashData, WorkerHashSignature)>,
     // hashmap to stores of transaction copies
-    tx_buffer_map: BTreeMap<WorkerId, Vec<(TxData, ClientId, SeqNum, Take)>>,
+    tx_buffer_map: BTreeMap<WorkerId, Vec<(TxData, ClientId, SeqNum, BatchNumber)>>,
     // the primary information
     primary: ValidatorId,
     // the mirror worker information
     mirrors: Vec<WorkerId>,
-    //  take (corresponds to the round number in Narwhal&Tusk)
-    take: Take,
+    //  batch number (corresponds to the round number in Narwhal&Tusk)
+    batch: BatchNumber,
     // the id of the worker
     the_id: WorkerId,
 }
@@ -378,9 +378,9 @@ struct WorkerState {
 
 struct PrimaryState {
     // map_of_worker_hashes, foreign / forwarded
-    map_of_worker_hashes: BTreeMap<WorkerId, BTreeMap<Take, WorkerHash>>,
+    map_of_worker_hashes: BTreeMap<WorkerId, BTreeMap<BatchNumber, WorkerHashData>>,
     // local worker hashes
-    worker_hash_set: BTreeSet<(WorkerId, WorkerHash)>,
+    worker_hash_set: BTreeSet<(WorkerId, WorkerHashData)>,
     // the id
     the_id: ValidatorId,
     // peer validators
@@ -389,9 +389,9 @@ struct PrimaryState {
     rnd: Round,
     // the pending signing requests
     #[allow(clippy::type_complexity)]
-    pending_requests: BTreeMap<ValidatorId, Option<(Round, Vec<(WorkerId, Take)>)>>,
-    // trigger map, from worker,take pairs to the pending validator
-    expected_takes: BTreeMap<WorkerId, BTreeMap<Take, ValidatorId>>,
+    pending_requests: BTreeMap<ValidatorId, Option<(Round, Vec<(WorkerId, BatchNumber)>)>>,
+    // trigger map, from worker,batch number pairs to the pending validator
+    expected_batch: BTreeMap<WorkerId, BTreeMap<BatchNumber, ValidatorId>>,
 }
 
 // the state type of clients
@@ -433,8 +433,8 @@ struct Worker {
     mirror_workers: Vec<Id>,
     // my_expected_id is for debugging
     my_expected_id: Id,
-    // take number
-    take: Take,
+    // batch number
+    batch: BatchNumber,
 }
 
 // PrimaryActor holds the static information about primaries
@@ -653,7 +653,7 @@ impl Vactor for Client {
 fn is_valid_signature(
     // src is the signing id
     src: WorkerId,
-    w_hash: &WorkerHash,
+    w_hash: &WorkerHashData,
     sig: WorkerHashSignature,
 ) -> bool {
     //fn verify(&self, &Sig, &[u8]) -> Result<(), Error>
@@ -673,19 +673,19 @@ fn is_valid_signature(
 
 // we need to order transaction vectors to produce worker hashes
 // the order is induced by the sequence number
-// after filtering the take `tk`
+// after filtering the batch number `bn`
 // the code is pretty generic
 fn filter_n_sort<T: Clone, C: Clone, U: Ord + Clone>(
-    vector: &[(T, C, U, Take)],
-    tk: Take,
-) -> Vec<(T, C, U, Take)> {
-    // let x be the vector of transaction whose “take” is tk
+    vector: &[(T, C, U, BatchNumber)],
+    bn: BatchNumber,
+) -> Vec<(T, C, U, BatchNumber)> {
+    // let x be the vector of transaction whoses “batch number” is bn
     let mut x = vector
         .iter()
         .cloned()
-        .filter(|x| x.3 == tk)
-        .collect::<Vec<(T, C, U, Take)>>();
-    // sort x, ascending in the sequence number (within the take)
+        .filter(|x| x.3 == bn)
+        .collect::<Vec<(T, C, U, BatchNumber)>>();
+    // sort x, ascending in the sequence number (within the batch)
     x.sort_by(|a, b| a.2.cmp(&b.2));
     // "return" x
     x
@@ -720,13 +720,13 @@ impl Worker {
             // "broadcast" tx to mirror_workers : Vec<Id>
             self.send_(
                 state.mirrors.clone(),
-                TxToAll(tx, client, sequence_number, state.take),
+                TxToAll(tx, client, sequence_number, state.batch),
                 &mut o,
             );
             //
-            state.take += 1;
+            state.batch += 1;
             if cfg!(debug_assertions) {
-                println!("Worker {:?} at take {}", self, state.take);
+                println!("Worker {:?} at batch {}", self, state.batch);
             }
 
             // check if we can finish a batch
@@ -735,9 +735,9 @@ impl Worker {
                 // right now, a batch is just a vector of TxData, Vec<TxData>
 
                 // create and process batch hash
-                let w_hash = WorkerHash {
+                let w_hash = WorkerHashData {
                     hash: hash_of(&state.tx_buffer),
-                    take: state.take,
+                    batch: state.batch,
                     length: state.tx_buffer.len(),
                     collector: state.the_id,
                 };
@@ -771,14 +771,14 @@ impl Worker {
     fn process_checked_w_hx(
         &self,
         src: WorkerId,
-        w_hash: &WorkerHash,
+        w_hash: &WorkerHashData,
         sig: WorkerHashSignature,
         state: &mut WorkerState,
     ) -> Vec<Outputs<Id, <Worker as Vactor>::Msg>> {
         let mut res = vec![];
-        let hash_take = w_hash.take;
+        let hash_batch = w_hash.batch;
         let all_src_txs = state.tx_buffer_map[&src].clone();
-        let relevant_txs = filter_n_sort(&all_src_txs, hash_take);
+        let relevant_txs = filter_n_sort(&all_src_txs, hash_batch);
         if relevant_txs.len() == w_hash.length {
             if cfg!(debug_assertions) {
                 println!(
@@ -800,7 +800,7 @@ impl Worker {
     fn process_whx(
         &self,
         src: WorkerId,
-        w_hash: &WorkerHash,
+        w_hash: &WorkerHashData,
         sig: WorkerHashSignature,
         state: &mut WorkerState,
     ) -> Vec<Outputs<Id, <Worker as Vactor>::Msg>> {
@@ -810,7 +810,7 @@ impl Worker {
                 println!("Worker {:?} got valid worker hash {:?}", self, w_hash);
             }
             // NB:
-            // each worker has an independent counter of “takes/chunks”
+            // each worker has an independent counter of “batches/chunks”
             res = self.process_checked_w_hx(src, w_hash, sig, state)
         } else {
             println!("Got bad worker hash");
@@ -862,7 +862,7 @@ impl Vactor for Worker {
             tx_buffer_map: map.into_iter().collect(),
             pending_hxs: VecDeque::new(),
             primary: self.primary,                // copy the primary
-            take: FIRST_TAKE,                     // start at 0
+            batch: FIRST_BATCH,                     // start at 0
             mirrors: self.mirror_workers.clone(), // copy mirror_workers
             the_id: id,                           // copy id
         };
@@ -950,7 +950,7 @@ impl Primary {
         &self,
         _i: ValidatorId,
         _rnd: Round,
-        _whxs: Vec<(WorkerId, Take)>,
+        _whxs: Vec<(WorkerId, BatchNumber)>,
         _p_state: &mut PrimaryState,
     ) -> bool {
         // let res : bool;
@@ -978,19 +978,19 @@ impl Primary {
         p_state: &mut PrimaryState,
     ) -> Vec<Outputs<Id, <Primary as Vactor>::Msg>> {
         // prepare the “table of contents”
-        let wh_contents: Vec<(WorkerId, Take)> = p_state
+        let wh_contents: Vec<(WorkerId, BatchNumber)> = p_state
             .worker_hash_set
             .clone()
             .into_iter()
-            // the WorkerId an Take
-            .map(|(i, w)| (i, w.take))
+            // the WorkerId and batch number
+            .map(|(i, w)| (i, w.batch))
             .collect();
         // the message to be sent to all fellow validators
         let msg = if p_state.rnd == GENESIS_ROUND {
             NextHeader(
                 // the current round, i.e., GENESIS_ROUND
                 p_state.rnd,
-                // vector of collector-take pairs, identifying the worker hashes
+                // vector of collector-batch pairs, identifying the worker hashes
                 wh_contents,
                 // availability certificate
                 None, // Option<AC>,
@@ -1017,7 +1017,7 @@ impl Primary {
     // react to a forwarded worker hash (WHxFwd-msg)
     fn follow_up_whx_fwd(
         &self,
-        wh_hash: WorkerHash,
+        wh_hash: WorkerHashData,
         p_state: &mut PrimaryState,
     ) -> Vec<Outputs<Id, <Primary as Vactor>::Msg>> {
         // check if it belongs to a wanted header
@@ -1029,22 +1029,22 @@ impl Primary {
         &self,
         i: ValidatorId,
         r: Round,
-        whxs: Vec<(WorkerId, Take)>,
+        whxs: Vec<(WorkerId, BatchNumber)>,
         p_state: &mut PrimaryState,
-    ) -> Vec<WorkerHash> {
+    ) -> Vec<WorkerHashData> {
         let mut the_list = vec![];
-        let mut no_takes_missing = true;
+        let mut no_batches_missing = true;
         for (i, t) in whxs.into_iter() {
-            if let Some(i_takes) = p_state.map_of_worker_hashes.get(&i) {
-                if let Some(wh) = i_takes.get(&t) {
+            if let Some(i_batches) = p_state.map_of_worker_hashes.get(&i) {
+                if let Some(wh) = i_batches.get(&t) {
                     the_list.push(wh.clone());
                 }
             } else {
-                no_takes_missing = false;
+                no_batches_missing = false;
                 break;
             }
         }
-        if no_takes_missing {
+        if no_batches_missing {
             the_list
         } else {
             vec![]
@@ -1057,7 +1057,7 @@ impl Primary {
         &self,
         i: ValidatorId,
         r: Round,
-        whxs: Vec<(WorkerId, Take)>,
+        whxs: Vec<(WorkerId, BatchNumber)>,
         p_state: &mut PrimaryState,
         key_seed: KeySeed,
     ) -> Vec<Outputs<Id, <Primary as Vactor>::Msg>> {
@@ -1122,7 +1122,7 @@ impl Vactor for Primary {
                     validators: self.peer_validators.clone(),
                     rnd: GENESIS_ROUND,
                     pending_requests: BTreeMap::new(),
-                    expected_takes: BTreeMap::new(),
+                    expected_batch: BTreeMap::new(),
                 },
                 gen_state
             ),
@@ -1165,7 +1165,7 @@ impl Vactor for Primary {
                 } else {
                     match p_state.map_of_worker_hashes.get_mut(&wh_data.collector) {
                         Some(v) => {
-                            v.insert(wh_data.take, wh_data.clone());
+                            v.insert(wh_data.batch, wh_data.clone());
                             // check if this triggers a header signature
                             self.follow_up_whx_fwd(wh_data, p_state) // "return"
                         }
@@ -1443,7 +1443,7 @@ impl NarwhalModelCfg {
                 mirror_workers: self.calculate_mirror_workers_and_id(i,j).0,
                 my_expected_id: self.calculate_mirror_workers_and_id(i,j).1,
                 key_seed: fresh_key_seed(),
-                take: FIRST_TAKE,
+                batch: FIRST_BATCH,
             }),
                        for i in 0..self.worker_index_count,
                        for j in 0..self.primary_count])
@@ -1583,7 +1583,7 @@ fn main() {
                                                                 worker_port + WORKER_INDEX_COUNT*y + x)
                     ),
                     key_seed: fresh_key_seed(),
-                    take: FIRST_TAKE,
+                    batch: FIRST_BATCH,
                 },
                 for x in 0..WORKER_INDEX_COUNT,
                 for y in 0..PRIMARY_COUNT
