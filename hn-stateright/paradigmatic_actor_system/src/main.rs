@@ -99,14 +99,9 @@ impl PingPongCfg {
         ActorModel::new(self.clone(), ())
         // add the actors (given in terms of the structs of initial prams)
             .actors(c![
-                AnActor{start: 
-                        if let Some(i) = self.the_map.get(&x) {
-                            Some(*i)
-                        } else {
-                            None
-                        }
-                }, 
-                for x in 0..self.number_of_actors]
+                AnActor{start:self.the_map.get(&x).copied()}, 
+                for x in 0..self.number_of_actors
+            ]
             )
         // initialize the network (which does nothing in our example, but ... )
         .init_network(self.network)
