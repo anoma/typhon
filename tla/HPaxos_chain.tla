@@ -277,7 +277,9 @@ Known2a(l, b, v) ==
 \* having the direct references all known to A.
 
 Process1a(a, m) ==
-    LET new1b == [type |-> "1b", acc |-> a, ref |-> recent_msgs[a] \cup {m}] IN
+    LET new1b == [type |-> "1b", acc |-> a,
+                  prev |-> prev_msg[a],
+                  ref |-> recent_msgs[a] \cup {m}] IN
     /\ m.type = "1a"
     /\ Recv(a, m)
     /\ Store(a, m)
@@ -458,5 +460,5 @@ UniqueDecision ==
 
 =============================================================================
 \* Modification History
-\* Last modified Tue Jun 20 12:07:34 CEST 2023 by karbyshev
+\* Last modified Thu Jun 22 14:30:47 CEST 2023 by karbyshev
 \* Created Mon Jun 19 12:24:03 CEST 2022 by karbyshev
