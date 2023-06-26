@@ -831,12 +831,9 @@ RecentMsgsUniquePreviousMessageSpec ==
             x.acc = A /\ y.acc = A =>
             x = y
 
-\* TODO use SentBy
 MsgsSafeAcceptorSpec1 ==
     \A A \in SafeAcceptor :
-        \A m1, m2 \in msgs :
-            m1.type # "1a" /\ m2.type # "1a" /\
-            m1.acc = A /\ m2.acc = A =>
+        \A m1, m2 \in SentBy(A) :
             m1 \in Tran(m2) \/ m2 \in Tran(m1)
 
 \* TODO use SentBy
@@ -2029,8 +2026,8 @@ PROOF
                       x.type # "1a", y.type # "1a",
                       x.acc = A, y.acc = A
                PROVE  x \in Tran(y) \/ y \in Tran(x)
-      BY DEF TypeOK
-  <2> QED BY UniqueMessageSent, Tran_refl DEF TypeOK
+      BY DEF SentBy, TypeOK
+  <2> QED BY UniqueMessageSent, Tran_refl DEF SentBy, TypeOK
 <1>1. CASE ProposerSendAction
       BY <1>1 DEF ProposerSendAction, Send1a, Send
 <1>2. CASE \E a \in SafeAcceptor :
@@ -2403,7 +2400,7 @@ PROOF
   <2>14. m2a \in Tran(m1b)
     <3> ASSUME m1b \in Tran(m2a) PROVE FALSE
         BY TranBallot DEF Ballot
-    <3> QED BY DEF MsgsSafeAcceptorSpec1
+    <3> QED BY DEF MsgsSafeAcceptorSpec1, SentBy
   <2>15. CASE ~Buried(m2a, m1b)
     <3> L1 \in Con(L2, m1b)
         BY EntConnected, EntanglementSym, BQAssumption DEF Con
@@ -2633,7 +2630,7 @@ LEMMA RecentMsgsUniquePreviousMessageSpecInit ==
 PROOF BY DEF Init, RecentMsgsUniquePreviousMessageSpec, SentBy, Acceptor
 
 LEMMA MsgsSafeAcceptorSpec1Init == Init => MsgsSafeAcceptorSpec1
-PROOF BY DEF Init, MsgsSafeAcceptorSpec1
+PROOF BY DEF Init, MsgsSafeAcceptorSpec1, SentBy
 
 LEMMA DecisionSpecInit == Init => DecisionSpec
 PROOF BY DEF Init, DecisionSpec
@@ -2685,5 +2682,5 @@ PROOF BY PTL, FullSafetyInvariantInit, FullSafetyInvariantNext
 
 =============================================================================
 \* Modification History
-\* Last modified Mon Jun 26 21:09:32 CEST 2023 by karbyshev
+\* Last modified Mon Jun 26 21:41:36 CEST 2023 by karbyshev
 \* Created Tue Jun 20 00:28:26 CEST 2023 by karbyshev
