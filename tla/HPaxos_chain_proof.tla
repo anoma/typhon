@@ -821,7 +821,8 @@ SafeAcceptorPrevSpec2 ==
 
 SafeAcceptorQueuedMsgPrevMsgSpec ==
     \A A \in SafeAcceptor :
-        /\ queued_msg[A] = NoMessage => prev_msg[A] \in recent_msgs[A]
+        /\ SentBy(A) # {} /\ queued_msg[A] = NoMessage =>
+            prev_msg[A] \in recent_msgs[A]
         /\ queued_msg[A] # NoMessage => queued_msg[A] = prev_msg[A]
 
 RecentMsgsUniquePreviousMessageSpec ==
@@ -1494,7 +1495,7 @@ PROOF
         BY DEF Send, SentBy
     <3> prev_msg[A]' = new1b
         BY DEF Send, TypeOK
-    <3> prev_msg[A] \in Tran(new1b)
+    <3> ASSUME SentBy(A) # {} PROVE prev_msg[A] \in Tran(new1b)
         BY Message_ref_Tran DEF SafeAcceptorQueuedMsgPrevMsgSpec
     <3> HIDE DEF new1b
     <3> QED BY Tran_trans, Tran_refl DEF SafeAcceptorPrevSpec1
@@ -1536,9 +1537,9 @@ PROOF
         BY DEF Send, SentBy
     <3> prev_msg[A]' = new2a
         BY DEF Send, TypeOK
-    <3> prev_msg[A] \in Tran(new2a)
+    <3> ASSUME SentBy(A) # {} PROVE prev_msg[A] \in Tran(new2a)
         BY Message_ref_Tran DEF 2aLearnerLoopSpec, SafeAcceptorQueuedMsgPrevMsgSpec
-        <3> HIDE DEF new2a
+    <3> HIDE DEF new2a
     <3> QED BY Tran_trans, Tran_refl DEF SafeAcceptorPrevSpec1
   <2>2. CASE ~WellFormed(new2a)
         BY <2>2 DEF SentBy
@@ -1571,7 +1572,7 @@ PROOF
     OBVIOUS
 <1> TypeOK' BY TypeOKInvariant
 <1> SUFFICES ASSUME NEW A \in SafeAcceptor
-             PROVE  /\ queued_msg[A]' = NoMessage => prev_msg[A]' \in recent_msgs[A]'
+             PROVE  /\ SentBy(A)' # {} /\ queued_msg[A]' = NoMessage => prev_msg[A]' \in recent_msgs[A]'
                     /\ queued_msg[A]' # NoMessage => queued_msg[A]' = prev_msg[A]'
     BY DEF SafeAcceptorQueuedMsgPrevMsgSpec
 <1> A \in Acceptor BY DEF Acceptor
@@ -1593,7 +1594,9 @@ PROOF
                        prev |-> prev_msg[acc],
                        ref |-> recent_msgs[acc] \cup {m1a}]
   <2> CASE acc # A
-      BY DEF SentBy, Send, TypeOK
+    <3> SentBy(A)' = SentBy(A)
+        BY DEF SentBy, Send, TypeOK
+    <3> QED BY DEF SentBy, Send, TypeOK
   <2> CASE ~WellFormed(new1b)
       BY DEF SentBy, Send, TypeOK
   <2> CASE acc = A /\ WellFormed(new1b)
@@ -1757,12 +1760,14 @@ PROOF
 
 LEMMA KnownMsgsSpecInvariant ==
     TypeOK /\ Next /\ RecentMsgsSpec /\
-    QueuedMsgSpec1 /\ SafeAcceptorPrevSpec2 /\ SafeAcceptorQueuedMsgPrevMsgSpec /\
+    QueuedMsgSpec1 /\ SafeAcceptorPrevSpec2 /\
+    SafeAcceptorQueuedMsgPrevMsgSpec /\
     KnownMsgsSpec =>
     KnownMsgsSpec'
 PROOF
 <1> SUFFICES ASSUME TypeOK, Next, RecentMsgsSpec,
-                    QueuedMsgSpec1, SafeAcceptorPrevSpec2, SafeAcceptorQueuedMsgPrevMsgSpec,
+                    QueuedMsgSpec1, SafeAcceptorPrevSpec2,
+                    SafeAcceptorQueuedMsgPrevMsgSpec,
                     KnownMsgsSpec
              PROVE  KnownMsgsSpec'
     OBVIOUS
@@ -1820,7 +1825,8 @@ PROOF
   <2> queued_msg[acc] \in Message
       BY DEF Recv, WellFormed
   <2> known_msgs[AL]' \in SUBSET msgs'
-      BY DEF Store, SentBy, QueuedMsgSpec1, SafeAcceptorPrevSpec2, SafeAcceptorQueuedMsgPrevMsgSpec
+      BY DEF Store, SentBy, QueuedMsgSpec1,
+             SafeAcceptorPrevSpec2, SafeAcceptorQueuedMsgPrevMsgSpec
   <2> Proper(AL, M)'
       BY KnownMsgMonotone DEF Recv, Proper, Store, QueuedMsgSpec1
   <2> WellFormed(M)'
@@ -2046,7 +2052,7 @@ PROOF
   <2> m2 = new1b BY DEF Send
   <2> m2 \in Message BY DEF TypeOK
   <2> prev_msg[A] \in recent_msgs[A]
-      BY DEF SafeAcceptorQueuedMsgPrevMsgSpec
+      BY DEF SafeAcceptorQueuedMsgPrevMsgSpec, SentBy
   <2> prev_msg[A] # NoMessage
       BY NoMessageIsNotAMessage DEF TypeOK
   <2> \A m \in SentBy(A) : m \in Tran(prev_msg[A])
@@ -2076,7 +2082,7 @@ PROOF
   <2> m2 = new2a BY DEF Send
   <2> m2 \in Message BY DEF TypeOK
   <2> prev_msg[A] \in recent_msgs[A]
-      BY DEF SafeAcceptorQueuedMsgPrevMsgSpec
+      BY DEF SafeAcceptorQueuedMsgPrevMsgSpec, SentBy
   <2> prev_msg[A] # NoMessage
       BY NoMessageIsNotAMessage DEF TypeOK
   <2> \A m \in SentBy(A) : m \in Tran(prev_msg[A])
@@ -2178,12 +2184,14 @@ OMITTED
 LEMMA MsgsSafeAcceptorPrevRefSpecInvariant ==
     TypeOK /\ Next /\
     2aLearnerLoopSpec /\
+    SafeAcceptorPrevSpec1 /\
     SafeAcceptorQueuedMsgPrevMsgSpec /\
     MsgsSafeAcceptorPrevRefSpec =>
     MsgsSafeAcceptorPrevRefSpec'
 PROOF
 <1> SUFFICES ASSUME TypeOK, Next,
                     2aLearnerLoopSpec,
+                    SafeAcceptorPrevSpec1,
                     SafeAcceptorQueuedMsgPrevMsgSpec,
                     MsgsSafeAcceptorPrevRefSpec
              PROVE  MsgsSafeAcceptorPrevRefSpec'
@@ -2210,7 +2218,12 @@ PROOF
       BY <1>2
   <2> USE DEF Process1a
   <2> acc \in Acceptor BY DEF Acceptor
-  <2> QED BY DEF SafeAcceptorQueuedMsgPrevMsgSpec, SentBy, Send, TypeOK
+  <2> DEFINE new1b == [type |-> "1b", acc |-> acc,
+                       prev |-> prev_msg[acc],
+                       ref |-> recent_msgs[acc] \cup {m1a}]
+  <2> QED BY DEF SafeAcceptorQueuedMsgPrevMsgSpec,
+                 SafeAcceptorPrevSpec1,
+                 SentBy, Send, TypeOK
 <1>q. CASE \E a \in SafeAcceptor :
             /\ queued_msg[a] # NoMessage
             /\ Process1b(a, queued_msg[a])
@@ -2235,7 +2248,9 @@ PROOF
             /\ Process1bLearnerLoopStep(acc, lrn)
       BY <1>4
   <2> USE DEF Process1bLearnerLoopStep
-  <2> QED BY DEF SafeAcceptorQueuedMsgPrevMsgSpec, 2aLearnerLoopSpec, Send, SentBy, TypeOK
+  <2> QED BY DEF SafeAcceptorQueuedMsgPrevMsgSpec,
+                 SafeAcceptorPrevSpec1, 2aLearnerLoopSpec,
+                 Send, SentBy, TypeOK
 <1>5. CASE \E a \in SafeAcceptor : Process1bLearnerLoopDone(a)
       BY <1>5 DEF Process1bLearnerLoopDone, Send, SentBy
 <1>6. CASE LearnerAction
@@ -2682,5 +2697,5 @@ PROOF BY PTL, FullSafetyInvariantInit, FullSafetyInvariantNext
 
 =============================================================================
 \* Modification History
-\* Last modified Mon Jun 26 21:41:36 CEST 2023 by karbyshev
+\* Last modified Tue Jun 27 01:13:31 CEST 2023 by karbyshev
 \* Created Tue Jun 20 00:28:26 CEST 2023 by karbyshev
