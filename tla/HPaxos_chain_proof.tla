@@ -18,30 +18,6 @@ LEMMA FinSubset_sub_nontriv ==
     PROVE  F # {}
 PROOF BY Isa DEF Range, FINSUBSET
 
-\*LEMMA FinSubset_sub ==
-\*    ASSUME NEW S, NEW K \in Nat, NEW F \in FINSUBSET(S, K)
-\*    PROVE  F \subseteq S
-\*PROOF BY DEF Range, FINSUBSET
-
-\*LEMMA FinSubset_finite ==
-\*    ASSUME NEW S, NEW K \in Nat, NEW F \in FINSUBSET(S, K)
-\*    PROVE  IsFiniteSet(F)
-\*PROOF BY DEF FINSUBSET, IsFiniteSet, Range
-\*
-\*LEMMA IsFiniteSet_add ==
-\*    ASSUME NEW S, IsFiniteSet(S), NEW x
-\*    PROVE  IsFiniteSet(S \cup {x})
-\*PROOF
-\*<1> PICK seq \in Seq(S) : \A s \in S : \E n \in 1..Len(seq) : seq[n] = s
-\*    BY DEF IsFiniteSet
-\*<1> DEFINE f == [i \in 1..(Len(seq) + 1) |->
-\*                    IF i < Len(seq) + 1 THEN seq[i] ELSE x]
-\*<1> f \in Seq(S \cup {x}) OBVIOUS
-\*<1> Len(f) = Len(seq) + 1 OBVIOUS
-\*<1>1. SUFFICES ASSUME NEW s \in S \cup {x} PROVE \E i \in 1..Len(f) : f[i] = s
-\*      BY Zenon DEF IsFiniteSet
-\*<1>9. QED BY <1>1
-
 -----------------------------------------------------------------------------
 LEMMA TrustSafeSelfAgreement ==
     ASSUME NEW E \in TrustSafe
@@ -218,36 +194,6 @@ PROOF
         DEF MessageRec1, RefCardinality
   <2>10. QED BY <2>1, <1>0, <1>2
 <1>10. QED BY <1>1, <1>2
-
-\*LEMMA Message_ref_acyclic_2 ==
-\*    ASSUME NEW m1 \in Message, NEW m2 \in m1.ref
-\*    PROVE  m1 \notin m2.ref
-\*PROOF
-\*<1> SUFFICES ASSUME NEW x \in Message,
-\*                    NEW y \in x.ref,
-\*                    x \in y.ref
-\*             PROVE  FALSE
-\*    OBVIOUS
-\*<1>0. PICK n \in Nat :
-\*        /\ x \in MessageRec[n]
-\*        /\ \A k \in 0 .. n-1 : x \notin MessageRec[k]
-\*      BY MessageRec_min
-\*<1>1. n # 0 BY <1>0, MessageRec_eq0 DEF MessageRec0
-\*<1>2. y \in MessageRec[n - 1] BY MessageRec_ref1, <1>0, <1>1
-\*<1>3. n - 1 # 0 BY <1>2, MessageRec_eq0 DEF MessageRec0
-\*<1>4. n - 1 \in Nat BY <1>1, <1>3
-\*<1>5. x \in MessageRec[n - 1 - 1] BY <1>2, <1>3, <1>4, MessageRec_ref1
-\*<1>6. QED BY <1>5, <1>0, <1>3, <1>4
-
-\*LEMMA XXX1 ==
-\*    ASSUME NEW M \in SUBSET Message, IsFiniteSet(M),
-\*           NEW A \in Acceptor 
-\*    PROVE  [type |-> "1b", acc |-> A, ref |-> M] \in Message
-\*PROOF
-\*<1> PICK n \in Nat : \A m \in M : m \in MessageRec[n] BY Message_finite_1
-\*<1> [type |-> "1b", acc |-> A, ref |-> M] \in MessageRec[n + 1]
-\*    BY MessageRec_eq1 DEF MessageRec1
-\*<1>10. QED
 
 -----------------------------------------------------------------------------
 LEMMA NoMessageIsNotAMessage ==
@@ -564,45 +510,6 @@ PROOF
 <1>2. HIDE DEF P
 <1>3. QED BY <1>0, <1>1, NatInduction, Isa
 
-\*LEMMA MessageRec_TranBound ==
-\*    ASSUME NEW n \in Nat, NEW m1 \in MessageRec[n], NEW m2 \in Tran(m1)
-\*    PROVE \E k \in Nat : k <= n /\ m2 \in TranBound[k][m1]
-\*PROOF
-\*<1> DEFINE P(l) == \A k \in Nat :
-\*                   \A x \in MessageRec[k] :
-\*                   \A y \in TranBound[l][x] :
-\*                    \E k1 \in Nat : k1 <= k /\ y \in TranBound[k1][x]
-\*<1> SUFFICES ASSUME NEW j \in Nat PROVE P(j) BY DEF Tran
-\*<1>0. P(0) BY TranBound_eq1, TranBound_eq1, MessageRec_eq0 DEF MessageRec0
-\*<1>1. ASSUME NEW m \in Nat, P(m) PROVE P(m+1)
-\*  <2> DEFINE E(k, x, y) == \E k1 \in Nat : k1 <= k /\ y \in TranBound[k1][x]
-\*  <2> SUFFICES ASSUME NEW k \in Nat,
-\*                      NEW x \in MessageRec[k],
-\*                      NEW y \in TranBound[m + 1][x]
-\*               PROVE E(k, x, y)
-\*      BY MessageRec0_Tran DEF Tran
-\*  <2> x \in Message BY Tran_Message DEF Message, Tran
-\*  <2> y \in Tran(x) BY DEF Tran
-\*  <2> SUFFICES ASSUME k # 0 PROVE E(k, x, y)
-\*    <3>1. CASE k = 0
-\*      <4>1. x = y BY <3>1, MessageRec0_Tran
-\*      <4>2. WITNESS 0 \in Nat
-\*      <4>3. QED BY TranBound_eq0, <4>1
-\*    <3>2. QED BY <3>1
-\*  <2>1. CASE y = x BY <2>1, TranBound_eq0
-\*  <2>2. CASE y \in UNION { TranBound[m][r] : r \in x.ref }
-\*    <3>1. PICK r \in x.ref : y \in TranBound[m][r] BY <2>2
-\*    <3>3. r \in MessageRec[k - 1] BY MessageRec_ref1
-\*    <3>4. PICK k2 \in Nat : k2 <= k - 1 /\ y \in TranBound[k2][r]
-\*          BY <1>1, <3>1, <3>3
-\*    <3>5. WITNESS k2 + 1 \in Nat
-\*    <3>6. r \in TranBound[1][x] BY Message_ref_TranBound1, <3>1
-\*    <3>10. QED BY <3>4, <3>6, TranBound_trans
-\*  <2>4. HIDE DEF E
-\*  <2>5. QED BY <2>1, <2>2, TranBound_eq1, Isa
-\*<1>2. HIDE DEF P
-\*<1>3. QED BY <1>0, <1>1, NatInduction, Isa
-
 LEMMA Tran_ref_acyclic ==
     ASSUME NEW m \in Message, NEW r \in m.ref
     PROVE  m \notin Tran(r)
@@ -686,25 +593,12 @@ LEMMA V_func ==
     PROVE  v1 = v2
 PROOF BY Get1a_correct DEF V
 
-\*LEMMA V_def_1a ==
-\*    ASSUME BVal \in [Ballot -> Value],
-\*           NEW m \in Message, NEW x \in Get1a(m)
-\*    PROVE V(m, BVal[x.bal])
-\*PROOF BY Get1a_TypeOK DEF V
-
 LEMMA V_def ==
     ASSUME BVal \in [Ballot -> Value],
            NEW m \in Message,
            NEW b \in Ballot, B(m, b)
     PROVE V(m, BVal[b])
 PROOF BY Get1a_TypeOK DEF V, B
-
-\*LEMMA B_V_inj ==
-\*    ASSUME NEW m1 \in Message, NEW m2 \in Message,
-\*           NEW b \in Ballot, B(m1, b), B(m2, b),
-\*           NEW v \in Value
-\*    PROVE V(m1, v) <=> V(m2, v)
-\*PROOF BY Get1a_correct, Zenon DEF B, V
 
 LEMMA TranBallot ==
     ASSUME NEW m1 \in Message, NEW m2 \in Tran(m1),
@@ -2023,12 +1917,6 @@ PROOF
                     m1.acc = A, m2.acc = A
              PROVE  m1 \in Tran(m2)
   <2> USE DEF MsgsSafeAcceptorSpec1
-\*  <2> SUFFICES ASSUME NEW A \in SafeAcceptor,
-\*                      NEW x \in msgs', NEW y \in msgs',
-\*                      x.type # "1a", y.type # "1a",
-\*                      x.acc = A, y.acc = A
-\*               PROVE  x \in Tran(y) \/ y \in Tran(x)
-\*      BY DEF SentBy, TypeOK
   <2> QED BY UniqueMessageSent, Tran_refl DEF SentBy, TypeOK
 <1>1. CASE ProposerSendAction
       BY <1>1 DEF ProposerSendAction, Send1a, Send
@@ -2815,5 +2703,5 @@ PROOF BY PTL, FullSafetyInvariantInit, FullSafetyInvariantNext
 
 =============================================================================
 \* Modification History
-\* Last modified Tue Jun 27 15:40:37 CEST 2023 by karbyshev
+\* Last modified Tue Jun 27 15:45:05 CEST 2023 by karbyshev
 \* Created Tue Jun 20 00:28:26 CEST 2023 by karbyshev
