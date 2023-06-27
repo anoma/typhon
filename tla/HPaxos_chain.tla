@@ -304,7 +304,6 @@ Process1b(a, m) ==
         /\ processed_lrns' = [processed_lrns EXCEPT ![a] = {}]
     /\ (~(\A mb, b \in Ballot : MaxBal(a, mb) /\ B(m, b) => mb <= b)) =>
         UNCHANGED << 2a_lrn_loop, processed_lrns >>
-    \* TODO: move the instruction from here to AcceptorProcessAction
     /\ queued_msg' = [queued_msg EXCEPT ![a] = NoMessage]
     /\ UNCHANGED << msgs, prev_msg, decision >>
     /\ UNCHANGED BVal
@@ -460,5 +459,5 @@ UniqueDecision ==
 
 =============================================================================
 \* Modification History
-\* Last modified Tue Jun 27 15:25:39 CEST 2023 by karbyshev
+\* Last modified Tue Jun 27 15:56:30 CEST 2023 by karbyshev
 \* Created Mon Jun 19 12:24:03 CEST 2022 by karbyshev
