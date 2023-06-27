@@ -167,7 +167,7 @@ CaughtMsg(x) ==
         /\ \E m1 \in Tran(x) :
             /\ m1.type # "1a"
             /\ m.acc = m1.acc
-            /\ m /= m1
+            /\ m # m1
             /\ m.prev = m1.prev }
 
 Caught(x) == { m.acc : m \in CaughtMsg(x) }
@@ -459,5 +459,5 @@ UniqueDecision ==
 
 =============================================================================
 \* Modification History
-\* Last modified Tue Jun 27 15:56:30 CEST 2023 by karbyshev
+\* Last modified Tue Jun 27 17:01:28 CEST 2023 by karbyshev
 \* Created Mon Jun 19 12:24:03 CEST 2022 by karbyshev
