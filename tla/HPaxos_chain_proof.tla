@@ -837,14 +837,6 @@ MsgsSafeAcceptorSpec1 ==
         \A m1, m2 \in SentBy(A) :
             m1 \in Tran(m2) \/ m2 \in Tran(m1)
 
-\* TODO use SentBy
-\* TODO redundant?
-MsgsSafeAcceptorSpec2 ==
-    \A A \in SafeAcceptor :
-        \A m1, m2 \in SentBy(A) :
-            m1.prev = NoMessage /\ m2.prev = NoMessage =>
-            m1 = m2
-
 MsgsSafeAcceptorSpec3 ==
     \A A \in SafeAcceptor :
         \A m1, m2 \in SentBy(A) :
@@ -2021,18 +2013,17 @@ PROOF
     OBVIOUS
 <1> TypeOK' BY TypeOKInvariant
 <1> SUFFICES ASSUME NEW A \in SafeAcceptor,
-                    NEW m1 \in msgs', NEW m2 \in msgs',
+                    NEW m1 \in msgs, NEW m2 \in msgs' \ msgs,
                     m1.type # "1a", m2.type # "1a",
-                    m1.acc = A, m2.acc = A,
-                    m1 \in msgs, m2 \notin msgs
+                    m1.acc = A, m2.acc = A
              PROVE  m1 \in Tran(m2)
   <2> USE DEF MsgsSafeAcceptorSpec1
-  <2> SUFFICES ASSUME NEW A \in SafeAcceptor,
-                      NEW x \in msgs', NEW y \in msgs',
-                      x.type # "1a", y.type # "1a",
-                      x.acc = A, y.acc = A
-               PROVE  x \in Tran(y) \/ y \in Tran(x)
-      BY DEF SentBy, TypeOK
+\*  <2> SUFFICES ASSUME NEW A \in SafeAcceptor,
+\*                      NEW x \in msgs', NEW y \in msgs',
+\*                      x.type # "1a", y.type # "1a",
+\*                      x.acc = A, y.acc = A
+\*               PROVE  x \in Tran(y) \/ y \in Tran(x)
+\*      BY DEF SentBy, TypeOK
   <2> QED BY UniqueMessageSent, Tran_refl DEF SentBy, TypeOK
 <1>1. CASE ProposerSendAction
       BY <1>1 DEF ProposerSendAction, Send1a, Send
@@ -2106,33 +2097,41 @@ PROOF
         DEF Next, AcceptorProcessAction, Process1bLearnerLoop,
             FakeAcceptorAction
 
-LEMMA MsgsSafeAcceptorSpec2Invariant ==
+LEMMA MsgsSafeAcceptorSpec3Invariant ==
     TypeOK /\ Next /\
+    KnownMsgsSpec /\
+    RecentMsgsSpec /\
+    MsgsSafeAcceptorPrevRefSpec /\
     SafeAcceptorPrevSpec1 /\
-    MsgsSafeAcceptorSpec2 => MsgsSafeAcceptorSpec2'
+    SafeAcceptorPrevSpec2 /\
+    SafeAcceptorQueuedMsgPrevMsgSpec /\
+    MsgsSafeAcceptorSpec3 => MsgsSafeAcceptorSpec3'
 PROOF
 <1> SUFFICES ASSUME TypeOK, Next,
+                    KnownMsgsSpec,
+                    RecentMsgsSpec,
+                    SafeAcceptorQueuedMsgPrevMsgSpec,
+                    MsgsSafeAcceptorPrevRefSpec,
                     SafeAcceptorPrevSpec1,
-                    MsgsSafeAcceptorSpec2
-             PROVE  MsgsSafeAcceptorSpec2'
+                    SafeAcceptorPrevSpec2,
+                    MsgsSafeAcceptorSpec3
+             PROVE  MsgsSafeAcceptorSpec3'
     OBVIOUS
 <1> TypeOK' BY TypeOKInvariant
 <1> SUFFICES ASSUME NEW A \in SafeAcceptor,
-                    NEW m1 \in msgs', NEW m2 \in msgs',
-                    m1.type # "1a", m2.type # "1a",
+                    NEW m1 \in msgs, NEW m2 \in msgs' \ msgs,
                     m1.acc = A, m2.acc = A,
-                    m1.prev = NoMessage, m2.prev = NoMessage,
-                    m1 \in msgs, m2 \notin msgs
+                    m1.type # "1a", m2.type # "1a",
+                    m1.prev = m2.prev
              PROVE  m1 = m2
-  <2> USE DEF MsgsSafeAcceptorSpec2
-  <2> SUFFICES ASSUME NEW A \in SafeAcceptor,
-                      NEW x \in msgs', NEW y \in msgs',
-                      x.type # "1a", y.type # "1a",
-                      x.acc = A, y.acc = A,
-                      x.prev = NoMessage, y.prev = NoMessage
-               PROVE  x = y
-      BY DEF SentBy, TypeOK
+  <2> USE DEF MsgsSafeAcceptorSpec3
   <2> QED BY UniqueMessageSent DEF SentBy, TypeOK
+<1> m1 \in Message
+    BY DEF TypeOK
+<1> SentBy(A) # {}
+    BY DEF SentBy, Send, TypeOK
+<1> prev_msg[A] # NoMessage
+    BY DEF SafeAcceptorPrevSpec1
 <1>1. CASE ProposerSendAction
       BY <1>1 DEF ProposerSendAction, Send1a, Send
 <1>2. CASE \E a \in SafeAcceptor :
@@ -2143,7 +2142,24 @@ PROOF
         /\ Process1a(acc, m1a)
       BY <1>2
   <2> USE DEF Process1a
-  <2> QED BY DEF SafeAcceptorPrevSpec1, MsgsSafeAcceptorSpec2, SentBy, Send, TypeOK
+  <2> DEFINE new1b == [type |-> "1b", acc |-> acc,
+                       prev |-> prev_msg[acc],
+                       ref |-> recent_msgs[acc] \cup {m1a}]
+  <2> m2 = new1b
+      BY DEF Send
+  <2> acc = A
+      BY DEF TypeOK
+  <2> WellFormed(new1b)
+      BY DEF TypeOK
+  <2> prev_msg[A] \in Message
+      BY DEF SafeAcceptorQueuedMsgPrevMsgSpec, RecentMsgsSpec, KnownMsgsSpec, TypeOK
+  <2> prev_msg[A] \in m1.ref
+      BY DEF MsgsSafeAcceptorPrevRefSpec, SentBy
+  <2> m1 \notin Tran(prev_msg[A])
+      BY Tran_ref_acyclic
+  <2> m1 \in Tran(prev_msg[A])
+      BY DEF SafeAcceptorPrevSpec2, SentBy
+  <2> QED OBVIOUS
 <1>q. CASE \E a \in SafeAcceptor : Process1b(a, queued_msg[a])
       BY <1>q DEF Process1b, Send
 <1>3. CASE \E a \in SafeAcceptor : \E m \in msgs : Process1b(a, m)
@@ -2156,7 +2172,24 @@ PROOF
             /\ Process1bLearnerLoopStep(acc, lrn)
       BY <1>4
   <2> USE DEF Process1bLearnerLoopStep
-  <2> QED BY DEF SafeAcceptorPrevSpec1, MsgsSafeAcceptorSpec2, SentBy, Send, TypeOK
+  <2> DEFINE new2a == [type |-> "2a", lrn |-> lrn, acc |-> acc,
+                       prev |-> prev_msg[acc],
+                       ref |-> recent_msgs[acc]]
+  <2> m2 = new2a
+      BY DEF Send, TypeOK
+  <2> acc = A
+      BY DEF Send, SentBy, TypeOK
+  <2> WellFormed(new2a)
+      BY DEF TypeOK
+  <2> prev_msg[A] \in Message
+      BY DEF SafeAcceptorQueuedMsgPrevMsgSpec, RecentMsgsSpec, KnownMsgsSpec, TypeOK
+  <2> prev_msg[A] \in m1.ref
+      BY DEF MsgsSafeAcceptorPrevRefSpec, SentBy
+  <2> m1 \notin Tran(prev_msg[A])
+      BY Tran_ref_acyclic
+  <2> m1 \in Tran(prev_msg[A])
+      BY DEF SafeAcceptorPrevSpec2, SentBy
+  <2> QED OBVIOUS
 <1>5. CASE \E a \in SafeAcceptor : Process1bLearnerLoopDone(a)
       BY <1>5 DEF Process1bLearnerLoopDone, Send
 <1>6. CASE LearnerAction
@@ -2172,14 +2205,6 @@ PROOF
 <1> QED BY <1>1, <1>2, <1>q, <1>3, <1>4, <1>5, <1>6, <1>7, <1>8
         DEF Next, AcceptorProcessAction, Process1bLearnerLoop,
             FakeAcceptorAction
-
-LEMMA MsgsSafeAcceptorSpec3Invariant ==
-    TypeOK /\ Next /\
-    MsgsSafeAcceptorPrevRefSpec /\
-\*    SafeAcceptorPrevSpec1 /\
-\*    SafeAcceptorQueuedMsgPrevMsgSpec /\
-    MsgsSafeAcceptorSpec3 => MsgsSafeAcceptorSpec3'
-OMITTED
 
 LEMMA MsgsSafeAcceptorPrevRefSpecInvariant ==
     TypeOK /\ Next /\
@@ -2267,10 +2292,10 @@ PROOF
         DEF Next, AcceptorProcessAction, Process1bLearnerLoop, FakeAcceptorAction
 
 LEMMA MsgsSafeAcceptorSpecImpliesCaughtSpec ==
-    ASSUME TypeOK, KnownMsgsSpec, MsgsSafeAcceptorSpec1
+    ASSUME TypeOK, KnownMsgsSpec, MsgsSafeAcceptorSpec3
     PROVE  CaughtSpec
 PROOF BY MessageTypeSpec
-      DEF MsgsSafeAcceptorSpec1, CaughtSpec, Caught, CaughtMsg, KnownMsgsSpec, TypeOK
+      DEF MsgsSafeAcceptorSpec3, CaughtSpec, Caught, CaughtMsg, KnownMsgsSpec, SentBy, TypeOK
 
 LEMMA QuorumIntersection ==
     ASSUME TypeOK,
@@ -2697,5 +2722,5 @@ PROOF BY PTL, FullSafetyInvariantInit, FullSafetyInvariantNext
 
 =============================================================================
 \* Modification History
-\* Last modified Tue Jun 27 01:13:31 CEST 2023 by karbyshev
+\* Last modified Tue Jun 27 13:45:22 CEST 2023 by karbyshev
 \* Created Tue Jun 20 00:28:26 CEST 2023 by karbyshev
