@@ -231,7 +231,7 @@ WellFormed(m) ==
         /\ (m.prev = NoMessage \/ m.prev \in m.ref)
         /\ [lr |-> m.lrn, q |-> q(m)] \in TrustLive
 
-vars == << msgs, known_msgs, recent_msgs, queued_msg,
+vars == << msgs, known_msgs, recent_msgs, queued_msg, prev_msg,
            2a_lrn_loop, processed_lrns, decision, BVal >>
 
 Init ==
@@ -460,5 +460,5 @@ UniqueDecision ==
 
 =============================================================================
 \* Modification History
-\* Last modified Thu Jun 22 14:30:47 CEST 2023 by karbyshev
+\* Last modified Tue Jun 27 15:25:39 CEST 2023 by karbyshev
 \* Created Mon Jun 19 12:24:03 CEST 2022 by karbyshev
