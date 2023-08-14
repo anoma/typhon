@@ -164,6 +164,30 @@ LEMMA Message_ref ==
     PROVE  m.ref \subseteq Message
 PROOF BY MessageRec_ref0, MessageRec_ref1, Message_spec DEF MessageDepthRange
 
+LEMMA Message_prev ==
+    ASSUME NEW m \in Message
+    PROVE  m.prev \in Message \cup {NoMessage}
+PROOF
+<1> DEFINE P(j) ==  \A mm \in MessageRec[j] : mm.prev \in Message \cup {NoMessage}
+<1> SUFFICES ASSUME NEW j \in Nat PROVE P(j)
+    BY RefCardinalitySpec DEF Message, MessageDepthRange
+<1>0. P(0)
+      BY MessageRec_eq0 DEF MessageRec0
+<1>1. ASSUME NEW k \in Nat, P(k) PROVE P(k+1)
+  <2> SUFFICES ASSUME NEW mm \in MessageRec[k+1],
+                      mm.prev # NoMessage
+               PROVE  mm.prev \in Message
+      OBVIOUS
+  <2> CASE mm \in MessageRec[k]
+      BY <1>1
+  <2> CASE mm \notin MessageRec[k]
+     <3> mm.prev \in MessageRec[k] \cup {NoMessage}
+         BY MessageRec_eq1, Isa DEF MessageRec1
+     <3> QED BY RefCardinalitySpec DEF MessageDepthRange, Message
+  <2> QED BY MessageRec_eq1 DEF MessageRec1
+<1>2. HIDE DEF P 
+<1>3. QED BY <1>0, <1>1, NatInduction, Isa
+
 LEMMA MessageRec_min ==
     ASSUME NEW m \in Message
     PROVE  \E n \in Nat :
@@ -547,6 +571,246 @@ PROOF
 <1>3. QED BY <1>1, <1>2, TranBound_eq1, Isa
 
 -----------------------------------------------------------------------------
+(* Transitive references of prev *)
+
+LEMMA PrevTranBound_def ==
+    PrevTranBound = [n \in Nat |->
+                    IF n = 0
+                    THEN PrevTranBound0
+                    ELSE PrevTranBound1(PrevTranBound[n-1], n)]
+PROOF BY NatInductiveDef
+DEF NatInductiveDefHypothesis, NatInductiveDefConclusion, PrevTranBound
+
+LEMMA PrevTran_spec ==
+    ASSUME NEW m \in Message
+    PROVE  /\ \A n \in Nat : PrevTranBound[n][m] \subseteq PrevTran(m)
+           /\ \A r \in PrevTran(m) : \E n \in Nat : r \in PrevTranBound[n][m]
+PROOF BY DEF PrevTran, PrevTranDepthRange, MessageDepthRange
+
+LEMMA PrevTranBound_eq0 ==
+    PrevTranBound[0] = [m \in Message |-> {m}]
+PROOF BY PrevTranBound_def DEF PrevTranBound0
+
+LEMMA PrevTranBound_eq1 ==
+    ASSUME NEW n \in Nat, n # 0
+    PROVE  PrevTranBound[n] =
+            [m \in Message |-> {m} \cup IF m.prev = NoMessage THEN {} ELSE PrevTranBound[n-1][m.prev]]
+PROOF BY PrevTranBound_def, Zenon DEF PrevTranBound1
+
+LEMMA PrevTranBound_eq1_prev ==
+    ASSUME NEW n \in Nat, n # 0,
+           NEW m \in Message, m.prev # NoMessage
+    PROVE  PrevTranBound[n][m] = {m} \cup PrevTranBound[n-1][m.prev]
+PROOF BY PrevTranBound_eq1, Zenon
+
+LEMMA PrevTranBound_refl ==
+    ASSUME NEW n \in Nat,
+           NEW m \in Message 
+    PROVE  m \in PrevTranBound[n][m]
+<1> CASE n = 0
+    BY PrevTranBound_eq0
+<1> CASE n # 0
+    BY PrevTranBound_eq1, Isa
+<1> QED OBVIOUS
+
+LEMMA PrevTran_refl ==
+    ASSUME NEW m \in Message PROVE m \in PrevTran(m)
+PROOF BY PrevTranBound_eq0 DEF PrevTran, PrevTranDepthRange, MessageDepthRange
+
+LEMMA PrevTran_eq ==
+    ASSUME NEW m \in Message
+    PROVE  PrevTran(m) = {m} \cup IF m.prev = NoMessage THEN {} ELSE PrevTran(m.prev)
+PROOF
+<1>1. PrevTran(m) \subseteq {m} \cup IF m.prev = NoMessage THEN {} ELSE PrevTran(m.prev)
+  <2> SUFFICES ASSUME NEW x \in PrevTran(m)
+               PROVE  x \in {m} \cup IF m.prev = NoMessage THEN {} ELSE PrevTran(m.prev)
+      OBVIOUS
+  <2> PICK n \in Nat : x \in PrevTranBound[n][m]
+      BY PrevTran_spec
+  <2> CASE n = 0
+      BY PrevTranBound_eq0
+  <2> CASE n # 0
+    <3> CASE x # m
+      <4> m.prev # NoMessage
+          BY PrevTranBound_eq1, Isa
+      <4> x \in PrevTranBound[n-1][m.prev]
+          BY PrevTranBound_eq1, Isa
+      <4> QED BY PrevTran_spec, MessageTypeSpec
+    <3> QED OBVIOUS
+  <2> QED OBVIOUS
+<1>2. ({m} \cup IF m.prev = NoMessage THEN {} ELSE PrevTran(m.prev)) \subseteq PrevTran(m)
+  <2> SUFFICES ASSUME NEW x \in {m} \cup IF m.prev = NoMessage THEN {} ELSE PrevTran(m.prev)
+               PROVE  x \in PrevTran(m)
+      OBVIOUS
+  <2> CASE x # m
+    <3> m.prev # NoMessage
+        OBVIOUS
+    <3> x \in PrevTran(m.prev)
+        OBVIOUS
+    <3> PICK n \in Nat : x \in PrevTranBound[n][m.prev]
+        BY PrevTran_spec, MessageTypeSpec
+    <3> (n + 1) - 1 = n OBVIOUS
+    <3> x \in PrevTranBound[n+1][m]
+        BY PrevTranBound_eq1, Isa
+    <3> QED BY PrevTran_spec
+  <2> QED BY PrevTran_refl
+<1> QED BY <1>1, <1>2
+
+LEMMA PrevTran_1a ==
+    ASSUME NEW m \in Message, m.type = "1a"
+    PROVE  PrevTran(m) = {m}
+PROOF BY PrevTran_eq, MessageTypeSpec
+
+LEMMA PrevTranBound_Message ==
+    ASSUME NEW m1 \in Message,
+           NEW n \in Nat
+    PROVE  PrevTranBound[n][m1] \in SUBSET Message
+PROOF
+<1> DEFINE P(j) == \A x \in Message : PrevTranBound[j][x] \in SUBSET Message
+<1> SUFFICES ASSUME NEW j \in Nat PROVE P(j) BY DEF PrevTran
+<1>0. P(0) BY PrevTranBound_eq0
+<1>1. ASSUME NEW k \in Nat, P(k) PROVE P(k+1)
+  <2> SUFFICES ASSUME NEW x \in Message
+               PROVE PrevTranBound[k + 1][x] \in SUBSET Message
+      OBVIOUS
+  <2> SUFFICES ASSUME x.prev # NoMessage
+               PROVE PrevTranBound[k][x.prev] \in SUBSET Message
+      BY PrevTranBound_eq1, Isa
+  <2>3. QED BY <1>1, Message_prev
+<1>2. HIDE DEF P
+<1>3. QED BY <1>0, <1>1, NatInduction, Isa
+
+LEMMA PrevTran_Message ==
+    ASSUME NEW m1 \in Message
+    PROVE  PrevTran(m1) \in SUBSET Message
+PROOF BY PrevTran_spec, PrevTranBound_Message
+
+LEMMA PrevTranBound_monotone_1 ==
+    ASSUME NEW n \in Nat, NEW m \in Message
+    PROVE  PrevTranBound[n][m] \subseteq PrevTranBound[n+1][m]
+PROOF
+<1> DEFINE P(j) == \A mm \in Message :
+                    PrevTranBound[j][mm] \subseteq PrevTranBound[j+1][mm]
+<1> SUFFICES ASSUME NEW j \in Nat PROVE P(j) OBVIOUS
+<1>0. P(0) BY PrevTranBound_eq0, PrevTranBound_eq1, Isa
+<1>1. ASSUME NEW k \in Nat, P(k) PROVE P(k+1)
+  <2> SUFFICES ASSUME NEW mm \in Message
+               PROVE PrevTranBound[k+1][mm] \subseteq PrevTranBound[(k+1)+1][mm]
+      OBVIOUS
+   <2> CASE mm.prev = NoMessage
+       BY PrevTranBound_eq1, Isa
+   <2> CASE mm.prev # NoMessage
+     <3> mm.prev \in Message
+         BY Message_prev
+     <3>1. SUFFICES
+        PrevTranBound[k][mm.prev] \subseteq PrevTranBound[k+1][mm.prev] 
+        BY PrevTranBound_eq1_prev, PrevTranBound_Message, Isa
+     <3> QED BY <1>1
+  <2> QED OBVIOUS
+<1>2. HIDE DEF P
+<1>3. QED BY <1>0, <1>1, NatInduction, Isa
+
+LEMMA PrevTranBound_monotone ==
+    \A n, m \in Nat : n <= m =>
+        \A mm \in Message :
+            PrevTranBound[n][mm] \subseteq PrevTranBound[m][mm]
+PROOF
+<1> DEFINE P(m) == \A n \in Nat : n < m =>
+                    \A mm \in Message : PrevTranBound[n][mm] \subseteq PrevTranBound[m][mm]
+<1> SUFFICES ASSUME NEW j \in Nat PROVE P(j) OBVIOUS
+<1>0. P(0) OBVIOUS
+<1>1. ASSUME NEW m \in Nat, P(m) PROVE P(m+1) BY <1>1, PrevTranBound_monotone_1
+<1>2. HIDE DEF P
+<1>3. QED BY <1>0, <1>1, NatInduction, Isa
+
+LEMMA Message_prev_PrevTranBound1 ==
+    ASSUME NEW m \in Message, m.prev # NoMessage
+    PROVE  m.prev \in PrevTranBound[1][m]
+PROOF
+<1> m.prev \in Message BY Message_prev
+<1> QED BY PrevTranBound_eq1, PrevTranBound_eq0, Isa
+
+LEMMA PrevTranBound_trans ==
+    ASSUME NEW n1 \in Nat, NEW n2 \in Nat,
+           NEW m1 \in Message,
+           NEW m2 \in PrevTranBound[n1][m1],
+           NEW m3 \in PrevTranBound[n2][m2]
+    PROVE  m3 \in PrevTranBound[n1 + n2][m1]
+PROOF
+<1>0. DEFINE P(n) ==
+        \A k \in Nat :
+        \A x \in Message :
+        \A y \in PrevTranBound[n][x] :
+        \A z \in PrevTranBound[k][y] :
+            z \in PrevTranBound[n + k][x]
+<1>1. SUFFICES \A n \in Nat : P(n) OBVIOUS
+<1>2. P(0) BY PrevTranBound_eq0
+<1>3. ASSUME NEW n \in Nat, P(n) PROVE P(n+1)
+  <2> SUFFICES ASSUME NEW k \in Nat, NEW x \in Message,
+                            NEW y \in PrevTranBound[n + 1][x], NEW z \in PrevTranBound[k][y]
+                 PROVE  z \in PrevTranBound[n + 1 + k][x]
+      OBVIOUS
+  <2>1. CASE y = x
+        BY <2>1, PrevTranBound_monotone
+  <2>2. CASE y # x
+     <3> x.prev # NoMessage
+         BY <2>2, PrevTranBound_eq1, Isa
+     <3> x.prev \in Message
+         BY Message_prev
+     <3> y \in PrevTranBound[n][x.prev]
+         BY <2>2, PrevTranBound_eq1_prev
+     <3> z \in PrevTranBound[n + k][x.prev]
+         BY <1>3
+     <3> QED BY PrevTranBound_eq1_prev
+  <2> QED BY <2>1, <2>2
+<1>4. HIDE DEF P
+<1>5. QED BY <1>2, <1>3, NatInduction, Isa
+
+LEMMA PrevTran_trans ==
+    ASSUME NEW m1 \in Message, NEW m2 \in PrevTran(m1), NEW m3 \in PrevTran(m2)
+    PROVE  m3 \in PrevTran(m1)
+PROOF
+<1>0. PICK n1 \in Nat : m2 \in PrevTranBound[n1][m1]
+      BY PrevTran_spec
+<1>1. PICK n2 \in Nat : m3 \in PrevTranBound[n2][m2]
+      BY PrevTranBound_Message, PrevTran_spec
+<1>2. m3 \in PrevTranBound[n2 + n1][m1]
+      BY PrevTranBound_trans, <1>0, <1>1
+<1>3. QED BY <1>2, PrevTran_spec
+
+\*LEMMA PrevTran_elim ==
+\*    ASSUME NEW m1 \in Message, NEW m2 \in PrevTran(m1), m1 # m2
+\*    PROVE  m1.prev # NoMessage /\ m2 \in PrevTran(m1.prev)
+\*PROOF
+\*<1> QED BY PrevTran_eq
+
+(*XXX*)
+LEMMA Message_prev_PrevTran ==
+    ASSUME NEW m \in Message, m.prev # NoMessage
+    PROVE  m.prev \in PrevTran(m)
+PROOF BY Message_prev_PrevTranBound1, Zenon
+      DEF PrevTran, PrevTranDepthRange, MessageDepthRange
+
+LEMMA MessageRec0_PrevTran ==
+    ASSUME NEW m1 \in MessageRec[0], NEW m2 \in PrevTran(m1)
+    PROVE  m1 = m2
+PROOF
+<1> m1 \in Message
+    BY Message_spec DEF MessageDepthRange
+<1> PICK k \in Nat : m2 \in PrevTranBound[k][m1]
+    BY PrevTran_spec
+<1> m2 \in Message
+    BY PrevTran_Message
+<1>1. CASE k = 0
+      BY PrevTranBound_eq0, <1>1
+<1>2. CASE k # 0 /\ m1 # m2
+  <2> m1.prev # NoMessage
+      BY <1>2, PrevTranBound_eq1, Isa
+  <2> QED
+      BY MessageRec_eq0 DEF MessageRec0
+<1>3. QED BY <1>1, <1>2
+
+-----------------------------------------------------------------------------
 LEMMA CaughtMsgSpec ==
     ASSUME NEW M \in Message
     PROVE  /\ CaughtMsg(M) \in SUBSET Message
@@ -711,7 +975,7 @@ SafeAcceptorPrevSpec2 ==
     \A A \in SafeAcceptor :
         prev_msg[A] # NoMessage =>
             /\ prev_msg[A] \in SentBy(A)
-            /\ \A m \in SentBy(A) : m \in Tran(prev_msg[A])
+            /\ \A m \in SentBy(A) : m \in PrevTran(prev_msg[A])
 
 SafeAcceptorQueuedMsgPrevMsgSpec ==
     \A A \in SafeAcceptor :
@@ -726,11 +990,6 @@ RecentMsgsUniquePreviousMessageSpec ==
             x.acc = A /\ y.acc = A =>
             x = y
 
-MsgsSafeAcceptorSpec1 ==
-    \A A \in SafeAcceptor :
-        \A m1, m2 \in SentBy(A) :
-            m1 \in Tran(m2) \/ m2 \in Tran(m1)
-
 MsgsSafeAcceptorSpec3 ==
     \A A \in SafeAcceptor :
         \A m1, m2 \in SentBy(A) :
@@ -740,6 +999,17 @@ MsgsSafeAcceptorPrevRefSpec ==
     \A A \in SafeAcceptor :
         \A m \in SentBy(A) :
             m.prev # NoMessage => m.prev \in m.ref
+
+MsgsSafeAcceptorPrevTranSpec ==
+    \A A \in SafeAcceptor :
+        \A m1 \in SentBy(A) :
+            \A m2 \in PrevTran(m1) :
+                m2 \in Tran(m1)
+
+MsgsSafeAcceptorPrevTranLinearSpec ==
+    \A A \in SafeAcceptor :
+        \A m1, m2 \in SentBy(A) :
+            m1 \in PrevTran(m2) \/ m2 \in PrevTran(m1)
 
 QueuedMsgSpec1 ==
     \A A \in SafeAcceptor :
@@ -1333,15 +1603,11 @@ PROOF
 
 LEMMA SafeAcceptorPrevSpec2Invariant ==
     TypeOK /\ Next /\
-    2aLearnerLoopSpec /\
-    SafeAcceptorQueuedMsgPrevMsgSpec /\
     SafeAcceptorPrevSpec1 /\
     SafeAcceptorPrevSpec2 =>
     SafeAcceptorPrevSpec2'
 PROOF
 <1> SUFFICES ASSUME TypeOK, Next,
-                    2aLearnerLoopSpec,
-                    SafeAcceptorQueuedMsgPrevMsgSpec,
                     SafeAcceptorPrevSpec1,
                     SafeAcceptorPrevSpec2
              PROVE  SafeAcceptorPrevSpec2'
@@ -1350,7 +1616,7 @@ PROOF
 <1> SUFFICES ASSUME NEW A \in SafeAcceptor,
                     prev_msg[A]' # NoMessage
              PROVE  /\ prev_msg[A]' \in SentBy(A)'
-                    /\ \A m \in SentBy(A)' : m \in Tran(prev_msg[A]')
+                    /\ \A m \in SentBy(A)' : m \in PrevTran(prev_msg[A]')
     BY DEF SafeAcceptorPrevSpec2
 <1> A \in Acceptor BY DEF Acceptor
 <1> USE DEF SafeAcceptorPrevSpec2
@@ -1381,14 +1647,16 @@ PROOF
         BY DEF TypeOK
     <3> new1b # NoMessage
         BY Zenon, NoMessageIsNotAMessage
+    <3> new1b.prev = prev_msg[A]
+        OBVIOUS
     <3> SentBy(A)' = SentBy(A) \cup {new1b}
         BY DEF Send, SentBy
     <3> prev_msg[A]' = new1b
         BY DEF Send, TypeOK
-    <3> ASSUME SentBy(A) # {} PROVE prev_msg[A] \in Tran(new1b)
-        BY Message_ref_Tran DEF SafeAcceptorQueuedMsgPrevMsgSpec
+    <3> ASSUME SentBy(A) # {} PROVE prev_msg[A] \in PrevTran(new1b)
+        BY Message_prev_PrevTran DEF SafeAcceptorPrevSpec1
     <3> HIDE DEF new1b
-    <3> QED BY Tran_trans, Tran_refl DEF SafeAcceptorPrevSpec1
+    <3> QED BY PrevTran_trans, PrevTran_refl DEF SafeAcceptorPrevSpec1
   <2> QED OBVIOUS
 <1>q. CASE \E a \in SafeAcceptor :
             /\ queued_msg[a] # NoMessage
@@ -1427,10 +1695,10 @@ PROOF
         BY DEF Send, SentBy
     <3> prev_msg[A]' = new2a
         BY DEF Send, TypeOK
-    <3> ASSUME SentBy(A) # {} PROVE prev_msg[A] \in Tran(new2a)
-        BY Message_ref_Tran DEF 2aLearnerLoopSpec, SafeAcceptorQueuedMsgPrevMsgSpec
+    <3> ASSUME SentBy(A) # {} PROVE prev_msg[A] \in PrevTran(new2a)
+        BY Message_prev_PrevTran DEF SafeAcceptorPrevSpec1
     <3> HIDE DEF new2a
-    <3> QED BY Tran_trans, Tran_refl DEF SafeAcceptorPrevSpec1
+    <3> QED BY PrevTran_trans, PrevTran_refl DEF SafeAcceptorPrevSpec1
   <2>2. CASE ~WellFormed(new2a)
         BY <2>2 DEF SentBy
   <2> QED BY <2>2
@@ -1606,13 +1874,11 @@ PROOF
 
 LEMMA UniqueMessageSent ==
     TypeOK /\ Next =>
-    \A m1 \in msgs' : \A m2 \in msgs' :
-        m1 \notin msgs /\ m2 \notin msgs =>
+    \A m1, m2 \in msgs' \ msgs :
         m1 = m2
 PROOF
 <1> SUFFICES ASSUME TypeOK, Next,
-                    NEW M1 \in msgs', NEW M2 \in msgs',
-                    M1 \notin msgs, M2 \notin msgs
+                    NEW M1 \in msgs' \ msgs, NEW M2 \in msgs' \ msgs
              PROVE  M1 = M2
     OBVIOUS
 <1> TypeOK' BY TypeOKInvariant
@@ -1896,28 +2162,28 @@ PROOF
         DEF Next, AcceptorProcessAction, Process1bLearnerLoop,
             LearnerAction, FakeAcceptorAction
 
-LEMMA MsgsSafeAcceptorSpec1Invariant ==
+LEMMA MsgsSafeAcceptorPrevTranLinearSpecInvariant ==
     TypeOK /\ Next /\
     2aLearnerLoopSpec /\
     SafeAcceptorPrevSpec2 /\
     SafeAcceptorQueuedMsgPrevMsgSpec /\
-    MsgsSafeAcceptorSpec1 => MsgsSafeAcceptorSpec1'
+    MsgsSafeAcceptorPrevTranLinearSpec => MsgsSafeAcceptorPrevTranLinearSpec'
 PROOF
 <1> SUFFICES ASSUME TypeOK, Next,
                     2aLearnerLoopSpec,
                     SafeAcceptorPrevSpec2,
                     SafeAcceptorQueuedMsgPrevMsgSpec,
-                    MsgsSafeAcceptorSpec1
-             PROVE  MsgsSafeAcceptorSpec1'
+                    MsgsSafeAcceptorPrevTranLinearSpec
+             PROVE  MsgsSafeAcceptorPrevTranLinearSpec'
     OBVIOUS
 <1> TypeOK' BY TypeOKInvariant
 <1> SUFFICES ASSUME NEW A \in SafeAcceptor,
                     NEW m1 \in msgs, NEW m2 \in msgs' \ msgs,
                     m1.type # "1a", m2.type # "1a",
                     m1.acc = A, m2.acc = A
-             PROVE  m1 \in Tran(m2)
-  <2> USE DEF MsgsSafeAcceptorSpec1
-  <2> QED BY UniqueMessageSent, Tran_refl DEF SentBy, TypeOK
+             PROVE  m1 \in PrevTran(m2)
+  <2> USE DEF MsgsSafeAcceptorPrevTranLinearSpec
+  <2> QED BY UniqueMessageSent, PrevTran_refl DEF SentBy, TypeOK
 <1>1. CASE ProposerSendAction
       BY <1>1 DEF ProposerSendAction, Send1a, Send
 <1>2. CASE \E a \in SafeAcceptor :
@@ -1939,11 +2205,11 @@ PROOF
       BY DEF SafeAcceptorQueuedMsgPrevMsgSpec, SentBy
   <2> prev_msg[A] # NoMessage
       BY NoMessageIsNotAMessage DEF TypeOK
-  <2> \A m \in SentBy(A) : m \in Tran(prev_msg[A])
+  <2> \A m \in SentBy(A) : m \in PrevTran(prev_msg[A])
       BY DEF SafeAcceptorPrevSpec2
-  <2> prev_msg[A] \in Tran(m2)
-      BY Message_ref_Tran
-  <2> QED BY Tran_trans DEF SentBy
+  <2> prev_msg[A] \in PrevTran(m2)
+      BY Message_prev_PrevTran
+  <2> QED BY PrevTran_trans DEF SentBy
 <1>q. CASE \E a \in SafeAcceptor : Process1b(a, queued_msg[a])
       BY <1>q DEF Process1b, Send
 <1>3. CASE \E a \in SafeAcceptor : \E m \in msgs : Process1b(a, m)
@@ -1969,11 +2235,11 @@ PROOF
       BY DEF SafeAcceptorQueuedMsgPrevMsgSpec, SentBy
   <2> prev_msg[A] # NoMessage
       BY NoMessageIsNotAMessage DEF TypeOK
-  <2> \A m \in SentBy(A) : m \in Tran(prev_msg[A])
+  <2> \A m \in SentBy(A) : m \in PrevTran(prev_msg[A])
       BY DEF SafeAcceptorPrevSpec2
-  <2> prev_msg[A] \in Tran(m2)
-      BY Message_ref_Tran
-  <2> QED BY Tran_trans DEF SentBy
+  <2> prev_msg[A] \in PrevTran(m2)
+      BY Message_prev_PrevTran
+  <2> QED BY PrevTran_trans DEF SentBy
 <1>5. CASE \E a \in SafeAcceptor : Process1bLearnerLoopDone(a)
       BY <1>5 DEF Process1bLearnerLoopDone, Send
 <1>6. CASE LearnerAction
@@ -1995,6 +2261,7 @@ LEMMA MsgsSafeAcceptorSpec3Invariant ==
     KnownMsgsSpec /\
     RecentMsgsSpec /\
     MsgsSafeAcceptorPrevRefSpec /\
+    MsgsSafeAcceptorPrevTranSpec /\
     SafeAcceptorPrevSpec1 /\
     SafeAcceptorPrevSpec2 /\
     SafeAcceptorQueuedMsgPrevMsgSpec /\
@@ -2005,6 +2272,7 @@ PROOF
                     RecentMsgsSpec,
                     SafeAcceptorQueuedMsgPrevMsgSpec,
                     MsgsSafeAcceptorPrevRefSpec,
+                    MsgsSafeAcceptorPrevTranSpec,
                     SafeAcceptorPrevSpec1,
                     SafeAcceptorPrevSpec2,
                     MsgsSafeAcceptorSpec3
@@ -2051,7 +2319,7 @@ PROOF
   <2> m1 \notin Tran(prev_msg[A])
       BY Tran_ref_acyclic
   <2> m1 \in Tran(prev_msg[A])
-      BY DEF SafeAcceptorPrevSpec2, SentBy
+      BY DEF SafeAcceptorPrevSpec2, MsgsSafeAcceptorPrevTranSpec, SentBy
   <2> QED OBVIOUS
 <1>q. CASE \E a \in SafeAcceptor : Process1b(a, queued_msg[a])
       BY <1>q DEF Process1b, Send
@@ -2081,7 +2349,7 @@ PROOF
   <2> m1 \notin Tran(prev_msg[A])
       BY Tran_ref_acyclic
   <2> m1 \in Tran(prev_msg[A])
-      BY DEF SafeAcceptorPrevSpec2, SentBy
+      BY DEF SafeAcceptorPrevSpec2, MsgsSafeAcceptorPrevTranSpec, SentBy
   <2> QED OBVIOUS
 <1>5. CASE \E a \in SafeAcceptor : Process1bLearnerLoopDone(a)
       BY <1>5 DEF Process1bLearnerLoopDone, Send
@@ -2184,6 +2452,123 @@ PROOF
 <1> QED BY Zenon, <1>1, <1>2, <1>q, <1>3, <1>4, <1>5, <1>6, <1>7, <1>8
         DEF Next, AcceptorProcessAction, Process1bLearnerLoop, FakeAcceptorAction
 
+LEMMA MsgsSafeAcceptorPrevTranSpecInvariant ==
+    TypeOK /\ Next /\
+    2aLearnerLoopSpec /\
+    SafeAcceptorPrevSpec2 /\
+    SafeAcceptorQueuedMsgPrevMsgSpec /\
+    MsgsSafeAcceptorPrevTranSpec =>
+    MsgsSafeAcceptorPrevTranSpec'
+PROOF
+<1> SUFFICES ASSUME TypeOK, Next,
+                    2aLearnerLoopSpec,
+                    SafeAcceptorPrevSpec2,
+                    SafeAcceptorQueuedMsgPrevMsgSpec,
+                    MsgsSafeAcceptorPrevTranSpec
+             PROVE  MsgsSafeAcceptorPrevTranSpec'
+    OBVIOUS
+<1> TypeOK' BY TypeOKInvariant
+<1> SUFFICES ASSUME NEW A \in SafeAcceptor,
+                    NEW m1 \in msgs' \ msgs,
+                    m1.acc = A, m1.type # "1a",
+                    NEW m2 \in PrevTran(m1), m2 # m1
+             PROVE  m2 \in Tran(m1)
+    BY Tran_refl DEF MsgsSafeAcceptorPrevTranSpec, SentBy, Send, TypeOK
+<1> m1 \in Message
+    BY DEF TypeOK
+<1> A \in Acceptor BY DEF Acceptor
+<1> USE DEF MsgsSafeAcceptorPrevTranSpec
+<1>1. CASE ProposerSendAction
+  <2> PICK bal \in Ballot : Send1a(bal)
+      BY <1>1 DEF ProposerSendAction
+  <2> QED BY DEF Send1a, SentBy, Send
+<1>2. CASE \E a \in SafeAcceptor :
+            /\ queued_msg[a] = NoMessage
+            /\ \E m \in msgs : Process1a(a, m)
+  <2> PICK acc \in SafeAcceptor, m1a \in msgs :
+            /\ queued_msg[acc] = NoMessage
+            /\ Process1a(acc, m1a)
+      BY <1>2
+  <2> USE DEF Process1a
+  <2> acc \in Acceptor
+      BY DEF Acceptor
+  <2> DEFINE new1b == [type |-> "1b", acc |-> acc,
+                       prev |-> prev_msg[acc],
+                       ref |-> recent_msgs[acc] \cup {m1a}]
+  <2> WellFormed(new1b)
+      BY DEF Send
+  <2> m1 = new1b
+      BY DEF Send
+  <2> new1b.prev = prev_msg[acc]
+      OBVIOUS
+  <2> m1.prev # NoMessage /\ m2 \in PrevTran(m1.prev)
+      BY PrevTran_eq
+  <2> prev_msg[acc] \in SentBy(acc)
+      BY DEF SafeAcceptorPrevSpec2
+  <2> prev_msg[acc] \in recent_msgs[acc]
+      BY DEF Send, SafeAcceptorQueuedMsgPrevMsgSpec
+  <2> m1.prev \in Message
+        BY DEF SentBy, TypeOK
+  <2> QED BY Tran_refl, Tran_trans, Tran_eq
+<1>q. CASE \E a \in SafeAcceptor :
+            /\ queued_msg[a] # NoMessage
+            /\ Process1b(a, queued_msg[a])
+  <2> PICK acc \in SafeAcceptor :
+            /\ queued_msg[acc] # NoMessage
+            /\ Process1b(acc, queued_msg[acc])
+      BY <1>q
+  <2> QED BY DEF Process1b, Send, SentBy, TypeOK
+<1>3. CASE \E a \in SafeAcceptor :
+            /\ queued_msg[a] = NoMessage
+            /\ \E m \in msgs : Process1b(a, m)
+  <2> PICK acc \in SafeAcceptor, msg \in msgs :
+            /\ queued_msg[acc] = NoMessage
+            /\ Process1b(acc, msg)
+      BY <1>3
+  <2> QED BY DEF Process1b, Send, SentBy
+<1>4. CASE \E a \in SafeAcceptor :
+            /\ 2a_lrn_loop[a] = TRUE
+            /\ \E l \in Learner : Process1bLearnerLoopStep(a, l)
+  <2> PICK acc \in SafeAcceptor, lrn \in Learner :
+            /\ 2a_lrn_loop[acc] = TRUE
+            /\ Process1bLearnerLoopStep(acc, lrn)
+      BY <1>4
+  <2> USE DEF Process1bLearnerLoopStep
+  <2> acc \in Acceptor
+      BY DEF Acceptor
+  <2> DEFINE new2a == [type |-> "2a", lrn |-> lrn, acc |-> acc,
+                       prev |-> prev_msg[acc],
+                       ref |-> recent_msgs[acc]]
+  <2> WellFormed(new2a)
+      BY DEF Send
+  <2> m1 = new2a
+      BY DEF Send
+  <2> new2a.prev = prev_msg[acc]
+      OBVIOUS
+  <2> m1.prev # NoMessage /\ m2 \in PrevTran(m1.prev)
+      BY PrevTran_eq
+  <2> prev_msg[acc] \in SentBy(acc)
+      BY DEF SafeAcceptorPrevSpec2
+  <2> prev_msg[acc] \in recent_msgs[acc]
+      BY DEF Send, SafeAcceptorQueuedMsgPrevMsgSpec, 2aLearnerLoopSpec
+  <2> m1.prev \in Message
+        BY DEF SentBy, TypeOK
+  <2> QED BY Tran_refl, Tran_trans, Tran_eq
+<1>5. CASE \E a \in SafeAcceptor : Process1bLearnerLoopDone(a)
+      BY <1>5 DEF Process1bLearnerLoopDone, Send, SentBy
+<1>6. CASE LearnerAction
+      BY <1>6 DEF LearnerAction, LearnerRecv, LearnerDecide, Send, SentBy
+<1>7. CASE \E a \in FakeAcceptor : FakeSend1b(a)
+  <2> PICK acc \in FakeAcceptor : FakeSend1b(acc)
+      BY <1>7
+  <2> QED BY AcceptorAssumption DEF FakeSend1b, Send, SentBy
+<1>8. CASE \E a \in FakeAcceptor : FakeSend2a(a)
+  <2> PICK acc \in FakeAcceptor : FakeSend2a(acc)
+      BY <1>8
+  <2> QED BY AcceptorAssumption DEF FakeSend2a, Send, SentBy
+<1> QED BY Zenon, <1>1, <1>2, <1>q, <1>3, <1>4, <1>5, <1>6, <1>7, <1>8
+        DEF Next, AcceptorProcessAction, Process1bLearnerLoop, FakeAcceptorAction
+
 LEMMA MsgsSafeAcceptorSpecImpliesCaughtSpec ==
     ASSUME TypeOK, KnownMsgsSpec, MsgsSafeAcceptorSpec3
     PROVE  CaughtSpec
@@ -2249,10 +2634,14 @@ PROOF
 <1> QED OBVIOUS
 
 LEMMA HeterogeneousLemma ==
-    TypeOK /\ KnownMsgsSpec /\ CaughtSpec /\ MsgsSafeAcceptorSpec1 =>
+    TypeOK /\ KnownMsgsSpec /\ CaughtSpec /\
+    MsgsSafeAcceptorPrevTranLinearSpec /\
+    MsgsSafeAcceptorPrevTranSpec =>
     \A bal \in Ballot : HeterogeneousSpec(bal)
 PROOF
-<1> ASSUME TypeOK, KnownMsgsSpec, CaughtSpec, MsgsSafeAcceptorSpec1,
+<1> ASSUME TypeOK, KnownMsgsSpec, CaughtSpec,
+           MsgsSafeAcceptorPrevTranLinearSpec,
+           MsgsSafeAcceptorPrevTranSpec,
            NEW bal \in Ballot,
            (\A b \in Ballot : b < bal => HeterogeneousSpec(b))
     PROVE  HeterogeneousSpec(bal)
@@ -2333,7 +2722,7 @@ PROOF
   <2>14. m2a \in Tran(m1b)
     <3> ASSUME m1b \in Tran(m2a) PROVE FALSE
         BY TranBallot DEF Ballot
-    <3> QED BY DEF MsgsSafeAcceptorSpec1, SentBy
+    <3> QED BY DEF MsgsSafeAcceptorPrevTranLinearSpec, MsgsSafeAcceptorPrevTranSpec, SentBy
   <2>15. CASE ~Buried(m2a, m1b)
     <3> L1 \in Con(L2, m1b)
         BY EntConnected, EntanglementSym, BQAssumption DEF Con
@@ -2426,7 +2815,9 @@ LEMMA ChosenSafeCaseLt ==
     ASSUME NEW L1 \in Learner, NEW L2 \in Learner,
            NEW B1 \in Ballot, NEW B2 \in Ballot,
            NEW V1 \in Value, NEW V2 \in Value,
-           TypeOK, KnownMsgsSpec, CaughtSpec, MsgsSafeAcceptorSpec1,
+           TypeOK, KnownMsgsSpec, CaughtSpec,
+           MsgsSafeAcceptorPrevTranLinearSpec,
+           MsgsSafeAcceptorPrevTranSpec,
            <<L1, L2>> \in Ent,
            B1 < B2,
            ChosenIn(L1, B1, V1), ChosenIn(L2, B2, V2)
@@ -2436,7 +2827,8 @@ PROOF
         [lr |-> L1, q |-> { m.acc : m \in S1 }] \in TrustLive
     BY Zenon DEF ChosenIn
 <1> DEFINE Q1 == { m.acc : m \in S1 }
-<1> Q1 \in ByzQuorum BY TrustLiveAssumption
+<1> Q1 \in ByzQuorum
+    BY TrustLiveAssumption, Zenon
 <1> PICK S2 \in SUBSET Known2a(L2, B2, V2) :
         [lr |-> L2, q |-> { m.acc : m \in S2 }] \in TrustLive
     BY Zenon DEF ChosenIn
@@ -2446,7 +2838,7 @@ PROOF
 <1> <<L2, L2>> \in Ent
     BY EntanglementSelf, EntanglementSym, Zenon
 <1> PICK A \in Q2 : TRUE
-    BY EntaglementTrustLiveNonEmpty
+    BY EntaglementTrustLiveNonEmpty, Zenon
 <1> PICK M \in known_msgs[L2] :
         /\ M.type = "2a"
         /\ M.lrn = L2
@@ -2459,7 +2851,9 @@ LEMMA ChosenSafe ==
     ASSUME NEW L1 \in Learner, NEW L2 \in Learner,
            NEW B1 \in Ballot, NEW B2 \in Ballot,
            NEW V1 \in Value, NEW V2 \in Value,
-           TypeOK, KnownMsgsSpec, CaughtSpec, MsgsSafeAcceptorSpec1,
+           TypeOK, KnownMsgsSpec, CaughtSpec,
+           MsgsSafeAcceptorPrevTranLinearSpec,
+           MsgsSafeAcceptorPrevTranSpec,
            <<L1, L2>> \in Ent,
            ChosenIn(L1, B1, V1), ChosenIn(L2, B2, V2)
     PROVE V1 = V2
@@ -2471,12 +2865,18 @@ PROOF
 
 LEMMA SafetyStep ==
     TypeOK /\ Next /\
-    KnownMsgsSpec /\ CaughtSpec /\ MsgsSafeAcceptorSpec1 /\ DecisionSpec /\
+    KnownMsgsSpec /\ CaughtSpec /\
+    MsgsSafeAcceptorPrevTranLinearSpec /\
+    MsgsSafeAcceptorPrevTranSpec /\
+    DecisionSpec /\
     Safety => Safety'
 PROOF
 <1> SUFFICES
         ASSUME TypeOK, Next,
-               KnownMsgsSpec, CaughtSpec, MsgsSafeAcceptorSpec1, DecisionSpec,
+               KnownMsgsSpec, CaughtSpec,
+               MsgsSafeAcceptorPrevTranSpec,
+               MsgsSafeAcceptorPrevTranLinearSpec,
+               DecisionSpec,
                Safety,
                NEW L1 \in Learner, NEW L2 \in Learner,
                NEW B1 \in Ballot, NEW B2 \in Ballot,
@@ -2542,9 +2942,10 @@ FullSafetyInvariant ==
     /\ SafeAcceptorPrevSpec1
     /\ SafeAcceptorPrevSpec2
     /\ SafeAcceptorQueuedMsgPrevMsgSpec
-    /\ MsgsSafeAcceptorSpec1
+    /\ MsgsSafeAcceptorPrevTranLinearSpec
     /\ MsgsSafeAcceptorSpec3
     /\ MsgsSafeAcceptorPrevRefSpec
+    /\ MsgsSafeAcceptorPrevTranSpec
     /\ DecisionSpec
     /\ Safety
 
@@ -2572,14 +2973,17 @@ PROOF BY DEF Init, SafeAcceptorPrevSpec2, Acceptor
 LEMMA SafeAcceptorQueuedMsgPrevMsgSpecInit == Init => SafeAcceptorQueuedMsgPrevMsgSpec
 PROOF BY DEF Init, SafeAcceptorQueuedMsgPrevMsgSpec, Acceptor, SentBy
 
-LEMMA MsgsSafeAcceptorSpec1Init == Init => MsgsSafeAcceptorSpec1
-PROOF BY DEF Init, MsgsSafeAcceptorSpec1, SentBy
+LEMMA MsgsSafeAcceptorSpec1Init == Init => MsgsSafeAcceptorPrevTranLinearSpec
+PROOF BY DEF Init, MsgsSafeAcceptorPrevTranLinearSpec, SentBy
 
 LEMMA MsgsSafeAcceptorSpec3Init == Init => MsgsSafeAcceptorSpec3
 PROOF BY DEF Init, MsgsSafeAcceptorSpec3, SentBy
 
 LEMMA MsgsSafeAcceptorPrevRefSpecInit == Init => MsgsSafeAcceptorPrevRefSpec
 PROOF BY DEF Init, MsgsSafeAcceptorPrevRefSpec, SentBy
+
+LEMMA MsgsSafeAcceptorPrevTranSpecInit == Init => MsgsSafeAcceptorPrevTranSpec
+PROOF BY DEF Init, MsgsSafeAcceptorPrevTranSpec, SentBy
 
 LEMMA DecisionSpecInit == Init => DecisionSpec
 PROOF BY DEF Init, DecisionSpec
@@ -2599,6 +3003,7 @@ PROOF BY TypeOKInit,
          MsgsSafeAcceptorSpec1Init,
          MsgsSafeAcceptorSpec3Init,
          MsgsSafeAcceptorPrevRefSpecInit,
+         MsgsSafeAcceptorPrevTranSpecInit,
          DecisionSpecInit,
          SafetyInit
       DEF FullSafetyInvariant
@@ -2639,8 +3044,8 @@ LEMMA SafeAcceptorQueuedMsgPrevMsgSpecStutter ==
 PROOF BY DEF SafeAcceptorQueuedMsgPrevMsgSpec, vars, SentBy
 
 LEMMA MsgsSafeAcceptorSpec1Stutter ==
-    MsgsSafeAcceptorSpec1 /\ vars = vars' => MsgsSafeAcceptorSpec1'
-PROOF BY DEF MsgsSafeAcceptorSpec1, vars, SentBy
+    MsgsSafeAcceptorPrevTranLinearSpec /\ vars = vars' => MsgsSafeAcceptorPrevTranLinearSpec'
+PROOF BY DEF MsgsSafeAcceptorPrevTranLinearSpec, vars, SentBy
 
 LEMMA MsgsSafeAcceptorSpec3Stutter ==
     MsgsSafeAcceptorSpec3 /\ vars = vars' => MsgsSafeAcceptorSpec3'
@@ -2649,6 +3054,10 @@ PROOF BY DEF MsgsSafeAcceptorSpec3, vars, SentBy
 LEMMA MsgsSafeAcceptorPrevRefSpecStutter ==
     MsgsSafeAcceptorPrevRefSpec /\ vars = vars' => MsgsSafeAcceptorPrevRefSpec'
 PROOF BY DEF MsgsSafeAcceptorPrevRefSpec, vars, SentBy
+
+LEMMA MsgsSafeAcceptorPrevTranSpecStutter ==
+    MsgsSafeAcceptorPrevTranSpec /\ vars = vars' => MsgsSafeAcceptorPrevTranSpec'
+PROOF BY DEF MsgsSafeAcceptorPrevTranSpec, vars, SentBy
 
 LEMMA DecisionSpecStutter ==
     DecisionSpec /\ vars = vars' => DecisionSpec'
@@ -2673,9 +3082,10 @@ PROOF
          SafeAcceptorPrevSpec1Invariant,
          SafeAcceptorPrevSpec2Invariant,
          SafeAcceptorQueuedMsgPrevMsgSpecInvariant,
-         MsgsSafeAcceptorSpec1Invariant,
+         MsgsSafeAcceptorPrevTranLinearSpecInvariant,
          MsgsSafeAcceptorSpec3Invariant,
          MsgsSafeAcceptorPrevRefSpecInvariant,
+         MsgsSafeAcceptorPrevTranSpecInvariant,
          DecisionSpecInvariant,
          SafetyStep
       DEF FullSafetyInvariant
@@ -2692,6 +3102,7 @@ PROOF
          MsgsSafeAcceptorSpec1Stutter,
          MsgsSafeAcceptorSpec3Stutter,
          MsgsSafeAcceptorPrevRefSpecStutter,
+         MsgsSafeAcceptorPrevTranSpecStutter,
          DecisionSpecStutter,
          SafetyStutter
       DEF FullSafetyInvariant
@@ -2703,5 +3114,5 @@ PROOF BY PTL, FullSafetyInvariantInit, FullSafetyInvariantNext
 
 =============================================================================
 \* Modification History
-\* Last modified Tue Jun 27 15:45:05 CEST 2023 by karbyshev
+\* Last modified Mon Aug 14 14:54:22 CEST 2023 by karbyshev
 \* Created Tue Jun 20 00:28:26 CEST 2023 by karbyshev
