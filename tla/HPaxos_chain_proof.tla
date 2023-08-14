@@ -778,37 +778,30 @@ PROOF
       BY PrevTranBound_trans, <1>0, <1>1
 <1>3. QED BY <1>2, PrevTran_spec
 
-\*LEMMA PrevTran_elim ==
-\*    ASSUME NEW m1 \in Message, NEW m2 \in PrevTran(m1), m1 # m2
-\*    PROVE  m1.prev # NoMessage /\ m2 \in PrevTran(m1.prev)
-\*PROOF
-\*<1> QED BY PrevTran_eq
-
-(*XXX*)
 LEMMA Message_prev_PrevTran ==
     ASSUME NEW m \in Message, m.prev # NoMessage
     PROVE  m.prev \in PrevTran(m)
 PROOF BY Message_prev_PrevTranBound1, Zenon
       DEF PrevTran, PrevTranDepthRange, MessageDepthRange
 
-LEMMA MessageRec0_PrevTran ==
-    ASSUME NEW m1 \in MessageRec[0], NEW m2 \in PrevTran(m1)
-    PROVE  m1 = m2
-PROOF
-<1> m1 \in Message
-    BY Message_spec DEF MessageDepthRange
-<1> PICK k \in Nat : m2 \in PrevTranBound[k][m1]
-    BY PrevTran_spec
-<1> m2 \in Message
-    BY PrevTran_Message
-<1>1. CASE k = 0
-      BY PrevTranBound_eq0, <1>1
-<1>2. CASE k # 0 /\ m1 # m2
-  <2> m1.prev # NoMessage
-      BY <1>2, PrevTranBound_eq1, Isa
-  <2> QED
-      BY MessageRec_eq0 DEF MessageRec0
-<1>3. QED BY <1>1, <1>2
+\*LEMMA MessageRec0_PrevTran ==
+\*    ASSUME NEW m1 \in MessageRec[0], NEW m2 \in PrevTran(m1)
+\*    PROVE  m1 = m2
+\*PROOF
+\*<1> m1 \in Message
+\*    BY Message_spec DEF MessageDepthRange
+\*<1> PICK k \in Nat : m2 \in PrevTranBound[k][m1]
+\*    BY PrevTran_spec
+\*<1> m2 \in Message
+\*    BY PrevTran_Message
+\*<1>1. CASE k = 0
+\*      BY PrevTranBound_eq0, <1>1
+\*<1>2. CASE k # 0 /\ m1 # m2
+\*  <2> m1.prev # NoMessage
+\*      BY <1>2, PrevTranBound_eq1, Isa
+\*  <2> QED
+\*      BY MessageRec_eq0 DEF MessageRec0
+\*<1>3. QED BY <1>1, <1>2
 
 -----------------------------------------------------------------------------
 LEMMA CaughtMsgSpec ==
@@ -3114,5 +3107,5 @@ PROOF BY PTL, FullSafetyInvariantInit, FullSafetyInvariantNext
 
 =============================================================================
 \* Modification History
-\* Last modified Mon Aug 14 14:54:22 CEST 2023 by karbyshev
+\* Last modified Mon Aug 14 16:50:39 CEST 2023 by karbyshev
 \* Created Tue Jun 20 00:28:26 CEST 2023 by karbyshev
