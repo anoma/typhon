@@ -126,6 +126,24 @@ TranDepthRange == MessageDepthRange
 Tran(m) == UNION {TranBound[n][m] : n \in TranDepthRange}
 
 -----------------------------------------------------------------------------
+(* Transitive references of prev *)
+
+\* Bounded transitive references of prev
+PrevTranBound0 == [m \in Message |-> {m}]
+PrevTranBound1(tr, n) ==
+    [m \in Message |-> {m} \cup IF m.prev = NoMessage THEN {} ELSE tr[m.prev]]
+
+PrevTranBound[n \in Nat] ==
+    IF n = 0
+    THEN PrevTranBound0
+    ELSE PrevTranBound1(PrevTranBound[n-1], n)
+
+\* Countable transitive references of prev
+PrevTranDepthRange == MessageDepthRange
+
+PrevTran(m) == UNION {PrevTranBound[n][m] : n \in PrevTranDepthRange}
+
+-----------------------------------------------------------------------------
 (* Algorithm specification *)
 
  \* TODO comment
@@ -459,5 +477,5 @@ UniqueDecision ==
 
 =============================================================================
 \* Modification History
-\* Last modified Tue Jun 27 17:01:28 CEST 2023 by karbyshev
+\* Last modified Mon Aug 14 15:01:58 CEST 2023 by karbyshev
 \* Created Mon Jun 19 12:24:03 CEST 2022 by karbyshev
