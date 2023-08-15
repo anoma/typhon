@@ -810,6 +810,12 @@ LEMMA CaughtMsgSpec ==
            /\ \A X \in CaughtMsg(M) : X.type # "1a"
 BY Tran_Message DEF CaughtMsg
 
+LEMMA CaughtMsgEffSpec ==
+    ASSUME NEW M \in Message
+    PROVE  /\ CaughtMsg0(M) \in SUBSET Message
+           /\ \A X \in CaughtMsg0(M) : X.type # "1a"
+BY Tran_Message DEF CaughtMsg0
+
 -----------------------------------------------------------------------------
 (* Facts about Get1a, B and V relations *)
 
@@ -955,6 +961,11 @@ CaughtSpec ==
     \A AL \in SafeAcceptor \cup Learner :
         \A M \in known_msgs[AL] :
             Caught(M) \cap SafeAcceptor = {}
+
+CaughtEffSpec ==
+    \A AL \in SafeAcceptor \cup Learner :
+        \A M \in known_msgs[AL] :
+            Caught0(M) \cap SafeAcceptor = {}
 
 DecisionSpec ==
     \A L \in Learner : \A BB \in Ballot : \A VV \in Value :
@@ -2563,10 +2574,18 @@ PROOF
         DEF Next, AcceptorProcessAction, Process1bLearnerLoop, FakeAcceptorAction
 
 LEMMA MsgsSafeAcceptorSpecImpliesCaughtSpec ==
-    ASSUME TypeOK, KnownMsgsSpec, MsgsSafeAcceptorSpec3
+    ASSUME TypeOK, KnownMsgsSpec, MsgsSafeAcceptorPrevTranLinearSpec
     PROVE  CaughtSpec
 PROOF BY MessageTypeSpec
-      DEF MsgsSafeAcceptorSpec3, CaughtSpec, Caught, CaughtMsg, KnownMsgsSpec, SentBy, TypeOK
+      DEF MsgsSafeAcceptorPrevTranLinearSpec, CaughtSpec, Caught, CaughtMsg,
+      KnownMsgsSpec, SentBy, TypeOK
+
+LEMMA MsgsSafeAcceptorSpecImpliesCaughtEffSpec ==
+    ASSUME TypeOK, KnownMsgsSpec, MsgsSafeAcceptorSpec3
+    PROVE  CaughtEffSpec
+PROOF BY MessageTypeSpec
+      DEF MsgsSafeAcceptorSpec3, CaughtEffSpec, Caught0, CaughtMsg0,
+          KnownMsgsSpec, SentBy, TypeOK
 
 LEMMA QuorumIntersection ==
     ASSUME TypeOK,
@@ -3107,5 +3126,5 @@ PROOF BY PTL, FullSafetyInvariantInit, FullSafetyInvariantNext
 
 =============================================================================
 \* Modification History
-\* Last modified Mon Aug 14 16:50:39 CEST 2023 by karbyshev
+\* Last modified Tue Aug 15 11:27:48 CEST 2023 by karbyshev
 \* Created Tue Jun 20 00:28:26 CEST 2023 by karbyshev
