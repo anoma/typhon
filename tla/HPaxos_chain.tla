@@ -186,9 +186,21 @@ CaughtMsg(x) ==
             /\ m1.type # "1a"
             /\ m.acc = m1.acc
             /\ m # m1
-            /\ m.prev = m1.prev }
+            /\ m \notin PrevTran(m1)
+            /\ m1 \notin PrevTran(m) }
 
 Caught(x) == { m.acc : m \in CaughtMsg(x) }
+
+CaughtMsg0(x) ==
+    { m \in Tran(x) :
+        /\ m.type # "1a"
+        /\ \E m1 \in Tran(x) :
+            /\ m1.type # "1a"
+            /\ m.acc = m1.acc
+            /\ m # m1
+            /\ m.prev = m1.prev }
+
+Caught0(x) == { m.acc : m \in CaughtMsg0(x) }
 
 \* Connected
 ConByQuorum(a, b, x, S) == \* a : Learner, b : Learner, x : 1b, S \in ByzQuorum
@@ -477,5 +489,5 @@ UniqueDecision ==
 
 =============================================================================
 \* Modification History
-\* Last modified Mon Aug 14 16:57:19 CEST 2023 by karbyshev
+\* Last modified Tue Aug 15 11:18:08 CEST 2023 by karbyshev
 \* Created Mon Jun 19 12:24:03 CEST 2022 by karbyshev
