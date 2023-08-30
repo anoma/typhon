@@ -1,5 +1,3 @@
-
-
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::collections::{BTreeMap};
@@ -18,12 +16,11 @@ use serde_big_array::BigArray;
 
 // signing byte slices with ed25519_consensus
 
-
 // a module for associating state-right ids with other types of ids, such as
 // - ip-addresses
 // - anoma's external identities
 mod id_mapping {
-    // elliptic curve signatures imports (kudos to Daniel)
+    // elliptic curve signatures imports (kudos to @D)
     use ed25519_consensus::*;
     use stateright::actor::Id;
     use std::collections::BTreeMap;
@@ -180,7 +177,7 @@ type SQHash = (); // TO BE REFINED
 struct WorkerHashData {
     // the hash (of a batch of transactions) 
     hash: u64,
-    // the number of txs in (the batch of) this worker hash
+    // the number of txs in (the references batch of) this worker hash
     length: usize,
     // the batch number (equal to the round number in Narwhal&Tusk)
     batch: BatchNumber,
@@ -237,24 +234,26 @@ struct HeaderData {
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
 enum MessageEnum {
     // --- transaction level --
-    // transaction requests, sent by the client/user
+    // transaction requests, sent by the client/user to a Narwhal worker
     TxReq(TxData, ClientId),
-    // acknowledgments of transactions (by workers)
+    // acknowledgments of transactions `TxReq` (by workers)
     TxAck(TxData, WorkerId),
-    // broadcasting a tx (or its erasure code) to mirror workers
+    // broadcasting a transaction (its trivial erasure code) to mirror workers
     TxToAll(TxData, ClientId, SeqNum, BatchNumber),
 
     // --- worker hash level --
-    // Worker Hash "upload"/provision (worker -> primary)
-    WorkerHx(WorkerHashData, #[serde(with = "BigArray")] WorkerHashSignature),
     // Worker Hash Broadcast (worker => worker)
     WHxToAll(WorkerHashData, #[serde(with = "BigArray")] WorkerHashSignature),
+    // Worker Hash "upload"/provision (worker -> primary)
+    WorkerHx(WorkerHashData, #[serde(with = "BigArray")] WorkerHashSignature),
     // Worker Hash forwarding (worker -> primary)
     WHxFwd(WorkerHashData, #[serde(with = "BigArray")] WorkerHashSignature),
 
     // --- header level --
-    // the request for header signature (primary => primary)
+    // header announcement: the request for header signature (primary => primary)
     NextHeader(
+        // the announcing primary / validator
+        ValidatorId,
         // round Number
         Round,
         // list of collector-batch number pairs, identifying the worker hashes
@@ -284,15 +283,12 @@ enum MessageFingerprint {
     X(Digest), // a mere hash pointer
 }
 
-
 // the round of a validator (e.g., u64)
 type Round = u64;
 // the first round, aka genesis
 #[allow(dead_code)]
 const GENESIS_ROUND: Round = 0;
 
-
-
 fn main() {
-    println!("Hello, here are some types for the Typhon Specs Synthesis https://hackmd.io/zxl_2-8rSe63hT689_jEDA !");
+    println!("Hello, the source has some types for the Typhon Specs Synthesis https://hackmd.io/zxl_2-8rSe63hT689_jEDA !");
 }
