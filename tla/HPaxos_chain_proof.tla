@@ -896,7 +896,7 @@ PROOF
 <1> QED BY TranBallot DEF SameBallot
 
 \* Equivalence of two well-formedness conditions
-LEMMA WellFormedConditionEquiv ==
+LEMMA WellFormedConditionEquiv1 ==
     ASSUME NEW m \in Message, m.type = "1b"
     PROVE  (\A y \in Tran(m) :
             m # y /\ SameBallot(m, y) => y \in Get1a(m))
@@ -915,6 +915,20 @@ LEMMA WellFormedCondition2 ==
                 B(m, bm) /\ B(y, by) => by # bm
 PROOF BY Tran_Message, B_func DEF SameBallot
 
+LEMMA WellFormedConditionEquiv2 ==
+    ASSUME NEW m \in Message, m.type = "1b"
+    PROVE (\A y \in Tran(m) :
+            m # y /\
+            (\E bm \in Ballot : B(m, bm)) /\
+            (\E by \in Ballot : B(y, by)) /\
+            SameBallot(m, y) => y.type = "1a")
+          <=>
+          (\A y \in Tran(m) :
+            m # y /\ y.type # "1a" =>
+            \A bm, by \in Ballot :
+                B(m, bm) /\ B(y, by) => by # bm)
+PROOF BY Tran_Message, B_func DEF SameBallot
+
 LEMMA WellFormedCondition3 ==
     ASSUME NEW m \in Message, m.type = "1b",
            \A y \in Tran(m) :
@@ -926,6 +940,32 @@ LEMMA WellFormedCondition3 ==
             \A bm, by \in Ballot :
                 B(m, bm) /\ B(y, by) => by < bm
 PROOF BY TranBallot DEF Ballot
+
+LEMMA WellFormedConditionEquiv3 ==
+    ASSUME NEW m \in Message, m.type = "1b"
+    PROVE (\A y \in Tran(m) :
+            m # y /\ y.type # "1a" =>
+            \A bm, by \in Ballot :
+                B(m, bm) /\ B(y, by) => by # bm)
+          <=>
+          (\A y \in Tran(m) :
+            m # y /\ y.type # "1a" =>
+            \A bm, by \in Ballot :
+                B(m, bm) /\ B(y, by) => by < bm)
+PROOF BY TranBallot DEF Ballot
+
+LEMMA WellFormedCondition4 ==
+    ASSUME NEW m \in Message,
+           \A y \in m.ref :
+            m # y /\ y.type # "1a" =>
+            \A bm, by \in Ballot :
+                B(m, bm) /\ B(y, by) => by < bm
+    PROVE \A y \in Tran(m) :
+            m # y /\ y.type # "1a" =>
+            \A bm, by \in Ballot :
+                B(m, bm) /\ B(y, by) => by < bm
+\*PROOF BY Message_ref, Tran_Message, Tran_eq, TranBallot DEF Ballot
+OMITTED
 
 -----------------------------------------------------------------------------
 TypeOK ==
@@ -3126,5 +3166,5 @@ PROOF BY PTL, FullSafetyInvariantInit, FullSafetyInvariantNext
 
 =============================================================================
 \* Modification History
-\* Last modified Tue Aug 15 11:27:48 CEST 2023 by karbyshev
+\* Last modified Fri Oct 13 14:13:19 CEST 2023 by karbyshev
 \* Created Tue Jun 20 00:28:26 CEST 2023 by karbyshev
