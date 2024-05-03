@@ -1137,6 +1137,43 @@ PROOF
 <1>9. QED BY <1>1, <1>2, <1>3, <1>4, <1>7, <1>8
           DEF Next, AcceptorProcessAction
 
+LEMMA UniqueMessageSent ==
+    TypeOK /\ Next =>
+    \A m1, m2 \in msgs' \ msgs :
+        m1 = m2
+PROOF
+<1> SUFFICES ASSUME TypeOK, Next,
+                    NEW M1 \in msgs' \ msgs,
+                    NEW M2 \in msgs' \ msgs
+             PROVE  M1 = M2
+    OBVIOUS
+<1> TypeOK' BY TypeOKInvariant
+<1>1. CASE ProposerSendAction
+  <2> PICK bal \in Ballot : Send1a(bal)
+      BY <1>1 DEF ProposerSendAction
+  <2> QED BY Zenon DEF Send1a, Send
+<1>2. CASE \E a \in SafeAcceptor : \E m \in msgs : Process1a(a, m)
+  <2> PICK acc \in SafeAcceptor, m1a \in msgs : Process1a(acc, m1a)
+      BY <1>2
+  <2> QED BY Isa DEF Process1a, Send
+<1>3. CASE \E a \in SafeAcceptor : \E m \in msgs : Process1b(a, m)
+  <2> PICK acc \in SafeAcceptor, msg \in msgs : Process1b(acc, msg)
+      BY <1>3
+  <2> QED BY Isa DEF Process1b, Send
+<1>4. CASE \E a \in SafeAcceptor : \E m \in msgs : Process2a(a, m)
+  <2> PICK acc \in SafeAcceptor, msg \in msgs : Process2a(acc, msg)
+      BY <1>4
+  <2> QED BY DEF Process2a, Send
+<1>6. CASE \E lrn \in Learner : \E m \in msgs : LearnerRecv(lrn, m)
+      BY <1>6 DEF LearnerRecv
+<1>7. CASE \E lrn \in Learner : \E bal \in Ballot : \E val \in Value :
+            LearnerDecide(lrn, bal, val)
+      BY <1>7 DEF LearnerDecide
+<1>8. CASE FakeAcceptorAction
+      BY <1>8 DEF FakeAcceptorAction, FakeSend1b, FakeSend2a, Send
+<1>9. QED BY <1>1, <1>2, <1>3, <1>4, <1>6, <1>7, <1>8
+          DEF Next, AcceptorProcessAction, LearnerAction
+
 LEMMA RecentMsgsSpecInvariant ==
     TypeOK /\ RecentMsgsSpec /\ Next => RecentMsgsSpec'
 PROOF
@@ -1528,7 +1565,265 @@ PROOF
 <1> QED BY <1>1, <1>2, <1>3, <1>4, <1>6, <1>7, <1>8
         DEF Next, AcceptorProcessAction, FakeAcceptorAction
 
+LEMMA RecentMsgsSafeAcceptorSpec1Invariant ==
+    TypeOK /\ Next /\
+    RecentMsgsUniquePreviousMessageSpec =>
+    RecentMsgsUniquePreviousMessageSpec'
+OMITTED
+
+LEMMA KnownMsgsSpecInvariant ==
+    TypeOK /\ Next /\ RecentMsgsSpec /\
+    SafeAcceptorPrevSpec2 /\
+\*    SafeAcceptorQueuedMsgPrevMsgSpec /\
+    KnownMsgsSpec =>
+    KnownMsgsSpec'
+PROOF
+<1> SUFFICES ASSUME TypeOK, Next, RecentMsgsSpec,
+                    SafeAcceptorPrevSpec2,
+\*                    SafeAcceptorQueuedMsgPrevMsgSpec,
+                    KnownMsgsSpec
+             PROVE  KnownMsgsSpec'
+    OBVIOUS
+<1> TypeOK' BY TypeOKInvariant
+<1> SUFFICES ASSUME NEW AL \in SafeAcceptor \cup Learner,
+                    NEW M \in known_msgs[AL]'
+             PROVE  /\ known_msgs[AL]' \in SUBSET msgs'
+                    /\ Proper(AL, M)'
+                    /\ WellFormed(M)'
+                    /\ Tran(M) \in SUBSET known_msgs[AL]'
+                    /\ \E b \in Ballot : B(M, b)
+    BY DEF KnownMsgsSpec
+<1> USE DEF KnownMsgsSpec
+<1>1. CASE ProposerSendAction
+  <2> PICK bal \in Ballot : Send1a(bal)
+      BY <1>1 DEF ProposerSendAction
+  <2> USE DEF Send1a
+  <2> known_msgs[AL]' \in SUBSET msgs'
+      BY DEF Send
+  <2> Proper(AL, M)'
+      BY DEF Proper
+  <2> WellFormed(M)'
+      BY WellFormed_monotone DEF Send, TypeOK
+  <2> Tran(M) \in SUBSET known_msgs[AL]'
+      OBVIOUS
+  <2> \E b \in Ballot : B(M, b)
+      OBVIOUS
+  <2> QED OBVIOUS
+<1>2. CASE \E a \in SafeAcceptor : \E m \in msgs : Process1a(a, m)
+  <2> PICK acc \in SafeAcceptor, m1a \in msgs : Process1a(acc, m1a)
+      BY <1>2
+  <2> USE DEF Process1a
+  <2> known_msgs[AL]' \in SUBSET msgs'
+      BY DEF Send, Recv
+  <2> Proper(AL, M)'
+      BY DEF Proper, Recv
+  <2> WellFormed(M)'
+      BY WellFormed_monotone DEF Recv, TypeOK
+  <2> Tran(M) \in SUBSET known_msgs[AL]'
+      BY Tran_1a DEF Recv, TypeOK
+  <2> \E b \in Ballot : B(M, b)
+    <3> CASE M \notin known_msgs[AL]
+      <4> M = m1a
+          BY DEF Recv
+      <4> QED BY B_1a, MessageTypeSpec DEF Recv, TypeOK
+    <3> QED OBVIOUS
+  <2> QED OBVIOUS
+\*<1>q. CASE \E a \in SafeAcceptor :
+\*            /\ queued_msg[a] # NoMessage
+\*            /\ Process1b(a, queued_msg[a])
+\*  <2> PICK acc \in SafeAcceptor :
+\*            /\ queued_msg[acc] # NoMessage
+\*            /\ Process1b(acc, queued_msg[acc])
+\*      BY <1>q
+\*  <2> USE DEF Process1b
+\*  <2> queued_msg[acc] \in Message
+\*      BY DEF Recv, WellFormed
+\*  <2> known_msgs[AL]' \in SUBSET msgs'
+\*      BY DEF Store, SentBy, QueuedMsgSpec1,
+\*             SafeAcceptorPrevSpec2,
+\*             SafeAcceptorQueuedMsgPrevMsgSpec
+\*  <2> Proper(AL, M)'
+\*      BY KnownMsgMonotone DEF Recv, Proper, Store, QueuedMsgSpec1
+\*  <2> WellFormed(M)'
+\*      BY WellFormed_monotone DEF Recv, Store, TypeOK
+\*  <2> Tran(M) \in SUBSET known_msgs[AL]'
+\*    <3> CASE M \notin known_msgs[AL]
+\*      <4> QED BY Tran_eq DEF Recv, Store, Proper, TypeOK
+\*    <3> QED BY DEF Store
+\*  <2> \E b \in Ballot : B(M, b)
+\*      BY DEF WellFormed
+\*  <2> QED OBVIOUS
+<1>3. CASE \E a \in SafeAcceptor : \E m \in msgs : Process1b(a, m)
+  <2> PICK acc \in SafeAcceptor, msg \in msgs : Process1b(acc, msg)
+      BY <1>3
+  <2> USE DEF Process1b
+  <2> known_msgs[AL]' \in SUBSET msgs'
+      BY DEF Send, Recv
+  <2> Proper(AL, M)'
+      BY DEF Proper, Recv
+  <2> WellFormed(M)'
+      BY WellFormed_monotone DEF Recv, TypeOK
+  <2> Tran(M) \in SUBSET known_msgs[AL]'
+    <3> CASE M \notin known_msgs[AL]
+      <4> M = msg OBVIOUS
+      <4> AL = acc OBVIOUS
+      <4> M \in Message BY DEF WellFormed
+      <4> QED BY Tran_eq, KnownMsgMonotone DEF Recv, Proper
+    <3> QED OBVIOUS
+  <2> \E b \in Ballot : B(M, b)
+      BY DEF WellFormed
+  <2> QED OBVIOUS
+<1>4. CASE \E a \in SafeAcceptor : \E m \in msgs : Process2a(a, m)
+   <2> QED
+\*<1>4. CASE \E a \in SafeAcceptor : \E l \in Learner :
+\*            Process1bLearnerLoopStep(a, l)
+\*  <2> PICK acc \in SafeAcceptor, lrn \in Learner :
+\*            Process1bLearnerLoopStep(acc, lrn)
+\*      BY <1>4
+\*  <2> acc \in Acceptor
+\*      BY DEF Acceptor
+\*  <2> USE DEF Process1bLearnerLoopStep
+\*  <2> DEFINE new2a == [type |-> "2a", lrn |-> lrn, acc |-> acc,
+\*                       prev |-> prev_msg[acc],
+\*                       ref |-> recent_msgs[acc]]
+\*  <2> CASE WellFormed(new2a)
+\*    <3> new2a \in Message
+\*        BY DEF WellFormed
+\*    <3> CASE acc = AL
+\*      <4> known_msgs[AL]' \in SUBSET msgs'
+\*          BY DEF Send, Store, TypeOK
+\*      <4> Proper(AL, M)'
+\*        <5> CASE M \in known_msgs[acc]
+\*            BY KnownMsgMonotone DEF Proper
+\*        <5> CASE M \notin known_msgs[acc]
+\*          <6> M = new2a
+\*              BY DEF Store, TypeOK
+\*          <6> QED BY Zenon, KnownMsgMonotone
+\*                  DEF Proper, Store, RecentMsgsSpec
+\*        <5> QED OBVIOUS
+\*      <4> WellFormed(M)'
+\*          BY WellFormed_monotone DEF Store, TypeOK
+\*      <4> Tran(M) \in SUBSET known_msgs[AL]'
+\*        <5> CASE M \in known_msgs[acc]
+\*            BY KnownMsgMonotone DEF Proper
+\*        <5> CASE M \notin known_msgs[acc]
+\*          <6> M = new2a
+\*              BY DEF Store, TypeOK
+\*          <6> M.ref \in SUBSET known_msgs[AL]'
+\*              BY DEF Proper
+\*          <6> \A r \in M.ref : Tran(r) \in SUBSET known_msgs[AL]'
+\*              BY Zenon, KnownMsgMonotone DEF RecentMsgsSpec
+\*          <6> QED BY Tran_eq
+\*        <5> QED OBVIOUS
+\*      <4> \E b \in Ballot : B(M, b)
+\*          BY DEF WellFormed
+\*      <4> QED OBVIOUS
+\*    <3> CASE acc # AL
+\*      <4> known_msgs' = [known_msgs EXCEPT ![acc] =
+\*                            known_msgs[acc] \cup {new2a}]
+\*          BY DEF Store
+\*      <4> M \in known_msgs[AL]
+\*          BY DEF TypeOK
+\*      <4> known_msgs[AL]' \in SUBSET msgs'
+\*          BY DEF Send, TypeOK
+\*      <4> Proper(AL, M)'
+\*          BY DEF Proper
+\*      <4> WellFormed(M)'
+\*          BY WellFormed_monotone DEF TypeOK
+\*      <4> QED OBVIOUS
+\*    <3> QED OBVIOUS
+\*  <2> CASE ~WellFormed(new2a)
+\*    <3> Proper(AL, M)'
+\*        BY DEF Proper
+\*    <3> WellFormed(M)'
+\*        BY WellFormed_monotone DEF TypeOK
+\*    <3> QED OBVIOUS
+\*  <2> QED OBVIOUS
+\*<1>5. CASE \E a \in SafeAcceptor : Process1bLearnerLoopDone(a)
+\*  <2> PICK acc \in SafeAcceptor : Process1bLearnerLoopDone(acc)
+\*      BY <1>5
+\*  <2> USE DEF Process1bLearnerLoopDone
+\*  <2> known_msgs[AL]' \in SUBSET msgs'
+\*      OBVIOUS
+\*  <2> Proper(AL, M)'
+\*      BY DEF Proper
+\*  <2> WellFormed(M)'
+\*      BY WellFormed_monotone DEF TypeOK
+\*  <2> Tran(M) \in SUBSET known_msgs[AL]'
+\*      OBVIOUS
+\*  <2> \E b \in Ballot : B(M, b)
+\*      BY DEF WellFormed
+\*  <2> QED OBVIOUS
+<1>6. CASE \E lrn \in Learner : \E m \in msgs : LearnerRecv(lrn, m)
+  <2> PICK lrn \in Learner, m \in msgs : LearnerRecv(lrn, m)
+      BY <1>6
+  <2> USE DEF LearnerRecv
+  <2> known_msgs[AL]' \in SUBSET msgs'
+      BY DEF Recv
+  <2> Proper(AL, M)'
+      BY DEF Proper, Recv
+  <2> WellFormed(M)'
+      BY WellFormed_monotone DEF TypeOK, Recv
+  <2> Tran(M) \in SUBSET known_msgs[AL]'
+    <3> CASE M \notin known_msgs[AL]
+      <4> QED BY Tran_eq DEF Recv, Proper, TypeOK
+    <3> QED BY DEF Recv
+  <2> \E b \in Ballot : B(M, b)
+      BY DEF WellFormed
+  <2> QED OBVIOUS
+<1>7. CASE \E lrn \in Learner : \E bal \in Ballot : \E val \in Value :
+            LearnerDecide(lrn, bal, val)
+  <2> PICK lrn \in Learner, bal \in Ballot, val \in Value :
+            LearnerDecide(lrn, bal, val)
+      BY <1>7
+  <2> USE DEF LearnerDecide
+  <2> known_msgs[AL]' \in SUBSET msgs'
+      OBVIOUS
+  <2> Proper(AL, M)'
+      BY DEF Proper
+  <2> WellFormed(M)'
+      BY WellFormed_monotone DEF TypeOK
+  <2> Tran(M) \in SUBSET known_msgs[AL]'
+      OBVIOUS
+  <2> \E b \in Ballot : B(M, b)
+      BY DEF WellFormed
+  <2> QED OBVIOUS
+<1>8. CASE \E a \in FakeAcceptor : FakeSend1b(a)
+  <2> PICK acc \in FakeAcceptor : FakeSend1b(acc)
+      BY <1>8
+  <2> USE DEF FakeSend1b
+  <2> known_msgs[AL]' \in SUBSET msgs'
+      BY DEF Send
+  <2> Proper(AL, M)'
+      BY DEF Proper
+  <2> WellFormed(M)'
+      BY WellFormed_monotone DEF TypeOK
+  <2> Tran(M) \in SUBSET known_msgs[AL]'
+      OBVIOUS
+  <2> \E b \in Ballot : B(M, b)
+      OBVIOUS
+  <2> QED OBVIOUS
+<1>9. CASE \E a \in FakeAcceptor : FakeSend2a(a)
+  <2> PICK acc \in FakeAcceptor : FakeSend2a(acc)
+      BY <1>9
+  <2> USE DEF FakeSend2a
+  <2> known_msgs[AL]' \in SUBSET msgs'
+      BY DEF Send
+  <2> Proper(AL, M)'
+      BY DEF Proper
+  <2> WellFormed(M)'
+      BY WellFormed_monotone DEF TypeOK
+  <2> Tran(M) \in SUBSET known_msgs[AL]'
+      OBVIOUS
+  <2> \E b \in Ballot : B(M, b)
+      OBVIOUS
+  <2> QED OBVIOUS
+<1> QED BY <1>1, <1>2, <1>3, <1>4, <1>6, <1>7, <1>8, <1>9
+        DEF Next, AcceptorProcessAction, LearnerRecv,
+            LearnerAction, FakeAcceptorAction
+
+
 =============================================================================
 \* Modification History
-\* Last modified Fri May 03 23:22:47 CEST 2024 by karbyshev
+\* Last modified Sat May 04 01:15:12 CEST 2024 by karbyshev
 \* Created Tue Jun 20 00:28:26 CEST 2023 by karbyshev
