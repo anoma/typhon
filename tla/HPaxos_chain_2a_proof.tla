@@ -1209,7 +1209,6 @@ PROOF
   <2> PICK acc \in SafeAcceptor, m1b \in msgs : Process1b(acc, m1b)
       BY <1>3
   <2> USE DEF Process1b
-\*  <2> acc \in Acceptor BY DEF Acceptor
   <2> m1b \in Message BY DEF TypeOK
   <2> CASE ~UpToDate(acc, m1b)
     <3> recent_msgs' = [recent_msgs EXCEPT ![acc] =
@@ -1574,13 +1573,11 @@ OMITTED
 LEMMA KnownMsgsSpecInvariant ==
     TypeOK /\ Next /\ RecentMsgsSpec /\
     SafeAcceptorPrevSpec2 /\
-\*    SafeAcceptorQueuedMsgPrevMsgSpec /\
     KnownMsgsSpec =>
     KnownMsgsSpec'
 PROOF
 <1> SUFFICES ASSUME TypeOK, Next, RecentMsgsSpec,
                     SafeAcceptorPrevSpec2,
-\*                    SafeAcceptorQueuedMsgPrevMsgSpec,
                     KnownMsgsSpec
              PROVE  KnownMsgsSpec'
     OBVIOUS
@@ -1628,132 +1625,62 @@ PROOF
       <4> QED BY B_1a, MessageTypeSpec DEF Recv, TypeOK
     <3> QED OBVIOUS
   <2> QED OBVIOUS
-\*<1>q. CASE \E a \in SafeAcceptor :
-\*            /\ queued_msg[a] # NoMessage
-\*            /\ Process1b(a, queued_msg[a])
-\*  <2> PICK acc \in SafeAcceptor :
-\*            /\ queued_msg[acc] # NoMessage
-\*            /\ Process1b(acc, queued_msg[acc])
-\*      BY <1>q
-\*  <2> USE DEF Process1b
-\*  <2> queued_msg[acc] \in Message
-\*      BY DEF Recv, WellFormed
-\*  <2> known_msgs[AL]' \in SUBSET msgs'
-\*      BY DEF Store, SentBy, QueuedMsgSpec1,
-\*             SafeAcceptorPrevSpec2,
-\*             SafeAcceptorQueuedMsgPrevMsgSpec
-\*  <2> Proper(AL, M)'
-\*      BY KnownMsgMonotone DEF Recv, Proper, Store, QueuedMsgSpec1
-\*  <2> WellFormed(M)'
-\*      BY WellFormed_monotone DEF Recv, Store, TypeOK
-\*  <2> Tran(M) \in SUBSET known_msgs[AL]'
-\*    <3> CASE M \notin known_msgs[AL]
-\*      <4> QED BY Tran_eq DEF Recv, Store, Proper, TypeOK
-\*    <3> QED BY DEF Store
-\*  <2> \E b \in Ballot : B(M, b)
-\*      BY DEF WellFormed
-\*  <2> QED OBVIOUS
 <1>3. CASE \E a \in SafeAcceptor : \E m \in msgs : Process1b(a, m)
-  <2> PICK acc \in SafeAcceptor, msg \in msgs : Process1b(acc, msg)
+  <2> PICK acc \in SafeAcceptor, m1b \in msgs : Process1b(acc, m1b)
       BY <1>3
   <2> USE DEF Process1b
   <2> known_msgs[AL]' \in SUBSET msgs'
-      BY DEF Send, Recv
+    <3> CASE UpToDate(acc, m1b)
+      <4> PICK ll \in SUBSET Learner :
+          LET new2a == [type |-> "2a", lrn |-> ll, acc |-> acc,
+                        prev |-> prev_msg[acc],
+                        ref |-> recent_msgs[acc] \cup {m1b, prev_msg[acc]}] IN
+          /\ WellFormed(new2a)
+          /\ Send(new2a)
+          /\ prev_msg' = [prev_msg EXCEPT ![acc] = new2a]
+          BY Zenon DEF TypeOK
+      <4> DEFINE new2a == [type |-> "2a", lrn |-> ll, acc |-> acc,
+                          prev |-> prev_msg[acc],
+                          ref |-> recent_msgs[acc] \cup {m1b, prev_msg[acc]}]
+      <4> QED BY DEF Send, Recv
+    <3> CASE ~UpToDate(acc, m1b)
+        BY DEF Recv
+    <3> QED OBVIOUS
   <2> Proper(AL, M)'
       BY DEF Proper, Recv
   <2> WellFormed(M)'
       BY WellFormed_monotone DEF Recv, TypeOK
   <2> Tran(M) \in SUBSET known_msgs[AL]'
     <3> CASE M \notin known_msgs[AL]
-      <4> M = msg OBVIOUS
-      <4> AL = acc OBVIOUS
+      <4> M = m1b BY DEF Recv
+      <4> AL = acc BY DEF Recv
       <4> M \in Message BY DEF WellFormed
       <4> QED BY Tran_eq, KnownMsgMonotone DEF Recv, Proper
-    <3> QED OBVIOUS
+    <3> QED BY DEF Recv
   <2> \E b \in Ballot : B(M, b)
       BY DEF WellFormed
   <2> QED OBVIOUS
 <1>4. CASE \E a \in SafeAcceptor : \E m \in msgs : Process2a(a, m)
-   <2> QED
-\*<1>4. CASE \E a \in SafeAcceptor : \E l \in Learner :
-\*            Process1bLearnerLoopStep(a, l)
-\*  <2> PICK acc \in SafeAcceptor, lrn \in Learner :
-\*            Process1bLearnerLoopStep(acc, lrn)
-\*      BY <1>4
-\*  <2> acc \in Acceptor
-\*      BY DEF Acceptor
-\*  <2> USE DEF Process1bLearnerLoopStep
-\*  <2> DEFINE new2a == [type |-> "2a", lrn |-> lrn, acc |-> acc,
-\*                       prev |-> prev_msg[acc],
-\*                       ref |-> recent_msgs[acc]]
-\*  <2> CASE WellFormed(new2a)
-\*    <3> new2a \in Message
-\*        BY DEF WellFormed
-\*    <3> CASE acc = AL
-\*      <4> known_msgs[AL]' \in SUBSET msgs'
-\*          BY DEF Send, Store, TypeOK
-\*      <4> Proper(AL, M)'
-\*        <5> CASE M \in known_msgs[acc]
-\*            BY KnownMsgMonotone DEF Proper
-\*        <5> CASE M \notin known_msgs[acc]
-\*          <6> M = new2a
-\*              BY DEF Store, TypeOK
-\*          <6> QED BY Zenon, KnownMsgMonotone
-\*                  DEF Proper, Store, RecentMsgsSpec
-\*        <5> QED OBVIOUS
-\*      <4> WellFormed(M)'
-\*          BY WellFormed_monotone DEF Store, TypeOK
-\*      <4> Tran(M) \in SUBSET known_msgs[AL]'
-\*        <5> CASE M \in known_msgs[acc]
-\*            BY KnownMsgMonotone DEF Proper
-\*        <5> CASE M \notin known_msgs[acc]
-\*          <6> M = new2a
-\*              BY DEF Store, TypeOK
-\*          <6> M.ref \in SUBSET known_msgs[AL]'
-\*              BY DEF Proper
-\*          <6> \A r \in M.ref : Tran(r) \in SUBSET known_msgs[AL]'
-\*              BY Zenon, KnownMsgMonotone DEF RecentMsgsSpec
-\*          <6> QED BY Tran_eq
-\*        <5> QED OBVIOUS
-\*      <4> \E b \in Ballot : B(M, b)
-\*          BY DEF WellFormed
-\*      <4> QED OBVIOUS
-\*    <3> CASE acc # AL
-\*      <4> known_msgs' = [known_msgs EXCEPT ![acc] =
-\*                            known_msgs[acc] \cup {new2a}]
-\*          BY DEF Store
-\*      <4> M \in known_msgs[AL]
-\*          BY DEF TypeOK
-\*      <4> known_msgs[AL]' \in SUBSET msgs'
-\*          BY DEF Send, TypeOK
-\*      <4> Proper(AL, M)'
-\*          BY DEF Proper
-\*      <4> WellFormed(M)'
-\*          BY WellFormed_monotone DEF TypeOK
-\*      <4> QED OBVIOUS
-\*    <3> QED OBVIOUS
-\*  <2> CASE ~WellFormed(new2a)
-\*    <3> Proper(AL, M)'
-\*        BY DEF Proper
-\*    <3> WellFormed(M)'
-\*        BY WellFormed_monotone DEF TypeOK
-\*    <3> QED OBVIOUS
-\*  <2> QED OBVIOUS
-\*<1>5. CASE \E a \in SafeAcceptor : Process1bLearnerLoopDone(a)
-\*  <2> PICK acc \in SafeAcceptor : Process1bLearnerLoopDone(acc)
-\*      BY <1>5
-\*  <2> USE DEF Process1bLearnerLoopDone
-\*  <2> known_msgs[AL]' \in SUBSET msgs'
-\*      OBVIOUS
-\*  <2> Proper(AL, M)'
-\*      BY DEF Proper
-\*  <2> WellFormed(M)'
-\*      BY WellFormed_monotone DEF TypeOK
-\*  <2> Tran(M) \in SUBSET known_msgs[AL]'
-\*      OBVIOUS
-\*  <2> \E b \in Ballot : B(M, b)
-\*      BY DEF WellFormed
-\*  <2> QED OBVIOUS
+  <2> PICK acc \in SafeAcceptor, m2a \in msgs : Process2a(acc, m2a)
+      BY <1>4
+  <2> USE DEF Process2a
+  <2> known_msgs[AL]' \in SUBSET msgs'
+      BY DEF Send, Recv
+  <2> Proper(AL, M)'
+      BY DEF Proper, Recv
+  <2> WellFormed(M)'
+      BY WellFormed_monotone DEF Send, Recv, TypeOK
+  <2> Tran(M) \in SUBSET known_msgs[AL]'
+      BY Tran_eq DEF Recv, Proper, TypeOK
+  <2> \E b \in Ballot : B(M, b)
+    <3> CASE M \notin known_msgs[AL]
+      <4> M = m2a
+          BY DEF Recv
+      <4> AL = acc BY DEF Recv
+      <4> M \in Message BY DEF WellFormed
+      <4> QED BY DEF WellFormed
+    <3> QED OBVIOUS
+  <2> QED OBVIOUS
 <1>6. CASE \E lrn \in Learner : \E m \in msgs : LearnerRecv(lrn, m)
   <2> PICK lrn \in Learner, m \in msgs : LearnerRecv(lrn, m)
       BY <1>6
@@ -1825,5 +1752,5 @@ PROOF
 
 =============================================================================
 \* Modification History
-\* Last modified Sat May 04 01:15:12 CEST 2024 by karbyshev
+\* Last modified Sat May 04 03:06:47 CEST 2024 by karbyshev
 \* Created Tue Jun 20 00:28:26 CEST 2023 by karbyshev
