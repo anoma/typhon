@@ -2240,8 +2240,110 @@ PROOF
 <1> QED BY Zenon, <1>1, <1>2, <1>3, <1>4, <1>6, <1>7, <1>8
         DEF Next, AcceptorProcessAction, FakeAcceptorAction
 
+LEMMA MsgsSafeAcceptorPrevTranSpecInvariant ==
+    TypeOK /\ Next /\
+    SafeAcceptorPrevSpec2 /\
+    MsgsSafeAcceptorPrevTranSpec =>
+    MsgsSafeAcceptorPrevTranSpec'
+PROOF
+<1> SUFFICES ASSUME TypeOK, Next,
+                    SafeAcceptorPrevSpec2,
+                    MsgsSafeAcceptorPrevTranSpec
+             PROVE  MsgsSafeAcceptorPrevTranSpec'
+    OBVIOUS
+<1> TypeOK' BY TypeOKInvariant
+<1> SUFFICES ASSUME NEW A \in SafeAcceptor,
+                    NEW m1 \in msgs' \ msgs,
+                    m1.acc = A, m1.type # "1a",
+                    NEW m2 \in PrevTran(m1), m2 # m1
+             PROVE  m2 \in Tran(m1)
+    BY Tran_refl DEF MsgsSafeAcceptorPrevTranSpec, SentBy, Send, TypeOK
+<1> m1 \in Message
+    BY DEF TypeOK
+<1> A \in Acceptor BY DEF Acceptor
+<1> USE DEF MsgsSafeAcceptorPrevTranSpec
+<1>1. CASE ProposerSendAction
+  <2> PICK bal \in Ballot : Send1a(bal)
+      BY <1>1 DEF ProposerSendAction
+  <2> QED BY DEF Send1a, SentBy, Send
+<1>2. CASE \E a \in SafeAcceptor :
+            \E m \in msgs : Process1a(a, m)
+  <2> PICK acc \in SafeAcceptor, m1a \in msgs :
+            Process1a(acc, m1a)
+      BY <1>2
+  <2> USE DEF Process1a
+  <2> acc \in Acceptor
+      BY DEF Acceptor
+  <2> DEFINE new1b == [type |-> "1b", acc |-> acc,
+                       prev |-> prev_msg[acc],
+                       ref |-> recent_msgs[acc] \cup {m1a}]
+  <2> WellFormed(new1b)
+      BY DEF Send
+  <2> m1 = new1b
+      BY DEF Send
+  <2> new1b.prev = prev_msg[acc]
+      OBVIOUS
+  <2> m1.prev # NoMessage /\ m2 \in PrevTran(m1.prev)
+      BY PrevTran_eq
+  <2> prev_msg[acc] \in SentBy(acc)
+      BY DEF SafeAcceptorPrevSpec2
+  <2> prev_msg[acc] \in recent_msgs[acc]
+      BY DEF Send, SafeAcceptorPrevSpec2
+  <2> m1.prev \in Message
+        BY DEF SentBy, TypeOK
+  <2> QED BY Tran_refl, Tran_trans, Tran_eq
+<1>3. CASE \E a \in SafeAcceptor :
+            \E m \in msgs : Process1b(a, m)
+  <2> PICK acc \in SafeAcceptor, m1b \in msgs :
+            Process1b(acc, m1b)
+      BY <1>3
+  <2> USE DEF Process1b
+  <2> CASE UpToDate(acc, m1b)
+    <3> PICK ll \in SUBSET Learner :
+        LET new2a == [type |-> "2a", lrn |-> ll, acc |-> acc,
+                      prev |-> prev_msg[acc],
+                      ref |-> recent_msgs[acc] \cup {m1b}] IN
+        /\ WellFormed(new2a)
+        /\ Send(new2a)
+        /\ prev_msg' = [prev_msg EXCEPT ![acc] = new2a]
+        BY Zenon DEF TypeOK
+    <3> DEFINE new2a == [type |-> "2a", lrn |-> ll, acc |-> acc,
+                         prev |-> prev_msg[acc],
+                         ref |-> recent_msgs[acc] \cup {m1b}]
+    <3> WellFormed(new2a)
+        BY DEF Send
+    <3> m1 = new2a
+        BY DEF Send, TypeOK
+    <3> new2a.prev = prev_msg[acc]
+        OBVIOUS
+    <3> m1.prev # NoMessage /\ m2 \in PrevTran(m1.prev)
+        BY PrevTran_eq
+    <3> prev_msg[acc] \in SentBy(acc)
+        BY DEF SafeAcceptorPrevSpec2
+    <3> prev_msg[acc] \in recent_msgs[acc]
+        BY DEF SafeAcceptorPrevSpec2
+    <3> m1.prev \in Message
+        BY DEF SentBy, TypeOK
+    <3> QED BY Tran_refl, Tran_trans, Tran_eq
+  <2> CASE ~UpToDate(acc, m1b)
+      BY DEF Send, TypeOK
+  <2> QED OBVIOUS
+<1>4. CASE \E a \in SafeAcceptor : \E m \in msgs : Process2a(a, m)
+      BY <1>4 DEF Process2a
+<1>6. CASE LearnerAction
+      BY <1>6 DEF LearnerAction, LearnerRecv, LearnerDecide, Send, SentBy
+<1>7. CASE \E a \in FakeAcceptor : FakeSend1b(a)
+  <2> PICK acc \in FakeAcceptor : FakeSend1b(acc)
+      BY <1>7
+  <2> QED BY AcceptorAssumption DEF FakeSend1b, Send, SentBy
+<1>8. CASE \E a \in FakeAcceptor : FakeSend2a(a)
+  <2> PICK acc \in FakeAcceptor : FakeSend2a(acc)
+      BY <1>8
+  <2> QED BY AcceptorAssumption DEF FakeSend2a, Send, SentBy
+<1> QED BY Zenon, <1>1, <1>2, <1>3, <1>4, <1>6, <1>7, <1>8
+        DEF Next, AcceptorProcessAction, FakeAcceptorAction
 
 =============================================================================
 \* Modification History
-\* Last modified Mon May 06 00:16:17 CEST 2024 by karbyshev
+\* Last modified Mon May 06 01:16:53 CEST 2024 by karbyshev
 \* Created Tue Jun 20 00:28:26 CEST 2023 by karbyshev
