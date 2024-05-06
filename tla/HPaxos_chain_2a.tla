@@ -224,18 +224,17 @@ Buried(a, x, y) == \* x : 2a, y : 1b
 
 \* Connected 2a messages and learners
 Con2as(l, x) == \* l : Learner, x : 1b
-    { AM \in Learner \X Tran(x) :
-        LET a == AM[1] IN
-        LET m == AM[2] IN
+    { m \in Tran(x) :
         /\ m.type = "2a"
-        /\ a \in m.lrn
         /\ m.acc = x.acc
-        /\ ~Buried(a, m, x)
-        /\ a \in Con(l, x) }
+        /\ \E a \in Learner :
+            /\ a \in m.lrn
+            /\ ~Buried(a, m, x)
+            /\ a \in Con(l, x) }
 
 \* Fresh 1b messages
 Fresh(l, x) == \* l : Learner, x : 1b
-    \A m \in Con2as(l, x) : \A v \in Value : V(x, v) <=> V(m[2], v)
+    \A m \in Con2as(l, x) : \A v \in Value : V(x, v) <=> V(m, v)
 
 \* Quorum of messages referenced by 2a for a learner instance
 q(l, x) == \* x : 2a
@@ -448,5 +447,5 @@ UniqueDecision ==
 
 =============================================================================
 \* Modification History
-\* Last modified Mon May 06 15:40:58 CEST 2024 by karbyshev
+\* Last modified Mon May 06 15:42:52 CEST 2024 by karbyshev
 \* Created Mon Jun 19 12:24:03 CEST 2022 by karbyshev

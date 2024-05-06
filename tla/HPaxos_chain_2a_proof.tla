@@ -2309,10 +2309,10 @@ PROOF
     <3> ASSUME m1b \in Tran(m2a) PROVE FALSE
         BY TranBallot DEF Ballot
     <3> QED BY DEF MsgsSafeAcceptorPrevTranLinearSpec, MsgsSafeAcceptorPrevTranSpec, SentBy
-  <2>15. CASE ~Buried(L1, m2a, m1b) \* XXX
+  <2>15. CASE ~Buried(L1, m2a, m1b)
     <3> L1 \in Con(L2, m1b)
         BY EntConnected, EntanglementSym, BQAssumption DEF Con
-    <3> <<L1, m2a>> \in Con2as(L2, m1b)
+    <3> m2a \in Con2as(L2, m1b)
         BY <2>14, <2>15 DEF Con2as
     <3> \A v \in Value : V(m2a, v) <=> V(m1b, v)
         BY DEF Fresh
@@ -2321,7 +2321,7 @@ PROOF
     <3> V(m1b, V2)
         BY V_def, V_func DEF TypeOK
     <3> QED BY V_func
-  <2>16. CASE Buried(L1, m2a, m1b) \* XXX
+  <2>16. CASE Buried(L1, m2a, m1b)
     <3> DEFINE Q == { m \in Tran(m1b) :
                         \E z \in Tran(m) :
                             /\ z.type = "2a"
@@ -2652,5 +2652,5 @@ PROOF BY PTL, FullSafetyInvariantInit, FullSafetyInvariantNext
 
 =============================================================================
 \* Modification History
-\* Last modified Mon May 06 02:57:08 CEST 2024 by karbyshev
+\* Last modified Mon May 06 16:18:24 CEST 2024 by karbyshev
 \* Created Tue Jun 20 00:28:26 CEST 2023 by karbyshev
