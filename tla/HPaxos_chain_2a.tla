@@ -293,12 +293,6 @@ Known2a(l, b, v) ==
         /\ B(x, b)
         /\ V(x, v) }
 
-\* TODO update
-\* The following is invariant for queued_msg variable values.
-\* For any safe acceptor A, if queued_msg[A] # NoMessage then
-\* queued_msg[A] is a well-formed message of type "1b" sent by A,
-\* having the direct references all known to A.
-
 Process1a(a, m) ==
     LET new1b == [type |-> "1b", acc |-> a,
                   prev |-> prev_msg[a],
@@ -454,5 +448,5 @@ UniqueDecision ==
 
 =============================================================================
 \* Modification History
-\* Last modified Mon May 06 02:26:42 CEST 2024 by karbyshev
+\* Last modified Mon May 06 15:40:58 CEST 2024 by karbyshev
 \* Created Mon Jun 19 12:24:03 CEST 2022 by karbyshev
