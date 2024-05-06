@@ -2343,7 +2343,224 @@ PROOF
 <1> QED BY Zenon, <1>1, <1>2, <1>3, <1>4, <1>6, <1>7, <1>8
         DEF Next, AcceptorProcessAction, FakeAcceptorAction
 
+LEMMA MsgsSafeAcceptorSpecImpliesCaughtSpec ==
+    ASSUME TypeOK, KnownMsgsSpec, MsgsSafeAcceptorPrevTranLinearSpec
+    PROVE  CaughtSpec
+PROOF BY MessageTypeSpec
+      DEF MsgsSafeAcceptorPrevTranLinearSpec, CaughtSpec, Caught, CaughtMsg,
+      KnownMsgsSpec, SentBy, TypeOK
+
+LEMMA MsgsSafeAcceptorSpecImpliesCaughtEffSpec ==
+    ASSUME TypeOK, KnownMsgsSpec, MsgsSafeAcceptorSpec3
+    PROVE  CaughtEffSpec
+PROOF BY MessageTypeSpec
+      DEF MsgsSafeAcceptorSpec3, CaughtEffSpec, Caught0, CaughtMsg0,
+          KnownMsgsSpec, SentBy, TypeOK
+
+LEMMA QuorumIntersection ==
+    ASSUME TypeOK,
+           NEW a \in Learner, NEW b \in Learner,
+           NEW M \in Message,
+           NEW Qa \in SUBSET Message, NEW Qb \in SUBSET Message,
+           NEW S \in ByzQuorum,
+           [lr |-> a, q |-> { mm.acc : mm \in Qa }] \in TrustLive,
+           [lr |-> b, q |-> { mm.acc : mm \in Qb }] \in TrustLive,
+           ConByQuorum(a, b, M, S)
+    PROVE  \E p \in S, ma \in Qa, mb \in Qb :
+            /\ p \notin Caught(M)
+            /\ ma.acc = p
+            /\ mb.acc = p
+PROOF
+<1> /\ [from |-> a, to |-> b, q |-> S] \in TrustSafe
+    /\ S \cap Caught(M) = {}
+    BY DEF ConByQuorum
+<1> PICK acc \in S : /\ acc \in { mm.acc : mm \in Qa }
+                     /\ acc \in { mm.acc : mm \in Qb }
+    BY TrustLiveAssumption, LearnerGraphAssumptionValidity, Zenon
+<1> QED BY BQAssumption
+
+LEMMA EntConnected ==
+    ASSUME CaughtSpec,
+           NEW a \in Learner, NEW b \in Learner,
+           <<a, b>> \in Ent,
+           NEW AL \in SafeAcceptor \cup Learner,
+           NEW m \in known_msgs[AL]
+    PROVE  ConByQuorum(a, b, m, SafeAcceptor)
+PROOF BY BQAssumption DEF ConByQuorum, Ent, CaughtSpec
+
+-----------------------------------------------------------------------------
+HeterogeneousSpec(bal) ==
+    \A L0, L1, L2 \in Learner :
+        <<L1, L2>> \in Ent =>
+        \A V1, V2 \in Value :
+        \A B1 \in Ballot :
+            ChosenIn(L1, B1, V1) =>
+            \A M \in known_msgs[L0] :
+                M.type = "2a" /\
+                L2 \in M.lrn /\
+                B(M, bal) /\
+                B1 < bal /\
+                V(M, V2) =>
+                V1 = V2
+
+-----------------------------------------------------------------------------
+
+THEOREM GeneralBallotInduction ==
+    ASSUME NEW P(_),
+           \A bal \in Ballot : (\A b \in Ballot : b < bal => P(b)) => P(bal)
+    PROVE  \A bal \in Ballot : P(bal)
+PROOF
+<1> USE DEF Ballot
+<1> SUFFICES \A n \in Nat : (\A m \in 0..n - 1 : P(m)) => P(n)
+    BY GeneralNatInduction, IsaM("blast")
+<1> QED OBVIOUS
+
+LEMMA HeterogeneousLemma ==
+    TypeOK /\ KnownMsgsSpec /\ CaughtSpec /\
+    MsgsSafeAcceptorPrevTranLinearSpec /\
+    MsgsSafeAcceptorPrevTranSpec =>
+    \A bal \in Ballot : HeterogeneousSpec(bal)
+PROOF
+<1> ASSUME TypeOK, KnownMsgsSpec, CaughtSpec,
+           MsgsSafeAcceptorPrevTranLinearSpec,
+           MsgsSafeAcceptorPrevTranSpec,
+           NEW bal \in Ballot,
+           (\A b \in Ballot : b < bal => HeterogeneousSpec(b))
+    PROVE  HeterogeneousSpec(bal)
+  <2> SUFFICES ASSUME NEW L0 \in Learner,
+                      NEW L1 \in Learner, NEW L2 \in Learner,
+                      NEW V1 \in Value, NEW V2 \in Value,
+                      NEW B1 \in Ballot,
+                      NEW M \in known_msgs[L0],
+                      <<L1, L2>> \in Ent,
+                      ChosenIn(L1, B1, V1),
+                      M.type = "2a",
+                      L2 \in M.lrn,
+                      B(M, bal),
+                      B1 < bal,
+                      V(M, V2)
+               PROVE  V1 = V2
+      BY DEF HeterogeneousSpec
+  <2>1. M \in msgs /\ Proper(L0, M) /\ WellFormed(M)
+      BY DEF KnownMsgsSpec
+  <2> M \in Message
+      BY <2>1 DEF TypeOK
+  <2>3. [lr |-> L2, q |-> q(L2, M)] \in TrustLive
+      BY <2>1, IsaM("blast") DEF WellFormed
+  <2> DEFINE Q2 == { m \in Tran(M) :
+                        /\ m.type = "1b"
+                        /\ Fresh(L2, m)
+                        /\ \A b \in Ballot : B(m, b) <=> B(M, b) }
+  <2> Q2 \in SUBSET Message
+      BY Tran_Message
+  <2>5. q(L2, M) = { mm.acc : mm \in Q2 }
+      BY DEF q
+  <2> [lr |-> L2, q |-> { mm.acc : mm \in Q2 }] \in TrustLive
+      BY <2>5, <2>3
+  <2> ConByQuorum(L2, L1, M, SafeAcceptor)
+      BY EntConnected, EntanglementSym, Zenon
+  <2> ConByQuorum(L1, L2, M, SafeAcceptor)
+      BY EntConnected, Zenon
+  <2>8. PICK Q1 \in SUBSET Known2a(L1, B1, V1) :
+                [lr |-> L1, q |-> { mm.acc : mm \in Q1 }] \in TrustLive
+      BY Zenon DEF ChosenIn
+  <2> Q1 \in SUBSET msgs
+      BY DEF Known2a, KnownMsgsSpec
+  <2> Q1 \in SUBSET Message
+      BY DEF TypeOK
+  <2> [lr |-> L1, q |-> { mm.acc : mm \in Q1 }] \in TrustLive
+      BY <2>8
+  <2> PICK p \in SafeAcceptor, m1b \in Q2, m2a \in Q1 :
+            /\ p \notin Caught(M)
+            /\ m1b.acc = p
+            /\ m2a.acc = p
+    <3> HIDE DEF Q2
+    <3> QED BY QuorumIntersection, BQAssumption, Isa
+  <2> m2a.type = "2a"
+      BY <2>8 DEF Known2a
+  <2> L1 \in m2a.lrn
+      BY <2>8 DEF Known2a
+  <2> m2a \in msgs
+      OBVIOUS
+  <2> B(m2a, B1)
+      BY <2>8 DEF Known2a
+  <2> V(m2a, V1)
+      BY <2>8 DEF Known2a
+  <2> m1b.type = "1b"
+      OBVIOUS
+  <2> m1b \in known_msgs[L0]
+      BY DEF KnownMsgsSpec
+  <2> m1b \in msgs
+      BY DEF KnownMsgsSpec
+  <2> WellFormed(m1b)
+      BY DEF KnownMsgsSpec
+  <2> B(m1b, bal)
+      OBVIOUS
+  <2> Fresh(L2, m1b) BY DEF q
+  <2>13. \A r \in Tran(m1b) :
+            r # m1b /\ r.type # "1a" =>
+            \A b1, b2 \in Ballot : B(r, b1) /\ B(m1b, b2) => b1 < b2
+    <3> QED BY WellFormedCondition2, WellFormedCondition3 DEF WellFormed
+  <2>14. m2a \in Tran(m1b)
+    <3> ASSUME m1b \in Tran(m2a) PROVE FALSE
+        BY TranBallot DEF Ballot
+    <3> QED BY DEF MsgsSafeAcceptorPrevTranLinearSpec, MsgsSafeAcceptorPrevTranSpec, SentBy
+  <2>15. CASE ~Buried(L1, m2a, m1b) \* XXX
+    <3> L1 \in Con(L2, m1b)
+        BY EntConnected, EntanglementSym, BQAssumption DEF Con
+    <3> <<L1, m2a>> \in Con2as(L2, m1b)
+        BY <2>14, <2>15 DEF Con2as
+    <3> \A v \in Value : V(m2a, v) <=> V(m1b, v)
+        BY DEF Fresh
+    <3> V(m1b, V1)
+        BY DEF Fresh
+    <3> V(m1b, V2)
+        BY V_def, V_func DEF TypeOK
+    <3> QED BY V_func
+  <2>16. CASE Buried(L1, m2a, m1b) \* XXX
+    <3> DEFINE Q == { m \in Tran(m1b) :
+                        \E z \in Tran(m) :
+                            /\ z.type = "2a"
+                            /\ L1 \in z.lrn
+                            /\ \A bx, bz \in Ballot :
+                                B(m2a, bx) /\ B(z, bz) => bx < bz
+                            /\ \A vx, vz \in Value :
+                                V(m2a, vx) /\ V(z, vz) => vx # vz }
+    <3> [lr |-> L1, q |-> { m.acc : m \in Q }] \in TrustLive
+        BY <2>16 DEF Buried
+    <3> { m.acc : m \in Q } \in ByzQuorum
+        BY TrustLiveAssumption, Zenon
+    <3>3. PICK m0 \in { m.acc : m \in Q } : TRUE
+        BY EntaglementTrustLiveNonEmpty, Zenon
+    <3> PICK r \in Tran(m1b) :
+            /\ r.type = "2a"
+            /\ L1 \in r.lrn
+            /\ \A b2a, br \in Ballot :
+                B(m2a, b2a) /\ B(r, br) => b2a < br
+            /\ \A v2a, vr \in Value :
+                V(m2a, v2a) /\ V(r, vr) => v2a # vr
+        BY <3>3, Tran_trans, BQAssumption
+    <3> <<L1, L1>> \in Ent
+        BY EntanglementSelf
+    <3> r \in known_msgs[L0]
+        BY DEF KnownMsgsSpec
+    <3> r \in Message
+        BY DEF TypeOK
+    <3> PICK br \in Ballot : B(r, br)
+        BY DEF KnownMsgsSpec
+    <3> PICK vr \in Value : V(r, vr)
+        BY V_def DEF TypeOK
+    <3> B1 < br
+        OBVIOUS
+    <3> V1 # vr
+        OBVIOUS
+    <3> br < bal
+        BY <2>13
+    <3> QED BY DEF HeterogeneousSpec
+  <2>17. QED BY <2>15, <2>16
+<1> QED BY GeneralBallotInduction, IsaM("blast")
+
 =============================================================================
 \* Modification History
-\* Last modified Mon May 06 01:16:53 CEST 2024 by karbyshev
+\* Last modified Mon May 06 02:28:10 CEST 2024 by karbyshev
 \* Created Tue Jun 20 00:28:26 CEST 2023 by karbyshev
