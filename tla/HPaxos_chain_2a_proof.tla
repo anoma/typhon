@@ -981,11 +981,6 @@ SentBy(acc) == { mm \in msgs : mm.type # "1a" /\ mm.acc = acc }
 
 Sent1bBy(acc) == { mm \in msgs : mm.type = "1b" /\ mm.acc = acc }
 
-\* TODO remove: does not hold
-RecentMsgsSpec ==
-    \A AL \in SafeAcceptor \cup Learner :
-        recent_msgs[AL] \in SUBSET known_msgs[AL]
-
 RecentMsgsSpec1 ==
     \A A \in SafeAcceptor :
         \A x \in recent_msgs[A] :
@@ -1030,12 +1025,6 @@ SafeAcceptorPrevSpec2 ==
             /\ prev_msg[A] \in SentBy(A)
             /\ \A m \in SentBy(A) : m \in PrevTran(prev_msg[A])
 
-\*SafeAcceptorQueuedMsgPrevMsgSpec ==
-\*    \A A \in SafeAcceptor :
-\*        /\ SentBy(A) # {} /\ queued_msg[A] = NoMessage =>
-\*            prev_msg[A] \in recent_msgs[A]
-\*        /\ queued_msg[A] # NoMessage => queued_msg[A] = prev_msg[A]
-
 RecentMsgsUniquePreviousMessageSpec ==
     \A A \in SafeAcceptor :
         \A x, y \in recent_msgs[A] :
@@ -1063,23 +1052,6 @@ MsgsSafeAcceptorPrevTranLinearSpec ==
     \A A \in SafeAcceptor :
         \A m1, m2 \in SentBy(A) :
             m1 \in PrevTran(m2) \/ m2 \in PrevTran(m1)
-
-\*QueuedMsgSpec1 ==
-\*    \A A \in SafeAcceptor :
-\*        queued_msg[A] # NoMessage =>
-\*        /\ queued_msg[A].type = "1b"
-\*        /\ recent_msgs[A] = {}
-
-\*QueuedMsgSpec2 ==
-\*    \A A \in SafeAcceptor :
-\*        \A m \in Sent1bBy(A) :
-\*            m \notin known_msgs[A] =>
-\*            queued_msg[A] = m
-
-\*2aLearnerLoopSpec ==
-\*    \A A \in SafeAcceptor :
-\*        2a_lrn_loop[A] = TRUE =>
-\*        queued_msg[A] = NoMessage
 
 -----------------------------------------------------------------------------
 
@@ -1198,70 +1170,6 @@ PROOF
 <1>9. QED BY <1>1, <1>2, <1>3, <1>4, <1>6, <1>7, <1>8
           DEF Next, AcceptorProcessAction, LearnerAction
 
-\*LEMMA RecentMsgsSpecInvariant ==
-\*    TypeOK /\ RecentMsgsSpec /\ Next => RecentMsgsSpec'
-\*PROOF
-\*<1> SUFFICES ASSUME TypeOK, RecentMsgsSpec, Next,
-\*                    NEW AL \in SafeAcceptor \cup Learner,
-\*                    NEW M \in recent_msgs[AL]'
-\*             PROVE  M \in known_msgs[AL]'
-\*    BY Zenon DEF RecentMsgsSpec
-\*<1> TypeOK' BY TypeOKInvariant
-\*<1> SafeAcceptor \in SUBSET Acceptor
-\*    BY DEF Acceptor
-\*<1> USE DEF RecentMsgsSpec
-\*<1>1. CASE ProposerSendAction
-\*  <2> PICK bal \in Ballot : Send1a(bal)
-\*      BY <1>1 DEF ProposerSendAction
-\*  <2> QED BY Zenon DEF Send1a, TypeOK
-\*<1>2. CASE \E a \in SafeAcceptor : \E m \in msgs : Process1a(a, m)
-\*  <2> PICK acc \in SafeAcceptor, m1a \in msgs : Process1a(acc, m1a)
-\*      BY <1>2
-\*  <2> USE DEF Process1a
-\*  <2> DEFINE new1b == [type |-> "1b", acc |-> acc,
-\*                       prev |-> prev_msg[acc],
-\*                       ref |-> recent_msgs[acc] \cup {m1a}]
-\*  <2> CASE WellFormed(new1b)
-\*    <3> QED BY Zenon DEF Recv, TypeOK
-\*  <2> CASE ~WellFormed(new1b)
-\*    <3> recent_msgs' = [recent_msgs EXCEPT ![acc] = recent_msgs[acc] \cup {m1a}]
-\*        BY DEF TypeOK
-\*    <3> QED BY Zenon DEF Recv, TypeOK
-\*  <2> QED OBVIOUS
-\*<1>3. CASE \E a \in SafeAcceptor : \E m \in msgs : Process1b(a, m)
-\*  <2> PICK acc \in SafeAcceptor, m1b \in msgs : Process1b(acc, m1b)
-\*      BY <1>3
-\*  <2> USE DEF Process1b
-\*  <2> m1b \in Message BY DEF TypeOK
-\*  <2> CASE ~UpToDate(acc, m1b)
-\*    <3> recent_msgs' = [recent_msgs EXCEPT ![acc] =
-\*                            recent_msgs[acc] \cup {m1b}]
-\*        BY DEF TypeOK
-\*    <3> QED BY Zenon DEF UpToDate, Recv, TypeOK
-\*  <2> CASE UpToDate(acc, m1b)
-\*    <3> PICK ll \in SUBSET Learner :
-\*        recent_msgs' = [recent_msgs EXCEPT ![acc] = {}]
-\*      <4> QED BY Zenon DEF UpToDate
-\*    <3> QED BY Zenon DEF Recv, TypeOK
-\*  <2> QED OBVIOUS
-\*<1>4. CASE \E a \in SafeAcceptor : \E m \in msgs : Process2a(a, m)
-\*  <2> PICK acc \in SafeAcceptor, m2a \in msgs : Process2a(acc, m2a)
-\*      BY <1>4
-\*  <2> USE DEF Process2a
-\*  <2> QED BY Zenon DEF Recv, TypeOK
-\*<1>7. CASE \E lrn \in Learner : \E m \in msgs : LearnerRecv(lrn, m)
-\*  <2> PICK lrn \in Learner, msg \in msgs : LearnerRecv(lrn, msg)
-\*      BY <1>7
-\*  <2> QED BY Zenon DEF LearnerRecv, Recv, TypeOK
-\*<1>8. CASE \E lrn \in Learner : \E bal \in Ballot : \E val \in Value :
-\*            LearnerDecide(lrn, bal, val)
-\*      BY Zenon, <1>8 DEF LearnerDecide, TypeOK
-\*<1>9. CASE FakeAcceptorAction
-\*      BY Zenon, <1>9
-\*      DEF FakeAcceptorAction, FakeSend1b, FakeSend2a, TypeOK
-\*<1>10. QED BY <1>1, <1>2, <1>3, <1>4, <1>7, <1>8, <1>9
-\*           DEF Next, AcceptorProcessAction, LearnerAction
-
 LEMMA WellFormed_monotone ==
     ASSUME NEW m \in Message, WellFormed(m), BVal' = BVal
     PROVE WellFormed(m)'
@@ -1303,12 +1211,6 @@ PROOF
       BY <1>9 DEF FakeAcceptorAction, FakeSend1b, FakeSend2a, TypeOK
 <1>10. QED BY <1>1, <1>2, <1>3, <1>4, <1>7, <1>8, <1>9
            DEF Next, AcceptorProcessAction, LearnerAction
-
-LEMMA SentBy_monotone ==
-    TypeOK /\ Next =>
-    \A A \in SafeAcceptor :
-        SentBy(A) \subseteq SentBy(A)'
-OMITTED
 
 LEMMA Known2aMonotone ==
     TypeOK /\ Next =>
@@ -1365,7 +1267,6 @@ PROOF
     BY DEF Acceptor
 <1> A \in Acceptor
     OBVIOUS
-<1> USE DEF RecentMsgsSpec
 <1>1. CASE ProposerSendAction
   <2> PICK bal \in Ballot : Send1a(bal)
       BY <1>1 DEF ProposerSendAction
@@ -1429,101 +1330,6 @@ PROOF
       BY <1>9, Zenon DEF RecentMsgsSpec1, FakeAcceptorAction, FakeSend1b, FakeSend2a, SentBy, Send, TypeOK
 <1>10. QED BY <1>1, <1>2, <1>3, <1>4, <1>7, <1>8, <1>9
            DEF Next, AcceptorProcessAction, LearnerAction
-
-\*LEMMA RecentMsgsSpec2Invariant ==
-\*    TypeOK /\ RecentMsgsSpec1 /\ RecentMsgsSpec2 /\ Next =>
-\*    RecentMsgsSpec2'
-\*PROOF
-\*<1> SUFFICES ASSUME TypeOK, RecentMsgsSpec1, RecentMsgsSpec2, Next,
-\*                    NEW A \in SafeAcceptor,
-\*                    NEW M \in SentBy(A)',
-\*                    M \notin known_msgs[A]'
-\*             PROVE  M \in recent_msgs[A]'
-\*    BY DEF RecentMsgsSpec2
-\*<1> TypeOK' BY TypeOKInvariant
-\*<1> SafeAcceptor \in SUBSET Acceptor
-\*    BY DEF Acceptor
-\*<1> A \in Acceptor
-\*    OBVIOUS
-\*<1> USE DEF RecentMsgsSpec
-\*<1>1. CASE ProposerSendAction
-\*  <2> PICK bal \in Ballot : Send1a(bal)
-\*      BY <1>1 DEF ProposerSendAction
-\*  <2> QED BY DEF RecentMsgsSpec2, Send1a, SentBy, Send, TypeOK
-\*<1>2. CASE \E a \in SafeAcceptor : \E m \in msgs : Process1a(a, m)
-\*  <2> PICK acc \in SafeAcceptor, m1a \in msgs : Process1a(acc, m1a)
-\*      BY <1>2
-\*  <2> USE DEF Process1a
-\*  <2> DEFINE new1b == [type |-> "1b", acc |-> acc,
-\*                       prev |-> prev_msg[acc],
-\*                       ref |-> recent_msgs[acc] \cup {m1a}]
-\*  <2> CASE WellFormed(new1b)
-\*    <3> msgs' = msgs \cup {new1b}
-\*        BY DEF Send
-\*    <3> recent_msgs' = [recent_msgs EXCEPT ![acc] = {new1b}]
-\*        OBVIOUS
-\*    <3> CASE A # acc
-\*        BY DEF RecentMsgsSpec2, SentBy, Send, Recv, TypeOK
-\*    <3> CASE A = acc
-\*      <4> M.acc = A
-\*          BY DEF SentBy, Recv, TypeOK
-\*      <4> M \notin known_msgs[A]
-\*          BY DEF SentBy, Recv, TypeOK
-\*      <4> CASE M \in msgs
-\*        <5> M \in recent_msgs[A]
-\*            BY DEF RecentMsgsSpec2, Recv, SentBy, Send, TypeOK
-\*        <5> QED BY DEF RecentMsgsSpec2, Recv, SentBy, Send, TypeOK
-\*\*      <4> M = new1b
-\*\*          BY DEF SentBy, Send, TypeOK
-\*      <4> QED BY DEF RecentMsgsSpec1, RecentMsgsSpec2, Recv, SentBy, Send, TypeOK
-\*    <3> QED OBVIOUS
-\*  <2> CASE ~WellFormed(new1b)
-\*    <3> recent_msgs' = [recent_msgs EXCEPT ![acc] = recent_msgs[acc] \cup {m1a}]
-\*        BY DEF TypeOK
-\*    <3> QED BY Zenon DEF RecentMsgsSpec1, Recv, Send, SentBy, TypeOK
-\*  <2> QED OBVIOUS
-\*<1>3. CASE \E a \in SafeAcceptor : \E m \in msgs : Process1b(a, m)
-\*  <2> PICK acc \in SafeAcceptor, m1b \in msgs : Process1b(acc, m1b)
-\*      BY <1>3
-\*  <2> USE DEF Process1b
-\*  <2> m1b \in Message BY DEF TypeOK
-\*  <2> CASE ~UpToDate(acc, m1b)
-\*    <3> recent_msgs' = [recent_msgs EXCEPT ![acc] =
-\*                            recent_msgs[acc] \cup {m1b}]
-\*        BY DEF TypeOK
-\*    <3> QED BY Zenon DEF UpToDate, RecentMsgsSpec2, Recv, Send, SentBy, TypeOK
-\*  <2> CASE UpToDate(acc, m1b)
-\*    <3> PICK ll \in SUBSET Learner :
-\*        LET new2a == [type |-> "2a", lrn |-> ll, acc |-> acc,
-\*                      prev |-> prev_msg[acc],
-\*                      ref |-> recent_msgs[acc] \cup {m1b}] IN
-\*        recent_msgs' = [recent_msgs EXCEPT ![acc] = {new2a}]
-\*        BY DEF TypeOK
-\*    <3> CASE A # acc
-\*        BY DEF RecentMsgsSpec2, SentBy, Send, Recv, TypeOK
-\*\*        QED BY Zenon DEF TypeOK
-\*    <3> QED BY Zenon DEF UpToDate, RecentMsgsSpec2, Recv, Send, SentBy, TypeOK
-\*  <2> QED OBVIOUS
-\*<1>4. CASE \E a \in SafeAcceptor : \E m \in msgs : Process2a(a, m)
-\*  <2> PICK acc \in SafeAcceptor, m2a \in msgs : Process2a(acc, m2a)
-\*      BY <1>4
-\*  <2> USE DEF Process2a
-\*  <2> QED BY Zenon DEF RecentMsgsSpec2, SentBy, Recv, TypeOK
-\*<1>7. CASE \E lrn \in Learner : \E m \in msgs : LearnerRecv(lrn, m)
-\*  <2> PICK lrn \in Learner, msg \in msgs : LearnerRecv(lrn, msg)
-\*      BY <1>7
-\*  <2> QED BY Zenon DEF RecentMsgsSpec2, LearnerRecv, SentBy, Recv, TypeOK
-\*<1>8. CASE \E lrn \in Learner : \E bal \in Ballot : \E val \in Value :
-\*            LearnerDecide(lrn, bal, val)
-\*      BY Zenon, <1>8 DEF RecentMsgsSpec2, LearnerDecide, SentBy, TypeOK
-\*<1>9. CASE FakeAcceptorAction
-\*  <2> CASE \E a \in FakeAcceptor : FakeSend1b(a)
-\*      BY AcceptorAssumption DEF RecentMsgsSpec2, FakeSend1b, SentBy, Send, TypeOK
-\*  <2> CASE \E a \in FakeAcceptor : FakeSend2a(a)
-\*      BY AcceptorAssumption DEF RecentMsgsSpec2, FakeSend2a, SentBy, Send, TypeOK
-\*  <2> QED BY <1>9 DEF RecentMsgsSpec2, FakeAcceptorAction
-\*<1>10. QED BY <1>1, <1>2, <1>3, <1>4, <1>7, <1>8, <1>9
-\*           DEF Next, AcceptorProcessAction, LearnerAction
 
 LEMMA DecisionSpecInvariant ==
     TypeOK /\ Next /\
@@ -1781,7 +1587,7 @@ PROOF
 <1> QED BY <1>1, <1>2, <1>3, <1>4, <1>6, <1>7, <1>8
         DEF Next, AcceptorProcessAction, FakeAcceptorAction
 
-\* TODO RecentMsgsUniquePreviousMessageSpec not used
+\* TODO
 LEMMA RecentMsgsSafeAcceptorSpec1Invariant ==
     TypeOK /\ Next /\
     RecentMsgsUniquePreviousMessageSpec =>
@@ -1789,12 +1595,12 @@ LEMMA RecentMsgsSafeAcceptorSpec1Invariant ==
 OMITTED
 
 LEMMA KnownMsgsSpecInvariant ==
-    TypeOK /\ Next /\ RecentMsgsSpec /\
+    TypeOK /\ Next /\
     SafeAcceptorPrevSpec2 /\
     KnownMsgsSpec =>
     KnownMsgsSpec'
 PROOF
-<1> SUFFICES ASSUME TypeOK, Next, RecentMsgsSpec,
+<1> SUFFICES ASSUME TypeOK, Next,
                     SafeAcceptorPrevSpec2,
                     KnownMsgsSpec
              PROVE  KnownMsgsSpec'
@@ -2057,7 +1863,6 @@ PROOF
 LEMMA MsgsSafeAcceptorSpec3Invariant ==
     TypeOK /\ Next /\
     KnownMsgsSpec /\
-    RecentMsgsSpec /\
     MsgsSafeAcceptorPrevRefSpec /\
     MsgsSafeAcceptorPrevTranSpec /\
     SafeAcceptorPrevSpec1 /\
@@ -2066,7 +1871,6 @@ LEMMA MsgsSafeAcceptorSpec3Invariant ==
 PROOF
 <1> SUFFICES ASSUME TypeOK, Next,
                     KnownMsgsSpec,
-                    RecentMsgsSpec,
                     MsgsSafeAcceptorPrevRefSpec,
                     MsgsSafeAcceptorPrevTranSpec,
                     SafeAcceptorPrevSpec1,
@@ -2560,7 +2364,293 @@ PROOF
   <2>17. QED BY <2>15, <2>16
 <1> QED BY GeneralBallotInduction, IsaM("blast")
 
+LEMMA ChosenSafeCaseEq ==
+    ASSUME NEW L1 \in Learner, NEW L2 \in Learner,
+           NEW BB \in Ballot,
+           NEW V1 \in Value, NEW V2 \in Value,
+           TypeOK,
+           <<L1, L2>> \in Ent,
+           ChosenIn(L1, BB, V1), ChosenIn(L2, BB, V2)
+    PROVE V1 = V2
+PROOF
+<1> PICK S1 \in SUBSET Known2a(L1, BB, V1) :
+        [lr |-> L1, q |-> { m.acc : m \in S1 }] \in TrustLive
+    BY DEF ChosenIn, Zenon
+<1> DEFINE Q1 == { m.acc : m \in S1 }
+<1> Q1 \in ByzQuorum
+    BY TrustLiveAssumption, Zenon
+<1> PICK S2 \in SUBSET Known2a(L2, BB, V2) :
+        [lr |-> L2, q |-> { m.acc : m \in S2 }] \in TrustLive
+    BY DEF ChosenIn, Zenon
+<1> DEFINE Q2 == { m.acc : m \in S2 }
+<1> Q2 \in ByzQuorum
+    BY TrustLiveAssumption, Zenon
+<1> PICK A \in SafeAcceptor : A \in Q1 /\ A \in Q2
+    BY EntanglementTrustLive
+<1>4. PICK m1 \in known_msgs[L1] :
+        /\ B(m1, BB)
+        /\ V(m1, V1)
+      BY DEF ChosenIn, Known2a
+<1>5. PICK m2 \in known_msgs[L2] :
+        /\ B(m2, BB)
+        /\ V(m2, V2)
+      BY DEF ChosenIn, Known2a
+<1>6. QED BY <1>4, <1>5, V_def, V_func DEF TypeOK
+
+LEMMA ChosenSafeCaseLt ==
+    ASSUME NEW L1 \in Learner, NEW L2 \in Learner,
+           NEW B1 \in Ballot, NEW B2 \in Ballot,
+           NEW V1 \in Value, NEW V2 \in Value,
+           TypeOK, KnownMsgsSpec, CaughtSpec,
+           MsgsSafeAcceptorPrevTranLinearSpec,
+           MsgsSafeAcceptorPrevTranSpec,
+           <<L1, L2>> \in Ent,
+           B1 < B2,
+           ChosenIn(L1, B1, V1), ChosenIn(L2, B2, V2)
+    PROVE V1 = V2
+PROOF
+<1> PICK S1 \in SUBSET Known2a(L1, B1, V1) :
+        [lr |-> L1, q |-> { m.acc : m \in S1 }] \in TrustLive
+    BY Zenon DEF ChosenIn
+<1> DEFINE Q1 == { m.acc : m \in S1 }
+<1> Q1 \in ByzQuorum
+    BY TrustLiveAssumption, Zenon
+<1> PICK S2 \in SUBSET Known2a(L2, B2, V2) :
+        [lr |-> L2, q |-> { m.acc : m \in S2 }] \in TrustLive
+    BY Zenon DEF ChosenIn
+<1> DEFINE Q2 == { m.acc : m \in S2 }
+<1> Q2 \in ByzQuorum
+    BY TrustLiveAssumption, Zenon
+<1> <<L2, L2>> \in Ent
+    BY EntanglementSelf, EntanglementSym, Zenon
+<1> PICK A \in Q2 : TRUE
+    BY EntaglementTrustLiveNonEmpty, Zenon
+<1> PICK M \in known_msgs[L2] :
+        /\ M.type = "2a"
+        /\ L2 \in M.lrn
+        /\ B(M, B2)
+        /\ V(M, V2)
+    BY DEF Known2a
+<1> QED BY HeterogeneousLemma DEF HeterogeneousSpec
+
+LEMMA ChosenSafe ==
+    ASSUME NEW L1 \in Learner, NEW L2 \in Learner,
+           NEW B1 \in Ballot, NEW B2 \in Ballot,
+           NEW V1 \in Value, NEW V2 \in Value,
+           TypeOK, KnownMsgsSpec, CaughtSpec,
+           MsgsSafeAcceptorPrevTranLinearSpec,
+           MsgsSafeAcceptorPrevTranSpec,
+           <<L1, L2>> \in Ent,
+           ChosenIn(L1, B1, V1), ChosenIn(L2, B2, V2)
+    PROVE V1 = V2
+PROOF
+<1>0. CASE B1 < B2 BY <1>0, ChosenSafeCaseLt
+<1>1. CASE B2 < B1 BY <1>1, ChosenSafeCaseLt, EntanglementSym
+<1>2. CASE B1 = B2 BY <1>2, ChosenSafeCaseEq
+<1>3. QED BY <1>0, <1>1, <1>2 DEF Ballot
+
+LEMMA SafetyStep ==
+    TypeOK /\ Next /\
+    KnownMsgsSpec /\ CaughtSpec /\
+    MsgsSafeAcceptorPrevTranLinearSpec /\
+    MsgsSafeAcceptorPrevTranSpec /\
+    DecisionSpec /\
+    Safety => Safety'
+PROOF
+<1> SUFFICES
+        ASSUME TypeOK, Next,
+               KnownMsgsSpec, CaughtSpec,
+               MsgsSafeAcceptorPrevTranSpec,
+               MsgsSafeAcceptorPrevTranLinearSpec,
+               DecisionSpec,
+               Safety,
+               NEW L1 \in Learner, NEW L2 \in Learner,
+               NEW B1 \in Ballot, NEW B2 \in Ballot,
+               NEW V1 \in Value, NEW V2 \in Value,
+               <<L1, L2>> \in Ent,
+               V1 \in decision'[L1, B1], V2 \in decision'[L2, B2]
+        PROVE V1 = V2
+    BY DEF Safety
+<1>1. CASE ProposerSendAction
+      BY <1>1 DEF ProposerSendAction, Send1a, Safety
+<1>2. CASE \E a \in SafeAcceptor : \E m \in msgs : Process1a(a, m)
+      BY <1>2 DEF Process1a, Safety
+<1>3. CASE \E a \in SafeAcceptor : \E m \in msgs : Process1b(a, m)
+      BY <1>3 DEF Process1b, Safety
+<1>4. CASE \E a \in SafeAcceptor : \E m \in msgs : Process2a(a, m)
+      BY <1>4 DEF Process2a, Safety
+<1>6. CASE \E lrn \in Learner : \E m \in msgs : LearnerRecv(lrn, m)
+      BY <1>6 DEF LearnerRecv, Safety
+<1>7. CASE \E lrn \in Learner : \E bal \in Ballot : \E val \in Value :
+            LearnerDecide(lrn, bal, val)
+  <2> PICK lrn \in Learner, bal \in Ballot, val \in Value :
+        /\ ChosenIn(lrn, bal, val)
+        /\ decision' = [decision EXCEPT ![<<lrn, bal>>] = decision[lrn, bal] \cup {val}]
+        /\ UNCHANGED << msgs, known_msgs, recent_msgs, BVal >>
+      BY <1>7, Zenon DEF LearnerDecide
+  <2> CASE V1 # V2
+    <3>1. CASE val # V1 /\ val # V2 BY <3>1 DEF Safety, TypeOK
+    <3>2. CASE val = V1
+      <4> V2 \in decision[L2, B2] BY <3>2 DEF TypeOK
+      <4> ChosenIn(L2, B2, V2) BY DEF DecisionSpec
+      <4>2. CASE V1 \in decision[L1, B1] BY <4>2 DEF Safety
+      <4>3. CASE V1 \notin decision[L1, B1]
+        <5> lrn = L1 /\ bal = B1 BY <4>3, <3>2 DEF TypeOK
+        <5> ChosenIn(L1, B1, V1) BY <3>2
+        <5> QED BY ChosenSafe, AllProvers
+      <4> QED BY <4>2, <4>3
+    <3>3. CASE val = V2
+      <4> V1 \in decision[L1, B1] BY <3>3 DEF TypeOK
+      <4> ChosenIn(L1, B1, V1) BY DEF DecisionSpec
+      <4>2. CASE V2 \in decision[L2, B2] BY <4>2 DEF Safety
+      <4>3. CASE V2 \notin decision[L2, B2]
+        <5> lrn = L2 /\ bal = B2 BY <4>3, <3>2 DEF TypeOK
+        <5> ChosenIn(L2, B2, V2) BY <3>3
+        <5> QED BY ChosenSafe
+      <4> QED BY <4>2, <4>3
+    <3> QED BY <3>1, <3>2, <3>3
+  <2>10. QED OBVIOUS
+<1>8. CASE FakeAcceptorAction
+      BY <1>8 DEF FakeAcceptorAction, FakeSend1b, FakeSend2a, Safety
+<1>9. QED BY <1>1, <1>2, <1>3, <1>4, <1>6, <1>7, <1>8
+          DEF Next, AcceptorProcessAction, LearnerAction
+
+FullSafetyInvariant ==
+    /\ TypeOK
+    /\ KnownMsgsSpec
+    /\ SafeAcceptorPrevSpec1
+    /\ SafeAcceptorPrevSpec2
+    /\ MsgsSafeAcceptorPrevTranLinearSpec
+    /\ MsgsSafeAcceptorSpec3
+    /\ MsgsSafeAcceptorPrevRefSpec
+    /\ MsgsSafeAcceptorPrevTranSpec
+    /\ DecisionSpec
+    /\ Safety
+
+LEMMA TypeOKInit == Init => TypeOK
+PROOF BY DEF Init, TypeOK
+
+LEMMA KnownMsgsSpecInit == Init => KnownMsgsSpec
+PROOF BY DEF Init, KnownMsgsSpec, Acceptor
+
+LEMMA SafeAcceptorPrevSpec1Init == Init => SafeAcceptorPrevSpec1
+PROOF BY DEF Init, SafeAcceptorPrevSpec1, Acceptor, SentBy
+
+LEMMA SafeAcceptorPrevSpec2Init == Init => SafeAcceptorPrevSpec2
+PROOF BY DEF Init, SafeAcceptorPrevSpec2, Acceptor
+
+LEMMA MsgsSafeAcceptorSpec1Init == Init => MsgsSafeAcceptorPrevTranLinearSpec
+PROOF BY DEF Init, MsgsSafeAcceptorPrevTranLinearSpec, SentBy
+
+LEMMA MsgsSafeAcceptorSpec3Init == Init => MsgsSafeAcceptorSpec3
+PROOF BY DEF Init, MsgsSafeAcceptorSpec3, SentBy
+
+LEMMA MsgsSafeAcceptorPrevRefSpecInit == Init => MsgsSafeAcceptorPrevRefSpec
+PROOF BY DEF Init, MsgsSafeAcceptorPrevRefSpec, SentBy
+
+LEMMA MsgsSafeAcceptorPrevTranSpecInit == Init => MsgsSafeAcceptorPrevTranSpec
+PROOF BY DEF Init, MsgsSafeAcceptorPrevTranSpec, SentBy
+
+LEMMA DecisionSpecInit == Init => DecisionSpec
+PROOF BY DEF Init, DecisionSpec
+
+LEMMA SafetyInit == Init => Safety
+PROOF BY DEF Init, Safety
+
+LEMMA FullSafetyInvariantInit == Init => FullSafetyInvariant
+PROOF BY TypeOKInit,
+         KnownMsgsSpecInit,
+         SafeAcceptorPrevSpec1Init,
+         SafeAcceptorPrevSpec2Init,
+         MsgsSafeAcceptorSpec1Init,
+         MsgsSafeAcceptorSpec3Init,
+         MsgsSafeAcceptorPrevRefSpecInit,
+         MsgsSafeAcceptorPrevTranSpecInit,
+         DecisionSpecInit,
+         SafetyInit
+      DEF FullSafetyInvariant
+
+LEMMA TypeOKStutter ==
+    TypeOK /\ vars = vars' => TypeOK'
+PROOF BY DEF TypeOK, vars
+
+LEMMA KnownMsgsSpecStutter ==
+    KnownMsgsSpec /\ vars = vars' => KnownMsgsSpec'
+PROOF BY Isa DEF KnownMsgsSpec, vars, Proper, WellFormed,
+                 SameBallot, q, Fresh, Con, ConByQuorum, Con2as, Buried,
+                 V, B, Get1a, SameBallot, ChainRef,
+                 Caught, CaughtMsg
+
+LEMMA SafeAcceptorPrevSpec1Stutter ==
+    SafeAcceptorPrevSpec1 /\ vars = vars' => SafeAcceptorPrevSpec1'
+PROOF BY DEF SafeAcceptorPrevSpec1, vars, SentBy
+
+LEMMA SafeAcceptorPrevSpec2Stutter ==
+    SafeAcceptorPrevSpec2 /\ vars = vars' => SafeAcceptorPrevSpec2'
+PROOF BY DEF SafeAcceptorPrevSpec2, vars, SentBy
+
+LEMMA MsgsSafeAcceptorSpec1Stutter ==
+    MsgsSafeAcceptorPrevTranLinearSpec /\ vars = vars' => MsgsSafeAcceptorPrevTranLinearSpec'
+PROOF BY DEF MsgsSafeAcceptorPrevTranLinearSpec, vars, SentBy
+
+LEMMA MsgsSafeAcceptorSpec3Stutter ==
+    MsgsSafeAcceptorSpec3 /\ vars = vars' => MsgsSafeAcceptorSpec3'
+PROOF BY DEF MsgsSafeAcceptorSpec3, vars, SentBy
+
+LEMMA MsgsSafeAcceptorPrevRefSpecStutter ==
+    MsgsSafeAcceptorPrevRefSpec /\ vars = vars' => MsgsSafeAcceptorPrevRefSpec'
+PROOF BY DEF MsgsSafeAcceptorPrevRefSpec, vars, SentBy
+
+LEMMA MsgsSafeAcceptorPrevTranSpecStutter ==
+    MsgsSafeAcceptorPrevTranSpec /\ vars = vars' => MsgsSafeAcceptorPrevTranSpec'
+PROOF BY DEF MsgsSafeAcceptorPrevTranSpec, vars, SentBy
+
+LEMMA DecisionSpecStutter ==
+    DecisionSpec /\ vars = vars' => DecisionSpec'
+PROOF BY Isa DEF DecisionSpec, vars, ChosenIn, Known2a, B, V, Get1a
+
+LEMMA SafetyStutter ==
+    Safety /\ vars = vars' => Safety'
+PROOF BY DEF Safety, vars
+
+LEMMA FullSafetyInvariantNext ==
+    FullSafetyInvariant /\ [Next]_vars => FullSafetyInvariant'
+PROOF
+<1> SUFFICES ASSUME FullSafetyInvariant, [Next]_vars PROVE FullSafetyInvariant' OBVIOUS
+<1>1. CASE Next
+      BY <1>1,
+         TypeOKInvariant,
+         KnownMsgsSpecInvariant,
+         MsgsSafeAcceptorSpecImpliesCaughtSpec,
+         SafeAcceptorPrevSpec1Invariant,
+         SafeAcceptorPrevSpec2Invariant,
+         MsgsSafeAcceptorPrevTranLinearSpecInvariant,
+         MsgsSafeAcceptorSpec3Invariant,
+         MsgsSafeAcceptorPrevRefSpecInvariant,
+         MsgsSafeAcceptorPrevTranSpecInvariant,
+         DecisionSpecInvariant,
+         SafetyStep
+      DEF FullSafetyInvariant
+<1>2. CASE vars = vars'
+      BY <1>2,
+         TypeOKStutter,
+         KnownMsgsSpecStutter,
+         SafeAcceptorPrevSpec1Stutter,
+         SafeAcceptorPrevSpec2Stutter,
+         MsgsSafeAcceptorSpec1Stutter,
+         MsgsSafeAcceptorSpec3Stutter,
+         MsgsSafeAcceptorPrevRefSpecStutter,
+         MsgsSafeAcceptorPrevTranSpecStutter,
+         DecisionSpecStutter,
+         SafetyStutter
+      DEF FullSafetyInvariant
+<1>3. QED BY <1>1, <1>2
+
+THEOREM SafetyResult == Spec => []Safety
+PROOF BY PTL, FullSafetyInvariantInit, FullSafetyInvariantNext
+      DEF Spec, FullSafetyInvariant
+
 =============================================================================
 \* Modification History
-\* Last modified Mon May 06 02:28:10 CEST 2024 by karbyshev
+\* Last modified Mon May 06 02:57:08 CEST 2024 by karbyshev
 \* Created Tue Jun 20 00:28:26 CEST 2023 by karbyshev
