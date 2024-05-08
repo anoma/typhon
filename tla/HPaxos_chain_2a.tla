@@ -740,7 +740,7 @@ NextTLA ==
     \/ \E acc \in FakeAcceptor :
         FakeAcceptorAction(acc)
 
-THEOREM NextDef == (Next <=> NextTLA)
+THEOREM NextDef == Next <=> NextTLA
 <1>1. ASSUME NEW self \in Proposer
       PROVE proposer(self) <=> ProposerSendAction(self)
       BY DEF proposer, ProposerSendAction, Send1a, Send
