@@ -151,7 +151,7 @@ PrevTran(m) == UNION {PrevTranBound[n][m] : n \in PrevTranDepthRange}
 --algorithm HPaxos2 {
   variables msgs = {},
           known_msgs = [x \in Acceptor \cup Learner |-> {}],
-          recent_msgs = [a \in Acceptor \cup Learner |-> {}],
+          recent_msgs = [a \in Acceptor |-> {}],
           prev_msg = [a \in Acceptor |-> NoMessage],
           decision = [lb \in Learner \X Ballot |-> {}],
           BVal \in [Ballot -> Value];
@@ -372,7 +372,7 @@ PrevTran(m) == UNION {PrevTranBound[n][m] : n \in PrevTranDepthRange}
   }
 
   process (proposer \in Proposer) {
-    proposer: while (TRUE) {
+    propose: while (TRUE) {
       with (b \in Ballot) { ProposerSendAction(b) }
     }
   }
@@ -390,7 +390,7 @@ PrevTran(m) == UNION {PrevTranBound[n][m] : n \in PrevTranDepthRange}
   }
 
   process (learner \in Learner) {
-    learner: while (TRUE) {
+    learn: while (TRUE) {
       either with (m \in msgs) LearnerRecv(m)
       or     with (b \in Ballot, v \in Value) LearnerDecide(b, v)
     }
@@ -405,9 +405,7 @@ PrevTran(m) == UNION {PrevTranBound[n][m] : n \in PrevTranDepthRange}
 }
 
 ****************************************************************************)
-\* BEGIN TRANSLATION (chksum(pcal) = "ba2ddcc6" /\ chksum(tla) = "f7efc146")
-\* Label proposer of process proposer at line 375 col 15 changed to proposer_
-\* Label learner of process learner at line 393 col 14 changed to learner_
+\* BEGIN TRANSLATION (chksum(pcal) = "5a85360d" /\ chksum(tla) = "1053483c")
 VARIABLES msgs, known_msgs, recent_msgs, prev_msg, decision, BVal
 
 (* define statement *)
@@ -541,7 +539,7 @@ ProcSet == (Proposer) \cup (SafeAcceptor) \cup (Learner) \cup (FakeAcceptor)
 Init == (* Global variables *)
         /\ msgs = {}
         /\ known_msgs = [x \in Acceptor \cup Learner |-> {}]
-        /\ recent_msgs = [a \in Acceptor \cup Learner |-> {}]
+        /\ recent_msgs = [a \in Acceptor |-> {}]
         /\ prev_msg = [a \in Acceptor |-> NoMessage]
         /\ decision = [lb \in Learner \X Ballot |-> {}]
         /\ BVal \in [Ballot -> Value]
@@ -742,7 +740,7 @@ NextTLA ==
     \/ \E acc \in FakeAcceptor :
         FakeAcceptorAction(acc)
 
-THEOREM NextDef == (Next <=> NextTLA)
+THEOREM NextDef == Next <=> NextTLA
 <1>1. ASSUME NEW self \in Proposer
       PROVE proposer(self) <=> ProposerSendAction(self)
       BY DEF proposer, ProposerSendAction, Send1a, Send
@@ -797,5 +795,5 @@ UniqueDecision ==
 
 =============================================================================
 \* Modification History
-\* Last modified Wed May 08 14:16:22 CEST 2024 by karbyshev
+\* Last modified Wed May 08 19:03:10 CEST 2024 by karbyshev
 \* Created Mon Jun 19 12:24:03 CEST 2022 by karbyshev

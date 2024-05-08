@@ -971,7 +971,7 @@ OMITTED
 TypeOK ==
     /\ msgs \in SUBSET Message
     /\ known_msgs \in [Acceptor \cup Learner -> SUBSET Message]
-    /\ recent_msgs \in [Acceptor \cup Learner -> SUBSET Message]
+    /\ recent_msgs \in [Acceptor -> SUBSET Message]
     /\ prev_msg \in [Acceptor -> Message \cup {NoMessage}]
     /\ decision \in [Learner \X Ballot -> SUBSET Value]
     /\ BVal \in [Ballot -> Value]
@@ -1084,7 +1084,7 @@ PROOF
                        ref |-> recent_msgs[acc] \cup {m1a}]
   <2> ASSUME WellFormed(new1b) PROVE new1b \in Message
       BY WellFormedMessage
-  <2> recent_msgs' \in [Acceptor \cup Learner -> SUBSET Message]
+  <2> recent_msgs' \in [Acceptor -> SUBSET Message]
     <3> CASE WellFormed(new1b)
         BY Isa DEF TypeOK
     <3> QED BY DEF TypeOK
@@ -1099,7 +1099,7 @@ PROOF
       BY WellFormedMessage, Zenon DEF Send, TypeOK
   <2> known_msgs' \in [Acceptor \cup Learner -> SUBSET Message]
       BY DEF Recv, TypeOK
-  <2> recent_msgs' \in [Acceptor \cup Learner -> SUBSET Message]
+  <2> recent_msgs' \in [Acceptor -> SUBSET Message]
     <3>1. CASE UpToDate(acc, m1b)
       <4> PICK ll \in SUBSET Learner :
           LET new2a == [type |-> "2a", lrn |-> ll, acc |-> acc,
@@ -2652,5 +2652,5 @@ PROOF BY PTL, FullSafetyInvariantInit, FullSafetyInvariantNext, NextDef
 
 =============================================================================
 \* Modification History
-\* Last modified Wed May 08 14:12:02 CEST 2024 by karbyshev
+\* Last modified Wed May 08 18:53:23 CEST 2024 by karbyshev
 \* Created Tue Jun 20 00:28:26 CEST 2023 by karbyshev
