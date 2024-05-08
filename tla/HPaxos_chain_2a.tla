@@ -1,5 +1,5 @@
 -------------------------- MODULE HPaxos_chain_2a ---------------------------
-EXTENDS Naturals, FiniteSets, Functions
+EXTENDS Naturals, FiniteSets, Functions, TLAPS
 
 -----------------------------------------------------------------------------
 CONSTANT LastBallot
@@ -11,7 +11,8 @@ CONSTANT Value
 ASSUME ValueNotEmpty == Value # {}
 
 -----------------------------------------------------------------------------
-CONSTANTS SafeAcceptor,
+CONSTANTS Proposer,
+          SafeAcceptor,
           FakeAcceptor,
           ByzQuorum,
           Learner
@@ -146,14 +147,270 @@ PrevTran(m) == UNION {PrevTranBound[n][m] : n \in PrevTranDepthRange}
 -----------------------------------------------------------------------------
 (* Algorithm specification *)
 
- \* TODO comment
-VARIABLES msgs,
-          known_msgs,
-          recent_msgs,
-          prev_msg,
-          decision,
-          BVal
+(****************************************************************************
+--algorithm HPaxos2 {
+  variables msgs = {},
+          known_msgs = [x \in Acceptor \cup Learner |-> {}],
+          recent_msgs = [a \in Acceptor \cup Learner |-> {}],
+          prev_msg = [a \in Acceptor |-> NoMessage],
+          decision = [lb \in Learner \X Ballot |-> {}],
+          BVal \in [Ballot -> Value];
 
+  define {
+    Get1a(m) ==
+        { x \in Tran(m) :
+            /\ x.type = "1a"
+            /\ \A y \in Tran(m) :
+                y.type = "1a" => y.bal <= x.bal }
+
+    B(m, bal) == \E x \in Get1a(m) : bal = x.bal
+
+    V(m, val) == \E x \in Get1a(m) : val = BVal[x.bal]
+
+    SameBallot(x, y) ==
+        \A b \in Ballot : B(x, b) <=> B(y, b)
+
+    \* Maximal ballot number of any messages known to acceptor a
+    MaxBal(a, mbal) ==
+        /\ \E m \in known_msgs[a] : B(m, mbal)
+        /\ \A x \in known_msgs[a] :
+            \A b \in Ballot : B(x, b) => b =< mbal
+
+    KnownRefs(a, m) == \A r \in m.ref : r \in known_msgs[a]
+
+    \* The acceptor is _caught_ in a message x if the transitive references of x
+    \* include evidence such as two different messages both signed by the acceptor,
+    \* which have equal previous messges.
+    CaughtMsg(x) ==
+        { m \in Tran(x) :
+            /\ m.type # "1a"
+            /\ \E m1 \in Tran(x) :
+                /\ m1.type # "1a"
+                /\ m.acc = m1.acc
+                /\ m # m1
+                /\ m \notin PrevTran(m1)
+                /\ m1 \notin PrevTran(m) }
+
+    Caught(x) == { m.acc : m \in CaughtMsg(x) }
+
+    CaughtMsg0(x) ==
+        { m \in Tran(x) :
+            /\ m.type # "1a"
+            /\ \E m1 \in Tran(x) :
+                /\ m1.type # "1a"
+                /\ m.acc = m1.acc
+                /\ m # m1
+                /\ m.prev = m1.prev }
+
+    Caught0(x) == { m.acc : m \in CaughtMsg0(x) }
+
+    \* Connected
+    ConByQuorum(a, b, x, S) == \* a : Learner, b : Learner, x : 1b, S \in ByzQuorum
+        /\ [from |-> a, to |-> b, q |-> S] \in TrustSafe
+        /\ S \cap Caught(x) = {}
+
+    Con(a, x) == \* a : Learner, x : 1b
+        { b \in Learner :
+            \E S \in ByzQuorum : ConByQuorum(a, b, x, S) }
+
+    \* 2a-message is _buried_ if there exists a quorum of acceptors that have seen
+    \* 2a-messages with different values, the same learner, and higher ballot
+    \* numbers.
+    Buried(a, x, y) == \* x : 2a, y : 1b
+        LET Q == { m \in Tran(y) :
+                    \E z \in Tran(m) :
+                        /\ z.type = "2a"
+                        /\ a \in z.lrn
+                        /\ \A bx, bz \in Ballot :
+                            B(x, bx) /\ B(z, bz) => bx < bz
+                        /\ \A vx, vz \in Value :
+                            V(x, vx) /\ V(z, vz) => vx # vz }
+        IN [lr |-> a, q |-> { m.acc : m \in Q }] \in TrustLive
+
+    \* Connected 2a messages and learners
+    Con2as(l, x) == \* l : Learner, x : 1b
+        { m \in Tran(x) :
+            /\ m.type = "2a"
+            /\ m.acc = x.acc
+            /\ \E a \in Learner :
+                /\ a \in m.lrn
+                /\ ~Buried(a, m, x)
+                /\ a \in Con(l, x) }
+
+    \* Fresh 1b messages
+    Fresh(l, x) == \* l : Learner, x : 1b
+        \A m \in Con2as(l, x) : \A v \in Value : V(x, v) <=> V(m, v)
+
+    \* Quorum of messages referenced by 2a for a learner instance
+    q(l, x) == \* x : 2a
+        LET Q == { m \in Tran(x) :
+                    /\ m.type = "1b"
+                    /\ Fresh(l, m)
+                    /\ \A b \in Ballot : B(m, b) <=> B(x, b) }
+        IN { m.acc : m \in Q }
+
+    UpToDate(a, m) ==
+        \A mb, b \in Ballot : MaxBal(a, mb) /\ B(m, b) => mb <= b
+
+    ChainRef(m) == \A r \in m.ref : r.acc = m.acc <=> r = m.prev
+
+    WellFormed(m) ==
+        /\ m \in Message
+        /\ \E b \in Ballot : B(m, b) \* TODO prove it
+        /\ ChainRef(m)
+        /\ m.type = "1b" =>
+            /\ m.ref # {}
+            /\ (m.prev = NoMessage \/ m.prev \in m.ref)
+            /\ \A y \in Tran(m) :
+                m # y /\ SameBallot(m, y) => y.type = "1a"
+        /\ m.type = "2a" =>
+            /\ m.ref # {}
+            /\ (m.prev = NoMessage \/ m.prev \in m.ref)
+            /\ m.lrn = { l \in Learner : [lr |-> l, q |-> q(l, m)] \in TrustLive }
+
+    Known2a(l, b, v) ==
+        { x \in known_msgs[l] :
+            /\ x.type = "2a"
+            /\ l \in x.lrn
+            /\ B(x, b)
+            /\ V(x, v) }
+
+    ChosenIn(l, b, v) ==
+        \E S \in SUBSET Known2a(l, b, v) :
+            [lr |-> l, q |-> { m.acc : m \in S }] \in TrustLive
+  }
+
+  macro Send(m) { msgs := msgs \cup {m} }
+
+  macro Send1a(b) {
+    Send([type |-> "1a", bal |-> b, prev |-> NoMessage, ref |-> {}])
+  }
+
+  macro Recv(m) {
+    when /\ m \notin known_msgs[self]
+         /\ KnownRefs(self, m) ;
+    known_msgs[self] := known_msgs[self] \cup {m}
+  }
+
+  macro ProposerSendAction(b) { Send1a(b) }
+
+  macro Process1a(m) {
+    when m.type = "1a" ;
+    with (new1b = [type |-> "1b",
+                   acc |-> self,
+                   prev |-> prev_msg[self],
+                   ref |-> recent_msgs[self] \cup {m}])
+    {
+      either {
+        when WellFormed(new1b) ;
+        prev_msg[self] := new1b ;
+        recent_msgs[self] := {new1b} ;
+        Send(new1b)
+      }
+      or {
+        when ~WellFormed(new1b) ;
+        recent_msgs[self] := recent_msgs[self] \cup {m}
+      }
+    }
+  }
+
+  macro Process1b(m) {
+    when m.type = "1b" ;
+    either {
+      when UpToDate(self, m) ;
+      with (LL \in SUBSET Learner,
+            new2a = [type |-> "2a",
+                     lrn |-> LL,
+                     acc |-> self,
+                     prev |-> prev_msg[self],
+                     ref |-> recent_msgs[self] \cup {m}])
+      {
+        when WellFormed(new2a) ;
+        prev_msg[self] := new2a ;
+        recent_msgs[self] := {new2a} ;
+        Send(new2a)
+      }
+    }
+    or {
+      when ~UpToDate(self, m) ;
+      recent_msgs[self] := recent_msgs[self] \cup {m}
+    }
+  }
+
+  macro Process2a(m) {
+    when m.type = "2a" ;
+    recent_msgs[self] := recent_msgs[self] \cup {m}
+  }
+
+  macro FakeSend1b() {
+    with (fin \in FINSUBSET(msgs, RefCardinality),
+          new1b = [type |-> "1b", acc |-> self, ref |-> fin])
+    {
+      when WellFormed(new1b) ;
+      Send(new1b)
+    }
+  }
+
+  macro FakeSend2a() {
+    with (fin \in FINSUBSET(msgs, RefCardinality),
+          LL \in SUBSET Learner,
+          new2a = [type |-> "2a", lrn |-> LL, acc |-> self, ref |-> fin])
+    {
+      when WellFormed(new2a) ;
+      Send(new2a)
+    }
+  }
+
+  macro LearnerRecv(m) {
+    when WellFormed(m) ;
+    Recv(m)
+  }
+
+  macro LearnerDecide(b, v) {
+    when ChosenIn(self, b, v) ;
+    decision[<<self, b>>] := decision[self, b] \cup {v}
+  }
+
+  process (proposer \in Proposer) {
+    proposer: while (TRUE) {
+      with (b \in Ballot) { ProposerSendAction(b) }
+    }
+  }
+
+  process (safe_acceptor \in SafeAcceptor) {
+    safe: while (TRUE) {
+      with (m \in msgs) {
+        Recv(m) ;
+        when WellFormed(m) ;
+        either Process1a(m)
+        or     Process1b(m)
+        or     Process2a(m)
+      }
+    }
+  }
+
+  process (learner \in Learner) {
+    learner: while (TRUE) {
+      either with (m \in msgs) LearnerRecv(m)
+      or     with (b \in Ballot, v \in Value) LearnerDecide(b, v)
+    }
+  }
+
+  process (fake_acceptor \in FakeAcceptor) {
+    fake: while (TRUE) {
+      either FakeSend1b()
+      or     FakeSend2a()
+    }
+  }
+}
+
+****************************************************************************)
+\* BEGIN TRANSLATION (chksum(pcal) = "ba2ddcc6" /\ chksum(tla) = "f7efc146")
+\* Label proposer of process proposer at line 375 col 15 changed to proposer_
+\* Label learner of process learner at line 393 col 14 changed to learner_
+VARIABLES msgs, known_msgs, recent_msgs, prev_msg, decision, BVal
+
+(* define statement *)
 Get1a(m) ==
     { x \in Tran(m) :
         /\ x.type = "1a"
@@ -164,18 +421,20 @@ B(m, bal) == \E x \in Get1a(m) : bal = x.bal
 
 V(m, val) == \E x \in Get1a(m) : val = BVal[x.bal]
 
-\* Maximal ballot number of any messages known to acceptor a
+SameBallot(x, y) ==
+    \A b \in Ballot : B(x, b) <=> B(y, b)
+
+
 MaxBal(a, mbal) ==
     /\ \E m \in known_msgs[a] : B(m, mbal)
     /\ \A x \in known_msgs[a] :
         \A b \in Ballot : B(x, b) => b =< mbal
 
-SameBallot(x, y) ==
-    \A b \in Ballot : B(x, b) <=> B(y, b)
+KnownRefs(a, m) == \A r \in m.ref : r \in known_msgs[a]
 
-\* The acceptor is _caught_ in a message x if the transitive references of x
-\* include evidence such as two different messages both signed by the acceptor,
-\* which have equal previous messges.
+
+
+
 CaughtMsg(x) ==
     { m \in Tran(x) :
         /\ m.type # "1a"
@@ -199,19 +458,19 @@ CaughtMsg0(x) ==
 
 Caught0(x) == { m.acc : m \in CaughtMsg0(x) }
 
-\* Connected
-ConByQuorum(a, b, x, S) == \* a : Learner, b : Learner, x : 1b, S \in ByzQuorum
+
+ConByQuorum(a, b, x, S) ==
     /\ [from |-> a, to |-> b, q |-> S] \in TrustSafe
     /\ S \cap Caught(x) = {}
 
-Con(a, x) == \* a : Learner, x : 1b
+Con(a, x) ==
     { b \in Learner :
         \E S \in ByzQuorum : ConByQuorum(a, b, x, S) }
 
-\* 2a-message is _buried_ if there exists a quorum of acceptors that have seen
-\* 2a-messages with different values, the same learner, and higher ballot
-\* numbers.
-Buried(a, x, y) == \* x : 2a, y : 1b
+
+
+
+Buried(a, x, y) ==
     LET Q == { m \in Tran(y) :
                 \E z \in Tran(m) :
                     /\ z.type = "2a"
@@ -222,8 +481,8 @@ Buried(a, x, y) == \* x : 2a, y : 1b
                         V(x, vx) /\ V(z, vz) => vx # vz }
     IN [lr |-> a, q |-> { m.acc : m \in Q }] \in TrustLive
 
-\* Connected 2a messages and learners
-Con2as(l, x) == \* l : Learner, x : 1b
+
+Con2as(l, x) ==
     { m \in Tran(x) :
         /\ m.type = "2a"
         /\ m.acc = x.acc
@@ -232,23 +491,26 @@ Con2as(l, x) == \* l : Learner, x : 1b
             /\ ~Buried(a, m, x)
             /\ a \in Con(l, x) }
 
-\* Fresh 1b messages
-Fresh(l, x) == \* l : Learner, x : 1b
+
+Fresh(l, x) ==
     \A m \in Con2as(l, x) : \A v \in Value : V(x, v) <=> V(m, v)
 
-\* Quorum of messages referenced by 2a for a learner instance
-q(l, x) == \* x : 2a
+
+q(l, x) ==
     LET Q == { m \in Tran(x) :
                 /\ m.type = "1b"
                 /\ Fresh(l, m)
                 /\ \A b \in Ballot : B(m, b) <=> B(x, b) }
     IN { m.acc : m \in Q }
 
+UpToDate(a, m) ==
+    \A mb, b \in Ballot : MaxBal(a, mb) /\ B(m, b) => mb <= b
+
 ChainRef(m) == \A r \in m.ref : r.acc = m.acc <=> r = m.prev
 
 WellFormed(m) ==
     /\ m \in Message
-    /\ \E b \in Ballot : B(m, b) \* TODO prove it
+    /\ \E b \in Ballot : B(m, b)
     /\ ChainRef(m)
     /\ m.type = "1b" =>
         /\ m.ref # {}
@@ -260,23 +522,111 @@ WellFormed(m) ==
         /\ (m.prev = NoMessage \/ m.prev \in m.ref)
         /\ m.lrn = { l \in Learner : [lr |-> l, q |-> q(l, m)] \in TrustLive }
 
+Known2a(l, b, v) ==
+    { x \in known_msgs[l] :
+        /\ x.type = "2a"
+        /\ l \in x.lrn
+        /\ B(x, b)
+        /\ V(x, v) }
+
+ChosenIn(l, b, v) ==
+    \E S \in SUBSET Known2a(l, b, v) :
+        [lr |-> l, q |-> { m.acc : m \in S }] \in TrustLive
+
+
 vars == << msgs, known_msgs, recent_msgs, prev_msg, decision, BVal >>
 
-Init ==
-    /\ msgs = {}
-    /\ known_msgs = [x \in Acceptor \cup Learner |-> {}]
-    /\ recent_msgs = [a \in Acceptor \cup Learner |-> {}]
-    /\ prev_msg = [a \in Acceptor |-> NoMessage]
-    /\ decision = [lb \in Learner \X Ballot |-> {}]
-    /\ BVal \in [Ballot -> Value]
+ProcSet == (Proposer) \cup (SafeAcceptor) \cup (Learner) \cup (FakeAcceptor)
+
+Init == (* Global variables *)
+        /\ msgs = {}
+        /\ known_msgs = [x \in Acceptor \cup Learner |-> {}]
+        /\ recent_msgs = [a \in Acceptor \cup Learner |-> {}]
+        /\ prev_msg = [a \in Acceptor |-> NoMessage]
+        /\ decision = [lb \in Learner \X Ballot |-> {}]
+        /\ BVal \in [Ballot -> Value]
+
+proposer(self) == /\ \E b \in Ballot:
+                       msgs' = (msgs \cup {([type |-> "1a", bal |-> b, prev |-> NoMessage, ref |-> {}])})
+                  /\ UNCHANGED << known_msgs, recent_msgs, prev_msg, decision, 
+                                  BVal >>
+
+safe_acceptor(self) == /\ \E m \in msgs:
+                            /\ /\ m \notin known_msgs[self]
+                               /\ KnownRefs(self, m)
+                            /\ known_msgs' = [known_msgs EXCEPT ![self] = known_msgs[self] \cup {m}]
+                            /\ WellFormed(m)
+                            /\ \/ /\ m.type = "1a"
+                                  /\ LET new1b == [type |-> "1b",
+                                                   acc |-> self,
+                                                   prev |-> prev_msg[self],
+                                                   ref |-> recent_msgs[self] \cup {m}] IN
+                                       \/ /\ WellFormed(new1b)
+                                          /\ prev_msg' = [prev_msg EXCEPT ![self] = new1b]
+                                          /\ recent_msgs' = [recent_msgs EXCEPT ![self] = {new1b}]
+                                          /\ msgs' = (msgs \cup {new1b})
+                                       \/ /\ ~WellFormed(new1b)
+                                          /\ recent_msgs' = [recent_msgs EXCEPT ![self] = recent_msgs[self] \cup {m}]
+                                          /\ UNCHANGED <<msgs, prev_msg>>
+                               \/ /\ m.type = "1b"
+                                  /\ \/ /\ UpToDate(self, m)
+                                        /\ \E LL \in SUBSET Learner:
+                                             LET new2a == [type |-> "2a",
+                                                           lrn |-> LL,
+                                                           acc |-> self,
+                                                           prev |-> prev_msg[self],
+                                                           ref |-> recent_msgs[self] \cup {m}] IN
+                                               /\ WellFormed(new2a)
+                                               /\ prev_msg' = [prev_msg EXCEPT ![self] = new2a]
+                                               /\ recent_msgs' = [recent_msgs EXCEPT ![self] = {new2a}]
+                                               /\ msgs' = (msgs \cup {new2a})
+                                     \/ /\ ~UpToDate(self, m)
+                                        /\ recent_msgs' = [recent_msgs EXCEPT ![self] = recent_msgs[self] \cup {m}]
+                                        /\ UNCHANGED <<msgs, prev_msg>>
+                               \/ /\ m.type = "2a"
+                                  /\ recent_msgs' = [recent_msgs EXCEPT ![self] = recent_msgs[self] \cup {m}]
+                                  /\ UNCHANGED <<msgs, prev_msg>>
+                       /\ UNCHANGED << decision, BVal >>
+
+learner(self) == /\ \/ /\ \E m \in msgs:
+                            /\ WellFormed(m)
+                            /\ /\ m \notin known_msgs[self]
+                               /\ KnownRefs(self, m)
+                            /\ known_msgs' = [known_msgs EXCEPT ![self] = known_msgs[self] \cup {m}]
+                       /\ UNCHANGED decision
+                    \/ /\ \E b \in Ballot:
+                            \E v \in Value:
+                              /\ ChosenIn(self, b, v)
+                              /\ decision' = [decision EXCEPT ![<<self, b>>] = decision[self, b] \cup {v}]
+                       /\ UNCHANGED known_msgs
+                 /\ UNCHANGED << msgs, recent_msgs, prev_msg, BVal >>
+
+fake_acceptor(self) == /\ \/ /\ \E fin \in FINSUBSET(msgs, RefCardinality):
+                                  LET new1b == [type |-> "1b", acc |-> self, ref |-> fin] IN
+                                    /\ WellFormed(new1b)
+                                    /\ msgs' = (msgs \cup {new1b})
+                          \/ /\ \E fin \in FINSUBSET(msgs, RefCardinality):
+                                  \E LL \in SUBSET Learner:
+                                    LET new2a == [type |-> "2a", lrn |-> LL, acc |-> self, ref |-> fin] IN
+                                      /\ WellFormed(new2a)
+                                      /\ msgs' = (msgs \cup {new2a})
+                       /\ UNCHANGED << known_msgs, recent_msgs, prev_msg, 
+                                       decision, BVal >>
+
+Next == (\E self \in Proposer: proposer(self))
+           \/ (\E self \in SafeAcceptor: safe_acceptor(self))
+           \/ (\E self \in Learner: learner(self))
+           \/ (\E self \in FakeAcceptor: fake_acceptor(self))
+
+Spec == Init /\ [][Next]_vars
+
+\* END TRANSLATION 
 
 Send(m) == msgs' = msgs \cup {m}
 
-Proper(a, m) == \A r \in m.ref : r \in known_msgs[a]
-
 Recv(a, m) ==
     /\ m \notin known_msgs[a] \* ignore known messages
-    /\ Proper(a, m)
+    /\ KnownRefs(a, m)
     /\ known_msgs' = [known_msgs EXCEPT ![a] = known_msgs[a] \cup {m}]
 
 Send1a(b) ==
@@ -284,13 +634,6 @@ Send1a(b) ==
     /\ UNCHANGED << known_msgs, recent_msgs, prev_msg >>
     /\ UNCHANGED decision
     /\ UNCHANGED BVal
-
-Known2a(l, b, v) ==
-    { x \in known_msgs[l] :
-        /\ x.type = "2a"
-        /\ l \in x.lrn
-        /\ B(x, b)
-        /\ V(x, v) }
 
 Process1a(a, m) ==
     LET new1b == [type |-> "1b", acc |-> a,
@@ -308,9 +651,6 @@ Process1a(a, m) ==
         /\ UNCHANGED << msgs, prev_msg >>
     /\ UNCHANGED decision
     /\ UNCHANGED BVal
-
-UpToDate(a, m) ==
-    \A mb, b \in Ballot : MaxBal(a, mb) /\ B(m, b) => mb <= b
 
 Process1b(a, m) ==
     /\ m.type = "1b"
@@ -340,11 +680,10 @@ Process2a(a, m) ==
     /\ UNCHANGED decision
     /\ UNCHANGED BVal
 
-ProposerSendAction ==
+ProposerSendAction(p) ==
     \E bal \in Ballot : Send1a(bal)
 
-AcceptorProcessAction ==
-    \E a \in SafeAcceptor :
+AcceptorProcessAction(a) ==
         \E m \in msgs :
             \/ Process1a(a, m)
             \/ Process1b(a, m)
@@ -376,36 +715,47 @@ LearnerRecv(l, m) ==
     /\ UNCHANGED decision
     /\ UNCHANGED BVal
 
-ChosenIn(l, b, v) ==
-    \E S \in SUBSET Known2a(l, b, v) :
-        [lr |-> l, q |-> { m.acc : m \in S }] \in TrustLive
-
 LearnerDecide(l, b, v) ==
     /\ ChosenIn(l, b, v)
     /\ decision' = [decision EXCEPT ![<<l, b>>] = decision[l, b] \cup {v}]
     /\ UNCHANGED << msgs, known_msgs, recent_msgs, prev_msg >>
     /\ UNCHANGED BVal
 
-LearnerAction ==
-    \E lrn \in Learner :
-        \/ \E m \in msgs :
-            LearnerRecv(lrn, m)
-        \/ \E bal \in Ballot :
-           \E val \in Value :
+LearnerAction(lrn) ==
+    \/ \E m \in msgs :
+        LearnerRecv(lrn, m)
+    \/ \E bal \in Ballot :
+        \E val \in Value :
             LearnerDecide(lrn, bal, val)
 
-FakeAcceptorAction ==
-    \E a \in FakeAcceptor :
-        \/ FakeSend1b(a)
-        \/ FakeSend2a(a)
+FakeAcceptorAction(a) ==
+    \/ FakeSend1b(a)
+    \/ FakeSend2a(a)
 
-Next ==
-    \/ ProposerSendAction
-    \/ AcceptorProcessAction
-    \/ LearnerAction
-    \/ FakeAcceptorAction
+NextTLA ==
+    \/ \E p \in Proposer :
+        ProposerSendAction(p)
+    \/ \E acc \in SafeAcceptor :
+        AcceptorProcessAction(acc)
+    \/ \E lrn \in Learner :
+        LearnerAction(lrn)
+    \/ \E acc \in FakeAcceptor :
+        FakeAcceptorAction(acc)
 
-Spec == Init /\ [][Next]_vars
+THEOREM NextDef == (Next <=> NextTLA)
+<1>1. ASSUME NEW self \in Proposer
+      PROVE proposer(self) <=> ProposerSendAction(self)
+      BY DEF proposer, ProposerSendAction, Send1a, Send
+<1>2. ASSUME NEW self \in SafeAcceptor
+      PROVE safe_acceptor(self) <=> AcceptorProcessAction(self)
+      BY Zenon DEF safe_acceptor, AcceptorProcessAction, Process1a, Process1b, Process2a, Recv, Send
+<1>3. ASSUME NEW self \in Learner
+      PROVE learner(self) <=> LearnerAction(self)
+      BY Zenon DEF learner, LearnerAction, LearnerRecv, LearnerDecide, Recv
+<1>4. ASSUME NEW self \in FakeAcceptor
+      PROVE fake_acceptor(self) <=> FakeAcceptorAction(self)
+      BY Zenon DEF fake_acceptor, FakeAcceptorAction, FakeSend1b, FakeSend2a, Send
+<1>5. QED BY <1>1, <1>2, <1>3, <1>4 DEF Next, NextTLA
 
 -----------------------------------------------------------------------------
 Safety ==
@@ -447,5 +797,5 @@ UniqueDecision ==
 
 =============================================================================
 \* Modification History
-\* Last modified Mon May 06 15:42:52 CEST 2024 by karbyshev
+\* Last modified Wed May 08 14:16:22 CEST 2024 by karbyshev
 \* Created Mon Jun 19 12:24:03 CEST 2022 by karbyshev
