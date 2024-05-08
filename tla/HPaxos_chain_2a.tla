@@ -372,7 +372,7 @@ PrevTran(m) == UNION {PrevTranBound[n][m] : n \in PrevTranDepthRange}
   }
 
   process (proposer \in Proposer) {
-    proposer: while (TRUE) {
+    propose: while (TRUE) {
       with (b \in Ballot) { ProposerSendAction(b) }
     }
   }
@@ -390,7 +390,7 @@ PrevTran(m) == UNION {PrevTranBound[n][m] : n \in PrevTranDepthRange}
   }
 
   process (learner \in Learner) {
-    learner: while (TRUE) {
+    learn: while (TRUE) {
       either with (m \in msgs) LearnerRecv(m)
       or     with (b \in Ballot, v \in Value) LearnerDecide(b, v)
     }
