@@ -1439,7 +1439,7 @@ PROOF
         OBVIOUS
     <3> CASE acc # A
         BY NoMessageIsNotAMessage DEF SentBy, Send, TypeOK
-    <3> QED BY Zenon, NoMessageIsNotAMessage DEF UpToDate, SentBy, Send, TypeOK
+    <3> QED BY Zenon, NoMessageIsNotAMessage DEF SentBy, Send, TypeOK
   <2> CASE ~UpToDate(acc, m1b)
       BY DEF SentBy
   <2> QED OBVIOUS
@@ -2652,5 +2652,5 @@ PROOF BY PTL, FullSafetyInvariantInit, FullSafetyInvariantNext, NextDef
 
 =============================================================================
 \* Modification History
-\* Last modified Fri May 10 21:02:28 CEST 2024 by karbyshev
+\* Last modified Fri May 10 21:14:32 CEST 2024 by karbyshev
 \* Created Tue Jun 20 00:28:26 CEST 2023 by karbyshev
