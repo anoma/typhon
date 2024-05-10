@@ -1304,7 +1304,7 @@ PROOF
     <3> recent_msgs' = [recent_msgs EXCEPT ![acc] =
                             recent_msgs[acc] \cup {m1b}]
         BY DEF TypeOK
-    <3> QED BY Zenon DEF UpToDate, RecentMsgsSpec1, Recv, Send, SentBy, TypeOK
+    <3> QED BY Zenon DEF RecentMsgsSpec1, Recv, Send, SentBy, TypeOK
   <2> CASE UpToDate(acc, m1b)
     <3> PICK ll \in SUBSET Learner :
         LET new2a == [type |-> "2a", lrn |-> ll, acc |-> acc,
@@ -1312,7 +1312,7 @@ PROOF
                       ref |-> recent_msgs[acc] \cup {m1b}] IN
         recent_msgs' = [recent_msgs EXCEPT ![acc] = {new2a}]
         <4> QED BY Zenon DEF TypeOK
-    <3> QED BY Zenon DEF UpToDate, RecentMsgsSpec1, Recv, Send, SentBy, TypeOK
+    <3> QED BY Zenon DEF RecentMsgsSpec1, Recv, Send, SentBy, TypeOK
   <2> QED OBVIOUS
 <1>4. CASE \E a \in SafeAcceptor : \E m \in msgs : Process2a(a, m)
   <2> PICK acc \in SafeAcceptor, m2a \in msgs : Process2a(acc, m2a)
@@ -1438,10 +1438,10 @@ PROOF
     <3> new2a.acc = acc
         OBVIOUS
     <3> CASE acc # A
-        BY NoMessageIsNotAMessage DEF UpToDate, SentBy, Send, TypeOK
+        BY NoMessageIsNotAMessage DEF SentBy, Send, TypeOK
     <3> QED BY Zenon, NoMessageIsNotAMessage DEF UpToDate, SentBy, Send, TypeOK
   <2> CASE ~UpToDate(acc, m1b)
-    <3> QED BY DEF UpToDate, SentBy
+      BY DEF SentBy
   <2> QED OBVIOUS
 <1>4. CASE \E a \in SafeAcceptor : \E m \in msgs : Process2a(a, m)
   <2> PICK acc \in SafeAcceptor, msg \in msgs : Process2a(acc, msg)
@@ -1565,7 +1565,7 @@ PROOF
       <4> HIDE DEF new2a
       <4> QED BY PrevTran_trans, PrevTran_refl DEF SafeAcceptorPrevSpec1      
     <3> CASE acc # A
-        BY DEF UpToDate, SentBy, Send
+        BY DEF SentBy, Send
     <3> QED OBVIOUS
   <2> QED BY <2>1, <2>2 DEF Process1b, Send, SentBy
 <1>4. CASE \E a \in SafeAcceptor :
@@ -2652,5 +2652,5 @@ PROOF BY PTL, FullSafetyInvariantInit, FullSafetyInvariantNext, NextDef
 
 =============================================================================
 \* Modification History
-\* Last modified Wed May 08 18:53:23 CEST 2024 by karbyshev
+\* Last modified Fri May 10 21:02:28 CEST 2024 by karbyshev
 \* Created Tue Jun 20 00:28:26 CEST 2023 by karbyshev
