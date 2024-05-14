@@ -150,11 +150,11 @@ PrevTran(m) == UNION {PrevTranBound[n][m] : n \in PrevTranDepthRange}
 (****************************************************************************
 --algorithm HPaxos2 {
   variables msgs = {},
-          known_msgs = [x \in Acceptor \cup Learner |-> {}],
-          recent_msgs = [a \in Acceptor |-> {}],
-          prev_msg = [a \in Acceptor |-> NoMessage],
-          decision = [lb \in Learner \X Ballot |-> {}],
-          BVal \in [Ballot -> Value];
+            known_msgs = [x \in Acceptor \cup Learner |-> {}],
+            recent_msgs = [a \in Acceptor |-> {}],
+            prev_msg = [a \in Acceptor |-> NoMessage],
+            decision = [lb \in Learner \X Ballot |-> {}],
+            BVal \in [Ballot -> Value];
 
   define {
     Get1a(m) ==
