@@ -1,5 +1,148 @@
 -------------------------- MODULE HPaxos_chain_2a ---------------------------
-EXTENDS HQuorum, HLearnerGraph, HMessage, TLAPS
+EXTENDS Naturals, FiniteSets, Functions, TLAPS
+
+-----------------------------------------------------------------------------
+CONSTANT LastBallot
+ASSUME LastBallot \in Nat
+
+Ballot == Nat
+
+CONSTANT Value
+ASSUME ValueNotEmpty == Value # {}
+
+-----------------------------------------------------------------------------
+CONSTANTS Proposer,
+          SafeAcceptor,
+          FakeAcceptor,
+          ByzQuorum,
+          Learner
+
+Acceptor == SafeAcceptor \cup FakeAcceptor
+
+ASSUME AcceptorAssumption ==
+    /\ SafeAcceptor \cap FakeAcceptor = {}
+\*    /\ Acceptor \cap Learner = {}
+
+ASSUME BQAssumption ==
+    /\ SafeAcceptor \in ByzQuorum
+    /\ \A Q \in ByzQuorum : Q \subseteq Acceptor
+
+-----------------------------------------------------------------------------
+(* Learner graph *)
+
+CONSTANT TrustLive
+ASSUME TrustLiveAssumption ==
+    TrustLive \in SUBSET [lr : Learner, q : ByzQuorum]
+
+CONSTANT TrustSafe
+ASSUME TrustSafeAssumption ==
+    TrustSafe \in SUBSET [from : Learner, to : Learner, q : ByzQuorum]
+
+ASSUME LearnerGraphAssumptionSymmetry ==
+    \A E \in TrustSafe :
+        [from |-> E.to, to |-> E.from, q |-> E.q] \in TrustSafe
+
+ASSUME LearnerGraphAssumptionTransitivity ==
+    \A E1, E2 \in TrustSafe :
+        E1.q = E2.q /\ E1.to = E2.from =>
+        [from |-> E1.from, to |-> E2.to, q |-> E1.q] \in TrustSafe
+
+ASSUME LearnerGraphAssumptionClosure ==
+    \A E \in TrustSafe : \A Q \in ByzQuorum :
+        E.q \subseteq Q =>
+        [from |-> E.from, to |-> E.to, q |-> Q] \in TrustSafe
+
+ASSUME LearnerGraphAssumptionValidity ==
+    \A E \in TrustSafe : \A Q1, Q2 \in ByzQuorum :
+        [lr |-> E.from, q |-> Q1] \in TrustLive /\
+        [lr |-> E.to, q |-> Q2] \in TrustLive =>
+        \E N \in E.q : N \in Q1 /\ N \in Q2
+
+(* Entanglement relation *)
+Ent == { LL \in Learner \X Learner :
+         [from |-> LL[1], to |-> LL[2], q |-> SafeAcceptor] \in TrustSafe }
+
+-----------------------------------------------------------------------------
+(* Messages *)
+
+CONSTANT MaxRefCardinality
+ASSUME MaxRefCardinalityAssumption ==
+    /\ MaxRefCardinality \in Nat
+    /\ MaxRefCardinality >= 1
+
+\*RefCardinality == Nat
+RefCardinality == 1..MaxRefCardinality
+
+FINSUBSET(S, R) == { Range(seq) : seq \in [R -> S] }
+\*FINSUBSET(S, K) == { Range(seq) : seq \in [1..K -> S] }
+\*FINSUBSET(S, R) == UNION { {Range(seq) : seq \in [1..K -> S]} : K \in R }
+
+-----------------------------------------------------------------------------
+(* Non-message value *)
+NoMessage == [ type |-> "null" ]
+
+MessageRec0 ==
+    [ type : {"1a"}, bal : Ballot, prev : {NoMessage}, ref : {{}} ]
+
+MessageRec1(M, n) ==
+    M \cup
+    [ type : {"1b"},
+      acc : Acceptor,
+      prev : M \cup {NoMessage},
+      ref : FINSUBSET(M, RefCardinality) ] \cup
+    [ type : {"2a"},
+      lrn : SUBSET Learner,
+      acc : Acceptor,
+      prev : M \cup {NoMessage},
+      ref : FINSUBSET(M, RefCardinality) ]
+
+MessageRec[n \in Nat] ==
+    IF n = 0
+    THEN MessageRec0
+    ELSE MessageRec1(MessageRec[n-1], n)
+
+CONSTANT MaxMessageDepth
+ASSUME MaxMessageDepth \in Nat
+
+MessageDepthRange == Nat
+
+Message == UNION { MessageRec[n] : n \in MessageDepthRange }
+
+-----------------------------------------------------------------------------
+(* Transitive references *)
+
+\* Bounded transitive references
+TranBound0 == [m \in Message |-> {m}]
+TranBound1(tr, n) ==
+    [m \in Message |-> {m} \cup UNION {tr[r] : r \in m.ref}]
+
+TranBound[n \in Nat] ==
+    IF n = 0
+    THEN TranBound0
+    ELSE TranBound1(TranBound[n-1], n)
+
+\* Countable transitive references
+TranDepthRange == MessageDepthRange
+
+Tran(m) == UNION {TranBound[n][m] : n \in TranDepthRange}
+
+-----------------------------------------------------------------------------
+(* Transitive references of prev *)
+
+\* Bounded transitive references of prev
+PrevTranBound0 == [m \in Message |-> {m}]
+PrevTranBound1(tr, n) ==
+    [m \in Message |-> {m} \cup IF m.prev = NoMessage THEN {} ELSE tr[m.prev]]
+
+PrevTranBound[n \in Nat] ==
+    IF n = 0
+    THEN PrevTranBound0
+    ELSE PrevTranBound1(PrevTranBound[n-1], n)
+
+\* Countable transitive references of prev
+PrevTranDepthRange == MessageDepthRange
+
+PrevTran(m) == UNION {PrevTranBound[n][m] : n \in PrevTranDepthRange}
 
 -----------------------------------------------------------------------------
 (* Algorithm specification *)
@@ -7,11 +150,11 @@ EXTENDS HQuorum, HLearnerGraph, HMessage, TLAPS
 (****************************************************************************
 --algorithm HPaxos2 {
   variables msgs = {},
-            known_msgs = [x \in Acceptor \cup Learner |-> {}],
-            recent_msgs = [a \in Acceptor |-> {}],
-            prev_msg = [a \in Acceptor |-> NoMessage],
-            decision = [lb \in Learner \X Ballot |-> {}],
-            BVal \in [Ballot -> Value];
+          known_msgs = [x \in Acceptor \cup Learner |-> {}],
+          recent_msgs = [a \in Acceptor |-> {}],
+          prev_msg = [a \in Acceptor |-> NoMessage],
+          decision = [lb \in Learner \X Ballot |-> {}],
+          BVal \in [Ballot -> Value];
 
   define {
     Get1a(m) ==
@@ -173,17 +316,24 @@ EXTENDS HQuorum, HLearnerGraph, HMessage, TLAPS
 
   macro Process1b(m) {
     when m.type = "1b" ;
-    with (LL \in SUBSET Learner,
-          new2a = [type |-> "2a",
-                   lrn |-> LL,
-                   acc |-> self,
-                   prev |-> prev_msg[self],
-                   ref |-> recent_msgs[self] \cup {m}])
-    {
-      when WellFormed(new2a) ;
-      prev_msg[self] := new2a ;
-      recent_msgs[self] := {new2a} ;
-      Send(new2a)
+    either {
+      when UpToDate(self, m) ;
+      with (LL \in SUBSET Learner,
+            new2a = [type |-> "2a",
+                     lrn |-> LL,
+                     acc |-> self,
+                     prev |-> prev_msg[self],
+                     ref |-> recent_msgs[self] \cup {m}])
+      {
+        when WellFormed(new2a) ;
+        prev_msg[self] := new2a ;
+        recent_msgs[self] := {new2a} ;
+        Send(new2a)
+      }
+    }
+    or {
+      when ~UpToDate(self, m) ;
+      recent_msgs[self] := recent_msgs[self] \cup {m}
     }
   }
 
@@ -255,7 +405,7 @@ EXTENDS HQuorum, HLearnerGraph, HMessage, TLAPS
 }
 
 ****************************************************************************)
-\* BEGIN TRANSLATION (chksum(pcal) = "185db52c" /\ chksum(tla) = "b1d3e888")
+\* BEGIN TRANSLATION (chksum(pcal) = "5a85360d" /\ chksum(tla) = "1053483c")
 VARIABLES msgs, known_msgs, recent_msgs, prev_msg, decision, BVal
 
 (* define statement *)
@@ -417,16 +567,20 @@ safe_acceptor(self) == /\ \E m \in msgs:
                                           /\ recent_msgs' = [recent_msgs EXCEPT ![self] = recent_msgs[self] \cup {m}]
                                           /\ UNCHANGED <<msgs, prev_msg>>
                                \/ /\ m.type = "1b"
-                                  /\ \E LL \in SUBSET Learner:
-                                       LET new2a == [type |-> "2a",
-                                                     lrn |-> LL,
-                                                     acc |-> self,
-                                                     prev |-> prev_msg[self],
-                                                     ref |-> recent_msgs[self] \cup {m}] IN
-                                         /\ WellFormed(new2a)
-                                         /\ prev_msg' = [prev_msg EXCEPT ![self] = new2a]
-                                         /\ recent_msgs' = [recent_msgs EXCEPT ![self] = {new2a}]
-                                         /\ msgs' = (msgs \cup {new2a})
+                                  /\ \/ /\ UpToDate(self, m)
+                                        /\ \E LL \in SUBSET Learner:
+                                             LET new2a == [type |-> "2a",
+                                                           lrn |-> LL,
+                                                           acc |-> self,
+                                                           prev |-> prev_msg[self],
+                                                           ref |-> recent_msgs[self] \cup {m}] IN
+                                               /\ WellFormed(new2a)
+                                               /\ prev_msg' = [prev_msg EXCEPT ![self] = new2a]
+                                               /\ recent_msgs' = [recent_msgs EXCEPT ![self] = {new2a}]
+                                               /\ msgs' = (msgs \cup {new2a})
+                                     \/ /\ ~UpToDate(self, m)
+                                        /\ recent_msgs' = [recent_msgs EXCEPT ![self] = recent_msgs[self] \cup {m}]
+                                        /\ UNCHANGED <<msgs, prev_msg>>
                                \/ /\ m.type = "2a"
                                   /\ recent_msgs' = [recent_msgs EXCEPT ![self] = recent_msgs[self] \cup {m}]
                                   /\ UNCHANGED <<msgs, prev_msg>>
@@ -500,7 +654,8 @@ Process1b(a, m) ==
     /\ m.type = "1b"
     /\ Recv(a, m)
     /\ WellFormed(m)
-    /\ \E LL \in SUBSET Learner :
+    /\ UpToDate(a, m) =>
+        \E LL \in SUBSET Learner :
             LET new2a == [type |-> "2a", lrn |-> LL, acc |-> a,
                           prev |-> prev_msg[a],
                           ref |-> recent_msgs[a] \cup {m}] IN
@@ -508,6 +663,9 @@ Process1b(a, m) ==
             /\ Send(new2a)
             /\ recent_msgs' = [recent_msgs EXCEPT ![a] = {new2a}]
             /\ prev_msg' = [prev_msg EXCEPT ![a] = new2a]
+    /\ (~UpToDate(a, m)) =>
+        /\ recent_msgs' = [recent_msgs EXCEPT ![a] = recent_msgs[a] \cup {m}]
+        /\ UNCHANGED << msgs, prev_msg >>
     /\ UNCHANGED decision
     /\ UNCHANGED BVal
 
@@ -637,5 +795,5 @@ UniqueDecision ==
 
 =============================================================================
 \* Modification History
-\* Last modified Tue May 14 17:04:38 CEST 2024 by karbyshev
+\* Last modified Wed May 08 19:03:10 CEST 2024 by karbyshev
 \* Created Mon Jun 19 12:24:03 CEST 2022 by karbyshev
