@@ -1100,25 +1100,21 @@ PROOF
   <2> known_msgs' \in [Acceptor \cup Learner -> SUBSET Message]
       BY DEF Recv, TypeOK
   <2> recent_msgs' \in [Acceptor -> SUBSET Message]
-    <3>1. CASE UpToDate(acc, m1b)
-      <4> PICK ll \in SUBSET Learner :
-          LET new2a == [type |-> "2a", lrn |-> ll, acc |-> acc,
-                        prev |-> prev_msg[acc],
-                        ref |-> recent_msgs[acc] \cup {m1b}] IN
-            /\ WellFormed(new2a)
-            /\ Send(new2a)
-            /\ recent_msgs' = [recent_msgs EXCEPT ![acc] = {new2a}]
-            /\ prev_msg' = [prev_msg EXCEPT ![acc] = new2a]
-          BY <3>1
-      <4> DEFINE new2a == [type |-> "2a", lrn |-> ll, acc |-> acc,
-                           prev |-> prev_msg[acc],
-                           ref  |-> recent_msgs[acc] \cup {m1b}]
-      <4> new2a \in Message
-          BY WellFormedMessage
-      <4> QED BY DEF TypeOK
-    <3>2. CASE ~UpToDate(acc, m1b)
-        BY <3>2 DEF TypeOK
-    <3> QED BY <3>1, <3>2
+    <4> PICK ll \in SUBSET Learner :
+        LET new2a == [type |-> "2a", lrn |-> ll, acc |-> acc,
+                      prev |-> prev_msg[acc],
+                      ref |-> recent_msgs[acc] \cup {m1b}] IN
+        /\ WellFormed(new2a)
+        /\ Send(new2a)
+        /\ recent_msgs' = [recent_msgs EXCEPT ![acc] = {new2a}]
+        /\ prev_msg' = [prev_msg EXCEPT ![acc] = new2a]
+        BY Zenon
+    <4> DEFINE new2a == [type |-> "2a", lrn |-> ll, acc |-> acc,
+                         prev |-> prev_msg[acc],
+                         ref  |-> recent_msgs[acc] \cup {m1b}]
+    <4> new2a \in Message
+        BY WellFormedMessage
+    <4> QED BY Zenon DEF TypeOK
   <2> QED BY DEF TypeOK, Send
 <1>4. CASE \E a \in SafeAcceptor : \E m \in msgs : Process2a(a, m)
   <2> PICK acc \in SafeAcceptor, msg \in msgs : Process2a(acc, msg)
@@ -1300,20 +1296,13 @@ PROOF
       BY <1>3
   <2> USE DEF Process1b
   <2> m1b \in Message BY DEF TypeOK
-  <2> CASE ~UpToDate(acc, m1b)
-    <3> recent_msgs' = [recent_msgs EXCEPT ![acc] =
-                            recent_msgs[acc] \cup {m1b}]
-        BY DEF TypeOK
-    <3> QED BY Zenon DEF RecentMsgsSpec1, Recv, Send, SentBy, TypeOK
-  <2> CASE UpToDate(acc, m1b)
-    <3> PICK ll \in SUBSET Learner :
-        LET new2a == [type |-> "2a", lrn |-> ll, acc |-> acc,
-                      prev |-> prev_msg[acc],
-                      ref |-> recent_msgs[acc] \cup {m1b}] IN
-        recent_msgs' = [recent_msgs EXCEPT ![acc] = {new2a}]
-        <4> QED BY Zenon DEF TypeOK
-    <3> QED BY Zenon DEF RecentMsgsSpec1, Recv, Send, SentBy, TypeOK
-  <2> QED OBVIOUS
+  <2> PICK ll \in SUBSET Learner :
+      LET new2a == [type |-> "2a", lrn |-> ll, acc |-> acc,
+                    prev |-> prev_msg[acc],
+                    ref |-> recent_msgs[acc] \cup {m1b}] IN
+      recent_msgs' = [recent_msgs EXCEPT ![acc] = {new2a}]
+      BY Zenon DEF TypeOK
+  <2> QED BY Zenon DEF RecentMsgsSpec1, Recv, Send, SentBy, TypeOK
 <1>4. CASE \E a \in SafeAcceptor : \E m \in msgs : Process2a(a, m)
   <2> PICK acc \in SafeAcceptor, m2a \in msgs : Process2a(acc, m2a)
       BY <1>4
@@ -1419,30 +1408,28 @@ PROOF
   <2> PICK acc \in SafeAcceptor, m1b \in msgs : Process1b(acc, m1b)
       BY <1>3
   <2> USE DEF Process1b
-  <2> CASE UpToDate(acc, m1b)
-    <3> PICK ll \in SUBSET Learner :
-          LET new2a == [type |-> "2a", lrn |-> ll, acc |-> acc,
-                        prev |-> prev_msg[acc],
-                        ref |-> recent_msgs[acc] \cup {m1b}] IN
-            /\ WellFormed(new2a)
-            /\ Send(new2a)
-            /\ prev_msg' = [prev_msg EXCEPT ![acc] = new2a]
-        OBVIOUS
-    <3> DEFINE new2a == [type |-> "2a", lrn |-> ll, acc |-> acc,
-                        prev |-> prev_msg[acc],
-                        ref |-> recent_msgs[acc] \cup {m1b}]
-    <3> prev_msg' = [prev_msg EXCEPT ![acc] = new2a]
-        OBVIOUS
-    <3> new2a \in Message BY DEF Send, TypeOK
-    <3> new2a \in msgs' BY DEF Send
-    <3> new2a.acc = acc
-        OBVIOUS
-    <3> CASE acc # A
-        BY NoMessageIsNotAMessage DEF SentBy, Send, TypeOK
-    <3> QED BY Zenon, NoMessageIsNotAMessage DEF SentBy, Send, TypeOK
-  <2> CASE ~UpToDate(acc, m1b)
-      BY DEF SentBy
-  <2> QED OBVIOUS
+  <2> PICK ll \in SUBSET Learner :
+        LET new2a == [type |-> "2a", lrn |-> ll, acc |-> acc,
+                      prev |-> prev_msg[acc],
+                      ref |-> recent_msgs[acc] \cup {m1b}] IN
+          /\ WellFormed(new2a)
+          /\ Send(new2a)
+          /\ prev_msg' = [prev_msg EXCEPT ![acc] = new2a]
+      BY Zenon
+  <2> DEFINE new2a == [type |-> "2a", lrn |-> ll, acc |-> acc,
+                       prev |-> prev_msg[acc],
+                       ref |-> recent_msgs[acc] \cup {m1b}]
+  <2> prev_msg' = [prev_msg EXCEPT ![acc] = new2a]
+      OBVIOUS
+  <2> new2a \in Message
+      BY DEF Send, TypeOK
+  <2> new2a \in msgs'
+      BY DEF Send
+  <2> new2a.acc = acc
+      OBVIOUS
+  <2> CASE acc # A
+      BY NoMessageIsNotAMessage DEF SentBy, Send, TypeOK
+  <2> QED BY Zenon, NoMessageIsNotAMessage DEF SentBy, Send, TypeOK
 <1>4. CASE \E a \in SafeAcceptor : \E m \in msgs : Process2a(a, m)
   <2> PICK acc \in SafeAcceptor, msg \in msgs : Process2a(acc, msg)
       BY <1>4
@@ -1528,22 +1515,19 @@ PROOF
             /\ Process1b(acc, m1b)
       BY <1>3
   <2> USE DEF Process1b
-  <2>1. CASE ~UpToDate(acc, m1b)
-      BY <2>1, Zenon DEF SentBy, TypeOK
-  <2>2. CASE UpToDate(acc, m1b)
-    <3> PICK ll \in SUBSET Learner :
-        LET new2a == [type |-> "2a", lrn |-> ll, acc |-> acc,
-                      prev |-> prev_msg[acc],
-                      ref |-> recent_msgs[acc] \cup {m1b}] IN
-        /\ WellFormed(new2a)
-        /\ Send(new2a)
-        /\ prev_msg' = [prev_msg EXCEPT ![acc] = new2a]
-        /\ recent_msgs' = [recent_msgs EXCEPT ![acc] = {new2a}]
-        BY Zenon, <2>2
-    <3> DEFINE new2a == [type |-> "2a", lrn |-> ll, acc |-> acc,
-                        prev |-> prev_msg[acc],
-                        ref |-> recent_msgs[acc] \cup {m1b}]
-    <3> CASE acc = A
+  <2> PICK ll \in SUBSET Learner :
+      LET new2a == [type |-> "2a", lrn |-> ll, acc |-> acc,
+                    prev |-> prev_msg[acc],
+                    ref |-> recent_msgs[acc] \cup {m1b}] IN
+      /\ WellFormed(new2a)
+      /\ Send(new2a)
+      /\ prev_msg' = [prev_msg EXCEPT ![acc] = new2a]
+      /\ recent_msgs' = [recent_msgs EXCEPT ![acc] = {new2a}]
+      BY Zenon
+  <2> DEFINE new2a == [type |-> "2a", lrn |-> ll, acc |-> acc,
+                       prev |-> prev_msg[acc],
+                       ref |-> recent_msgs[acc] \cup {m1b}]
+  <2> CASE acc = A
       <4> msgs' = msgs \cup {new2a}
           BY DEF Send
       <4> new2a \in Message
@@ -1564,10 +1548,9 @@ PROOF
           BY DEF TypeOK
       <4> HIDE DEF new2a
       <4> QED BY PrevTran_trans, PrevTran_refl DEF SafeAcceptorPrevSpec1      
-    <3> CASE acc # A
-        BY DEF SentBy, Send
-    <3> QED OBVIOUS
-  <2> QED BY <2>1, <2>2 DEF Process1b, Send, SentBy
+  <2> CASE acc # A
+      BY DEF SentBy, Send
+  <2> QED OBVIOUS
 <1>4. CASE \E a \in SafeAcceptor :
             \E m \in msgs : Process2a(a, m)
   <2> PICK acc \in SafeAcceptor, msg \in msgs :
@@ -1654,22 +1637,18 @@ PROOF
       BY <1>3
   <2> USE DEF Process1b
   <2> known_msgs[AL]' \in SUBSET msgs'
-    <3> CASE UpToDate(acc, m1b)
-      <4> PICK ll \in SUBSET Learner :
-          LET new2a == [type |-> "2a", lrn |-> ll, acc |-> acc,
-                        prev |-> prev_msg[acc],
-                        ref |-> recent_msgs[acc] \cup {m1b}] IN
-          /\ WellFormed(new2a)
-          /\ Send(new2a)
-          /\ prev_msg' = [prev_msg EXCEPT ![acc] = new2a]
-          BY Zenon DEF TypeOK
-      <4> DEFINE new2a == [type |-> "2a", lrn |-> ll, acc |-> acc,
-                          prev |-> prev_msg[acc],
-                          ref |-> recent_msgs[acc] \cup {m1b}]
-      <4> QED BY DEF Send, Recv
-    <3> CASE ~UpToDate(acc, m1b)
-        BY DEF Recv
-    <3> QED OBVIOUS
+    <3> PICK ll \in SUBSET Learner :
+        LET new2a == [type |-> "2a", lrn |-> ll, acc |-> acc,
+                      prev |-> prev_msg[acc],
+                      ref |-> recent_msgs[acc] \cup {m1b}] IN
+        /\ WellFormed(new2a)
+        /\ Send(new2a)
+        /\ prev_msg' = [prev_msg EXCEPT ![acc] = new2a]
+        BY Zenon DEF TypeOK
+    <3> DEFINE new2a == [type |-> "2a", lrn |-> ll, acc |-> acc,
+                         prev |-> prev_msg[acc],
+                         ref |-> recent_msgs[acc] \cup {m1b}]
+    <3> QED BY DEF Send, Recv
   <2> KnownRefs(AL, M)'
       BY DEF KnownRefs, Recv
   <2> WellFormed(M)'
@@ -1822,28 +1801,24 @@ PROOF
   <2> PICK acc \in SafeAcceptor, m1b \in msgs : Process1b(acc, m1b)
       BY <1>3
   <2> USE DEF Process1b
-  <2> CASE UpToDate(acc, m1b)
-    <3> PICK ll \in SUBSET Learner :
-        LET new2a == [type |-> "2a", lrn |-> ll, acc |-> acc,
-                      prev |-> prev_msg[acc],
-                      ref |-> recent_msgs[acc] \cup {m1b}] IN
-        /\ WellFormed(new2a)
-        /\ Send(new2a)
-        /\ prev_msg' = [prev_msg EXCEPT ![acc] = new2a]
-        BY Zenon DEF TypeOK
-    <3> DEFINE new2a == [type |-> "2a", lrn |-> ll, acc |-> acc,
-                         prev |-> prev_msg[acc],
-                         ref |-> recent_msgs[acc] \cup {m1b}]
-    <3> m2 = new2a BY DEF Send
-    <3> m2 \in Message BY DEF TypeOK
-    <3> \A m \in SentBy(A) : m \in PrevTran(prev_msg[A])
-        BY DEF SafeAcceptorPrevSpec2
-    <3> prev_msg[A] \in PrevTran(m2)
-        BY Message_prev_PrevTran
-    <3> QED BY PrevTran_trans DEF SentBy
-  <2> CASE ~UpToDate(acc, m1b)
-      BY DEF Send, TypeOK
-  <2> QED OBVIOUS
+  <2> PICK ll \in SUBSET Learner :
+      LET new2a == [type |-> "2a", lrn |-> ll, acc |-> acc,
+                    prev |-> prev_msg[acc],
+                    ref |-> recent_msgs[acc] \cup {m1b}] IN
+      /\ WellFormed(new2a)
+      /\ Send(new2a)
+      /\ prev_msg' = [prev_msg EXCEPT ![acc] = new2a]
+      BY Zenon DEF TypeOK
+  <2> DEFINE new2a == [type |-> "2a", lrn |-> ll, acc |-> acc,
+                       prev |-> prev_msg[acc],
+                       ref |-> recent_msgs[acc] \cup {m1b}]
+  <2> m2 = new2a BY DEF Send
+  <2> m2 \in Message BY DEF TypeOK
+  <2> \A m \in SentBy(A) : m \in PrevTran(prev_msg[A])
+      BY DEF SafeAcceptorPrevSpec2
+  <2> prev_msg[A] \in PrevTran(m2)
+      BY Message_prev_PrevTran
+  <2> QED BY PrevTran_trans DEF SentBy
 <1>4. CASE \E a \in SafeAcceptor : \E m \in msgs : Process2a(a, m)
       BY <1>4 DEF Process2a, Send
 <1>6. CASE \E l \in Learner : LearnerAction(l)
@@ -1921,33 +1896,29 @@ PROOF
   <2> PICK acc \in SafeAcceptor, m1b \in msgs : Process1b(acc, m1b)
       BY <1>3
   <2> USE DEF Process1b
-  <2> CASE UpToDate(acc, m1b)
-    <3> PICK ll \in SUBSET Learner :
-        LET new2a == [type |-> "2a", lrn |-> ll, acc |-> acc,
-                      prev |-> prev_msg[acc],
-                      ref |-> recent_msgs[acc] \cup {m1b}] IN
-        /\ WellFormed(new2a)
-        /\ Send(new2a)
-        /\ prev_msg' = [prev_msg EXCEPT ![acc] = new2a]
-        BY Zenon DEF TypeOK
-    <3> DEFINE new2a == [type |-> "2a", lrn |-> ll, acc |-> acc,
-                         prev |-> prev_msg[acc],
-                         ref |-> recent_msgs[acc] \cup {m1b}]
-    <3> m2 = new2a
-        BY DEF Send, TypeOK
-    <3> acc = A
-        BY DEF Send, SentBy, TypeOK
-    <3> prev_msg[A] \in Message
-        BY DEF TypeOK
-    <3> prev_msg[A] \in m1.ref
-        BY DEF MsgsSafeAcceptorPrevRefSpec, SentBy
-    <3> m1 \notin Tran(prev_msg[A])
-        BY Tran_ref_acyclic
-    <3> m1 \in Tran(prev_msg[A])
-        BY DEF SafeAcceptorPrevSpec2, MsgsSafeAcceptorPrevTranSpec, SentBy
-    <3> QED OBVIOUS
-  <2> CASE ~UpToDate(acc, m1b)
+  <2> PICK ll \in SUBSET Learner :
+      LET new2a == [type |-> "2a", lrn |-> ll, acc |-> acc,
+                    prev |-> prev_msg[acc],
+                    ref |-> recent_msgs[acc] \cup {m1b}] IN
+      /\ WellFormed(new2a)
+      /\ Send(new2a)
+      /\ prev_msg' = [prev_msg EXCEPT ![acc] = new2a]
+      BY Zenon DEF TypeOK
+  <2> DEFINE new2a == [type |-> "2a", lrn |-> ll, acc |-> acc,
+                       prev |-> prev_msg[acc],
+                       ref |-> recent_msgs[acc] \cup {m1b}]
+  <2> m2 = new2a
       BY DEF Send, TypeOK
+  <2> acc = A
+      BY DEF Send, SentBy, TypeOK
+  <2> prev_msg[A] \in Message
+      BY DEF TypeOK
+  <2> prev_msg[A] \in m1.ref
+      BY DEF MsgsSafeAcceptorPrevRefSpec, SentBy
+  <2> m1 \notin Tran(prev_msg[A])
+      BY Tran_ref_acyclic
+  <2> m1 \in Tran(prev_msg[A])
+      BY DEF SafeAcceptorPrevSpec2, MsgsSafeAcceptorPrevTranSpec, SentBy
   <2> QED OBVIOUS
 <1>4. CASE \E a \in SafeAcceptor : \E m \in msgs : Process2a(a, m)
       BY <1>4 DEF Process2a, Send
@@ -2011,24 +1982,20 @@ PROOF
             Process1b(acc, m1b)
       BY <1>3
   <2> USE DEF Process1b
-  <2> CASE UpToDate(acc, m1b)
-    <3> PICK ll \in SUBSET Learner :
-        LET new2a == [type |-> "2a", lrn |-> ll, acc |-> acc,
-                      prev |-> prev_msg[acc],
-                      ref |-> recent_msgs[acc] \cup {m1b}] IN
-        /\ WellFormed(new2a)
-        /\ Send(new2a)
-        /\ prev_msg' = [prev_msg EXCEPT ![acc] = new2a]
-        BY Zenon DEF TypeOK
-    <3> DEFINE new2a == [type |-> "2a", lrn |-> ll, acc |-> acc,
-                         prev |-> prev_msg[acc],
-                         ref |-> recent_msgs[acc] \cup {m1b}]
-    <3> mm = new2a
-        BY DEF Send, TypeOK
-    <3> QED BY DEF SafeAcceptorPrevSpec2, Recv, SentBy, Send, TypeOK
-  <2> CASE ~UpToDate(acc, m1b)
+  <2> PICK ll \in SUBSET Learner :
+      LET new2a == [type |-> "2a", lrn |-> ll, acc |-> acc,
+                    prev |-> prev_msg[acc],
+                    ref |-> recent_msgs[acc] \cup {m1b}] IN
+      /\ WellFormed(new2a)
+      /\ Send(new2a)
+      /\ prev_msg' = [prev_msg EXCEPT ![acc] = new2a]
+      BY Zenon DEF TypeOK
+  <2> DEFINE new2a == [type |-> "2a", lrn |-> ll, acc |-> acc,
+                       prev |-> prev_msg[acc],
+                       ref |-> recent_msgs[acc] \cup {m1b}]
+  <2> mm = new2a
       BY DEF Send, TypeOK
-  <2> QED OBVIOUS
+  <2> QED BY DEF SafeAcceptorPrevSpec2, Recv, SentBy, Send, TypeOK
 <1>4. CASE \E a \in SafeAcceptor : \E m \in msgs : Process2a(a, m)
       BY <1>4 DEF Process2a
 <1>6. CASE \E l \in Learner : LearnerAction(l)
@@ -2102,36 +2069,32 @@ PROOF
             Process1b(acc, m1b)
       BY <1>3
   <2> USE DEF Process1b
-  <2> CASE UpToDate(acc, m1b)
-    <3> PICK ll \in SUBSET Learner :
-        LET new2a == [type |-> "2a", lrn |-> ll, acc |-> acc,
-                      prev |-> prev_msg[acc],
-                      ref |-> recent_msgs[acc] \cup {m1b}] IN
-        /\ WellFormed(new2a)
-        /\ Send(new2a)
-        /\ prev_msg' = [prev_msg EXCEPT ![acc] = new2a]
-        BY Zenon DEF TypeOK
-    <3> DEFINE new2a == [type |-> "2a", lrn |-> ll, acc |-> acc,
-                         prev |-> prev_msg[acc],
-                         ref |-> recent_msgs[acc] \cup {m1b}]
-    <3> WellFormed(new2a)
-        BY DEF Send
-    <3> m1 = new2a
-        BY DEF Send, TypeOK
-    <3> new2a.prev = prev_msg[acc]
-        OBVIOUS
-    <3> m1.prev # NoMessage /\ m2 \in PrevTran(m1.prev)
-        BY PrevTran_eq
-    <3> prev_msg[acc] \in SentBy(acc)
-        BY DEF SafeAcceptorPrevSpec2
-    <3> prev_msg[acc] \in recent_msgs[acc]
-        BY DEF SafeAcceptorPrevSpec2
-    <3> m1.prev \in Message
-        BY DEF SentBy, TypeOK
-    <3> QED BY Tran_refl, Tran_trans, Tran_eq
-  <2> CASE ~UpToDate(acc, m1b)
+  <2> PICK ll \in SUBSET Learner :
+      LET new2a == [type |-> "2a", lrn |-> ll, acc |-> acc,
+                    prev |-> prev_msg[acc],
+                    ref |-> recent_msgs[acc] \cup {m1b}] IN
+      /\ WellFormed(new2a)
+      /\ Send(new2a)
+      /\ prev_msg' = [prev_msg EXCEPT ![acc] = new2a]
+      BY Zenon DEF TypeOK
+  <2> DEFINE new2a == [type |-> "2a", lrn |-> ll, acc |-> acc,
+                       prev |-> prev_msg[acc],
+                       ref |-> recent_msgs[acc] \cup {m1b}]
+  <2> WellFormed(new2a)
+      BY DEF Send
+  <2> m1 = new2a
       BY DEF Send, TypeOK
-  <2> QED OBVIOUS
+  <2> new2a.prev = prev_msg[acc]
+      OBVIOUS
+  <2> m1.prev # NoMessage /\ m2 \in PrevTran(m1.prev)
+      BY PrevTran_eq
+  <2> prev_msg[acc] \in SentBy(acc)
+      BY DEF SafeAcceptorPrevSpec2
+  <2> prev_msg[acc] \in recent_msgs[acc]
+      BY DEF SafeAcceptorPrevSpec2
+  <2> m1.prev \in Message
+      BY DEF SentBy, TypeOK
+  <2> QED BY Tran_refl, Tran_trans, Tran_eq
 <1>4. CASE \E a \in SafeAcceptor : \E m \in msgs : Process2a(a, m)
       BY <1>4 DEF Process2a
 <1>6. CASE \E l \in Learner : LearnerAction(l)
@@ -2652,5 +2615,5 @@ PROOF BY PTL, FullSafetyInvariantInit, FullSafetyInvariantNext, NextDef
 
 =============================================================================
 \* Modification History
-\* Last modified Fri May 10 21:14:32 CEST 2024 by karbyshev
+\* Last modified Tue May 14 16:20:21 CEST 2024 by karbyshev
 \* Created Tue Jun 20 00:28:26 CEST 2023 by karbyshev

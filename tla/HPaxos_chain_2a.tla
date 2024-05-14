@@ -316,24 +316,17 @@ PrevTran(m) == UNION {PrevTranBound[n][m] : n \in PrevTranDepthRange}
 
   macro Process1b(m) {
     when m.type = "1b" ;
-    either {
-      when UpToDate(self, m) ;
-      with (LL \in SUBSET Learner,
-            new2a = [type |-> "2a",
-                     lrn |-> LL,
-                     acc |-> self,
-                     prev |-> prev_msg[self],
-                     ref |-> recent_msgs[self] \cup {m}])
-      {
-        when WellFormed(new2a) ;
-        prev_msg[self] := new2a ;
-        recent_msgs[self] := {new2a} ;
-        Send(new2a)
-      }
-    }
-    or {
-      when ~UpToDate(self, m) ;
-      recent_msgs[self] := recent_msgs[self] \cup {m}
+    with (LL \in SUBSET Learner,
+          new2a = [type |-> "2a",
+                   lrn |-> LL,
+                   acc |-> self,
+                   prev |-> prev_msg[self],
+                   ref |-> recent_msgs[self] \cup {m}])
+    {
+      when WellFormed(new2a) ;
+      prev_msg[self] := new2a ;
+      recent_msgs[self] := {new2a} ;
+      Send(new2a)
     }
   }
 
@@ -405,7 +398,7 @@ PrevTran(m) == UNION {PrevTranBound[n][m] : n \in PrevTranDepthRange}
 }
 
 ****************************************************************************)
-\* BEGIN TRANSLATION (chksum(pcal) = "5a85360d" /\ chksum(tla) = "1053483c")
+\* BEGIN TRANSLATION (chksum(pcal) = "185db52c" /\ chksum(tla) = "b1d3e888")
 VARIABLES msgs, known_msgs, recent_msgs, prev_msg, decision, BVal
 
 (* define statement *)
@@ -567,20 +560,16 @@ safe_acceptor(self) == /\ \E m \in msgs:
                                           /\ recent_msgs' = [recent_msgs EXCEPT ![self] = recent_msgs[self] \cup {m}]
                                           /\ UNCHANGED <<msgs, prev_msg>>
                                \/ /\ m.type = "1b"
-                                  /\ \/ /\ UpToDate(self, m)
-                                        /\ \E LL \in SUBSET Learner:
-                                             LET new2a == [type |-> "2a",
-                                                           lrn |-> LL,
-                                                           acc |-> self,
-                                                           prev |-> prev_msg[self],
-                                                           ref |-> recent_msgs[self] \cup {m}] IN
-                                               /\ WellFormed(new2a)
-                                               /\ prev_msg' = [prev_msg EXCEPT ![self] = new2a]
-                                               /\ recent_msgs' = [recent_msgs EXCEPT ![self] = {new2a}]
-                                               /\ msgs' = (msgs \cup {new2a})
-                                     \/ /\ ~UpToDate(self, m)
-                                        /\ recent_msgs' = [recent_msgs EXCEPT ![self] = recent_msgs[self] \cup {m}]
-                                        /\ UNCHANGED <<msgs, prev_msg>>
+                                  /\ \E LL \in SUBSET Learner:
+                                       LET new2a == [type |-> "2a",
+                                                     lrn |-> LL,
+                                                     acc |-> self,
+                                                     prev |-> prev_msg[self],
+                                                     ref |-> recent_msgs[self] \cup {m}] IN
+                                         /\ WellFormed(new2a)
+                                         /\ prev_msg' = [prev_msg EXCEPT ![self] = new2a]
+                                         /\ recent_msgs' = [recent_msgs EXCEPT ![self] = {new2a}]
+                                         /\ msgs' = (msgs \cup {new2a})
                                \/ /\ m.type = "2a"
                                   /\ recent_msgs' = [recent_msgs EXCEPT ![self] = recent_msgs[self] \cup {m}]
                                   /\ UNCHANGED <<msgs, prev_msg>>
@@ -654,8 +643,7 @@ Process1b(a, m) ==
     /\ m.type = "1b"
     /\ Recv(a, m)
     /\ WellFormed(m)
-    /\ UpToDate(a, m) =>
-        \E LL \in SUBSET Learner :
+    /\ \E LL \in SUBSET Learner :
             LET new2a == [type |-> "2a", lrn |-> LL, acc |-> a,
                           prev |-> prev_msg[a],
                           ref |-> recent_msgs[a] \cup {m}] IN
@@ -663,9 +651,6 @@ Process1b(a, m) ==
             /\ Send(new2a)
             /\ recent_msgs' = [recent_msgs EXCEPT ![a] = {new2a}]
             /\ prev_msg' = [prev_msg EXCEPT ![a] = new2a]
-    /\ (~UpToDate(a, m)) =>
-        /\ recent_msgs' = [recent_msgs EXCEPT ![a] = recent_msgs[a] \cup {m}]
-        /\ UNCHANGED << msgs, prev_msg >>
     /\ UNCHANGED decision
     /\ UNCHANGED BVal
 
@@ -795,5 +780,5 @@ UniqueDecision ==
 
 =============================================================================
 \* Modification History
-\* Last modified Wed May 08 19:03:10 CEST 2024 by karbyshev
+\* Last modified Tue May 14 14:51:08 CEST 2024 by karbyshev
 \* Created Mon Jun 19 12:24:03 CEST 2022 by karbyshev
