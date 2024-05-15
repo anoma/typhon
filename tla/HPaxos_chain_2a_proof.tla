@@ -152,19 +152,6 @@ LEMMA WellFormedConditionEquiv3 ==
                 B(m, bm) /\ B(y, by) => by < bm)
 PROOF BY TranBallot DEF Ballot
 
-LEMMA WellFormedCondition4 ==
-    ASSUME NEW m \in Message,
-           \A y \in m.ref :
-            m # y /\ y.type # "1a" =>
-            \A bm, by \in Ballot :
-                B(m, bm) /\ B(y, by) => by < bm
-    PROVE \A y \in Tran(m) :
-            m # y /\ y.type # "1a" =>
-            \A bm, by \in Ballot :
-                B(m, bm) /\ B(y, by) => by < bm
-\*PROOF BY Message_ref, Tran_Message, Tran_eq, TranBallot DEF Ballot
-OMITTED
-
 -----------------------------------------------------------------------------
 TypeOK ==
     /\ msgs \in SUBSET Message
@@ -222,13 +209,6 @@ SafeAcceptorPrevSpec2 ==
             /\ prev_msg[A] \in recent_msgs[A]
             /\ prev_msg[A] \in SentBy(A)
             /\ \A m \in SentBy(A) : m \in PrevTran(prev_msg[A])
-
-RecentMsgsUniquePreviousMessageSpec ==
-    \A A \in SafeAcceptor :
-        \A x, y \in recent_msgs[A] :
-            x.type # "1a" /\ y.type # "1a" /\
-            x.acc = A /\ y.acc = A =>
-            x = y
 
 MsgsSafeAcceptorSpec3 ==
     \A A \in SafeAcceptor :
@@ -769,13 +749,6 @@ PROOF
   <2> QED BY AcceptorAssumption DEF FakeSend2a, Send, SentBy
 <1> QED BY <1>1, <1>2, <1>3, <1>4, <1>6, <1>7, <1>8
         DEF NextTLA, AcceptorProcessAction, FakeAcceptorAction
-
-\* TODO
-LEMMA RecentMsgsSafeAcceptorSpec1Invariant ==
-    TypeOK /\ NextTLA /\
-    RecentMsgsUniquePreviousMessageSpec =>
-    RecentMsgsUniquePreviousMessageSpec'
-OMITTED
 
 LEMMA KnownMsgsSpecInvariant ==
     TypeOK /\ NextTLA /\
@@ -1801,5 +1774,5 @@ PROOF BY PTL, FullSafetyInvariantInit, FullSafetyInvariantNext, NextDef
 
 =============================================================================
 \* Modification History
-\* Last modified Wed May 15 18:43:42 CEST 2024 by karbyshev
+\* Last modified Wed May 15 23:57:05 CEST 2024 by karbyshev
 \* Created Tue Jun 20 00:28:26 CEST 2023 by karbyshev
