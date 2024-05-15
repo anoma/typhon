@@ -171,7 +171,8 @@ Assert(P, str) == P
         Send(new1b)
       }
       or {
-        when ~WellFormed1b(new1b)
+        when ~WellFormed1b(new1b) ;
+        skip
       }
     }
   }
@@ -261,7 +262,7 @@ Assert(P, str) == P
 }
 
 ****************************************************************************)
-\* BEGIN TRANSLATION (chksum(pcal) = "10812829" /\ chksum(tla) = "a0cee248")
+\* BEGIN TRANSLATION (chksum(pcal) = "2e30c456" /\ chksum(tla) = "3fef9e01")
 VARIABLES msgs, known_msgs, recent_msgs, prev_msg, decision, BVal
 
 (* define statement *)
@@ -419,12 +420,13 @@ safe_acceptor(self) == /\ \E m \in msgs:
                                                    prev |-> prev_msg[self],
                                                    ref |-> recent_msgs[self] \cup {m}] IN
                                        /\ Assert(new1b \in Message, 
-                                                 "Failure of assertion at line 166, column 7 of macro called at line 241, column 16.")
+                                                 "Failure of assertion at line 166, column 7 of macro called at line 242, column 16.")
                                        /\ \/ /\ WellFormed1b(new1b)
                                              /\ prev_msg' = [prev_msg EXCEPT ![self] = new1b]
                                              /\ recent_msgs' = [recent_msgs EXCEPT ![self] = {new1b}]
                                              /\ msgs' = (msgs \cup {new1b})
                                           \/ /\ ~WellFormed1b(new1b)
+                                             /\ TRUE
                                              /\ UNCHANGED <<msgs, recent_msgs, prev_msg>>
                                \/ /\ m.type = "1b"
                                   /\ \E LL \in SUBSET Learner:
@@ -434,7 +436,7 @@ safe_acceptor(self) == /\ \E m \in msgs:
                                                      prev |-> prev_msg[self],
                                                      ref |-> recent_msgs[self] \cup {m}] IN
                                          /\ Assert(new2a \in Message, 
-                                                   "Failure of assertion at line 188, column 7 of macro called at line 242, column 16.")
+                                                   "Failure of assertion at line 189, column 7 of macro called at line 243, column 16.")
                                          /\ WellFormed2a(new2a)
                                          /\ prev_msg' = [prev_msg EXCEPT ![self] = new2a]
                                          /\ recent_msgs' = [recent_msgs EXCEPT ![self] = {new2a}]
@@ -651,5 +653,5 @@ UniqueDecision ==
 
 =============================================================================
 \* Modification History
-\* Last modified Wed May 15 18:56:03 CEST 2024 by karbyshev
+\* Last modified Wed May 15 23:49:56 CEST 2024 by karbyshev
 \* Created Mon Jun 19 12:24:03 CEST 2022 by karbyshev
