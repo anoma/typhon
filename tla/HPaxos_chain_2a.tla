@@ -1,6 +1,8 @@
 -------------------------- MODULE HPaxos_chain_2a ---------------------------
 EXTENDS HQuorum, HLearnerGraph, HMessage, TLAPS
 
+Assert(P, str) == P
+
 -----------------------------------------------------------------------------
 (* Algorithm specification *)
 
@@ -106,10 +108,14 @@ EXTENDS HQuorum, HLearnerGraph, HMessage, TLAPS
                     /\ \A b \in Ballot : B(m, b) <=> B(x, b) }
         IN { m.acc : m \in Q }
 
-    UpToDate(a, m) ==
-        \A mb, b \in Ballot : MaxBal(a, mb) /\ B(m, b) => mb <= b
-
     ChainRef(m) == \A r \in m.ref : r.acc = m.acc <=> r = m.prev
+
+    WellFormed1b(m) ==
+        \A y \in Tran(m) :
+            m # y /\ SameBallot(m, y) => y.type = "1a"
+
+    WellFormed2a(m) ==
+        m.lrn = { l \in Learner : [lr |-> l, q |-> q(l, m)] \in TrustLive }
 
     WellFormed(m) ==
         /\ m \in Message
@@ -118,12 +124,11 @@ EXTENDS HQuorum, HLearnerGraph, HMessage, TLAPS
         /\ m.type = "1b" =>
             /\ m.ref # {}
             /\ (m.prev = NoMessage \/ m.prev \in m.ref)
-            /\ \A y \in Tran(m) :
-                m # y /\ SameBallot(m, y) => y.type = "1a"
+            /\ WellFormed1b(m)
         /\ m.type = "2a" =>
             /\ m.ref # {}
             /\ (m.prev = NoMessage \/ m.prev \in m.ref)
-            /\ m.lrn = { l \in Learner : [lr |-> l, q |-> q(l, m)] \in TrustLive }
+            /\ WellFormed2a(m)
 
     Known2a(l, b, v) ==
         { x \in known_msgs[l] :
@@ -158,15 +163,15 @@ EXTENDS HQuorum, HLearnerGraph, HMessage, TLAPS
                    prev |-> prev_msg[self],
                    ref |-> recent_msgs[self] \cup {m}])
     {
+      assert new1b \in Message ;
       either {
-        when WellFormed(new1b) ;
+        when WellFormed1b(new1b) ;
         prev_msg[self] := new1b ;
         recent_msgs[self] := {new1b} ;
         Send(new1b)
       }
       or {
-        when ~WellFormed(new1b) ;
-        recent_msgs[self] := recent_msgs[self] \cup {m}
+        when ~WellFormed1b(new1b)
       }
     }
   }
@@ -180,7 +185,8 @@ EXTENDS HQuorum, HLearnerGraph, HMessage, TLAPS
                    prev |-> prev_msg[self],
                    ref |-> recent_msgs[self] \cup {m}])
     {
-      when WellFormed(new2a) ;
+      assert new2a \in Message ;
+      when WellFormed2a(new2a) ;
       prev_msg[self] := new2a ;
       recent_msgs[self] := {new2a} ;
       Send(new2a)
@@ -255,7 +261,7 @@ EXTENDS HQuorum, HLearnerGraph, HMessage, TLAPS
 }
 
 ****************************************************************************)
-\* BEGIN TRANSLATION (chksum(pcal) = "185db52c" /\ chksum(tla) = "b1d3e888")
+\* BEGIN TRANSLATION (chksum(pcal) = "10812829" /\ chksum(tla) = "a0cee248")
 VARIABLES msgs, known_msgs, recent_msgs, prev_msg, decision, BVal
 
 (* define statement *)
@@ -351,10 +357,14 @@ q(l, x) ==
                 /\ \A b \in Ballot : B(m, b) <=> B(x, b) }
     IN { m.acc : m \in Q }
 
-UpToDate(a, m) ==
-    \A mb, b \in Ballot : MaxBal(a, mb) /\ B(m, b) => mb <= b
-
 ChainRef(m) == \A r \in m.ref : r.acc = m.acc <=> r = m.prev
+
+WellFormed1b(m) ==
+    \A y \in Tran(m) :
+        m # y /\ SameBallot(m, y) => y.type = "1a"
+
+WellFormed2a(m) ==
+    m.lrn = { l \in Learner : [lr |-> l, q |-> q(l, m)] \in TrustLive }
 
 WellFormed(m) ==
     /\ m \in Message
@@ -363,12 +373,11 @@ WellFormed(m) ==
     /\ m.type = "1b" =>
         /\ m.ref # {}
         /\ (m.prev = NoMessage \/ m.prev \in m.ref)
-        /\ \A y \in Tran(m) :
-            m # y /\ SameBallot(m, y) => y.type = "1a"
+        /\ WellFormed1b(m)
     /\ m.type = "2a" =>
         /\ m.ref # {}
         /\ (m.prev = NoMessage \/ m.prev \in m.ref)
-        /\ m.lrn = { l \in Learner : [lr |-> l, q |-> q(l, m)] \in TrustLive }
+        /\ WellFormed2a(m)
 
 Known2a(l, b, v) ==
     { x \in known_msgs[l] :
@@ -409,13 +418,14 @@ safe_acceptor(self) == /\ \E m \in msgs:
                                                    acc |-> self,
                                                    prev |-> prev_msg[self],
                                                    ref |-> recent_msgs[self] \cup {m}] IN
-                                       \/ /\ WellFormed(new1b)
-                                          /\ prev_msg' = [prev_msg EXCEPT ![self] = new1b]
-                                          /\ recent_msgs' = [recent_msgs EXCEPT ![self] = {new1b}]
-                                          /\ msgs' = (msgs \cup {new1b})
-                                       \/ /\ ~WellFormed(new1b)
-                                          /\ recent_msgs' = [recent_msgs EXCEPT ![self] = recent_msgs[self] \cup {m}]
-                                          /\ UNCHANGED <<msgs, prev_msg>>
+                                       /\ Assert(new1b \in Message, 
+                                                 "Failure of assertion at line 166, column 7 of macro called at line 241, column 16.")
+                                       /\ \/ /\ WellFormed1b(new1b)
+                                             /\ prev_msg' = [prev_msg EXCEPT ![self] = new1b]
+                                             /\ recent_msgs' = [recent_msgs EXCEPT ![self] = {new1b}]
+                                             /\ msgs' = (msgs \cup {new1b})
+                                          \/ /\ ~WellFormed1b(new1b)
+                                             /\ UNCHANGED <<msgs, recent_msgs, prev_msg>>
                                \/ /\ m.type = "1b"
                                   /\ \E LL \in SUBSET Learner:
                                        LET new2a == [type |-> "2a",
@@ -423,7 +433,9 @@ safe_acceptor(self) == /\ \E m \in msgs:
                                                      acc |-> self,
                                                      prev |-> prev_msg[self],
                                                      ref |-> recent_msgs[self] \cup {m}] IN
-                                         /\ WellFormed(new2a)
+                                         /\ Assert(new2a \in Message, 
+                                                   "Failure of assertion at line 188, column 7 of macro called at line 242, column 16.")
+                                         /\ WellFormed2a(new2a)
                                          /\ prev_msg' = [prev_msg EXCEPT ![self] = new2a]
                                          /\ recent_msgs' = [recent_msgs EXCEPT ![self] = {new2a}]
                                          /\ msgs' = (msgs \cup {new2a})
@@ -466,6 +478,7 @@ Spec == Init /\ [][Next]_vars
 
 \* END TRANSLATION 
 
+
 Send(m) == msgs' = msgs \cup {m}
 
 Recv(a, m) ==
@@ -486,13 +499,13 @@ Process1a(a, m) ==
     /\ m.type = "1a"
     /\ Recv(a, m)
     /\ WellFormed(m)
-    /\ WellFormed(new1b) =>
-        /\ Send(new1b)
-        /\ recent_msgs' = [recent_msgs EXCEPT ![a] = {new1b}]
-        /\ prev_msg' = [prev_msg EXCEPT ![a] = new1b]
-    /\ (~WellFormed(new1b)) =>
-        /\ recent_msgs' = [recent_msgs EXCEPT ![a] = recent_msgs[a] \cup {m}]
-        /\ UNCHANGED << msgs, prev_msg >>
+    /\ new1b \in Message
+    /\ \/ /\ WellFormed1b(new1b)
+          /\ Send(new1b)
+          /\ recent_msgs' = [recent_msgs EXCEPT ![a] = {new1b}]
+          /\ prev_msg' = [prev_msg EXCEPT ![a] = new1b]
+       \/ /\ ~WellFormed1b(new1b)
+          /\ UNCHANGED << msgs, prev_msg, recent_msgs >>
     /\ UNCHANGED decision
     /\ UNCHANGED BVal
 
@@ -504,7 +517,8 @@ Process1b(a, m) ==
             LET new2a == [type |-> "2a", lrn |-> LL, acc |-> a,
                           prev |-> prev_msg[a],
                           ref |-> recent_msgs[a] \cup {m}] IN
-            /\ WellFormed(new2a)
+            /\ new2a \in Message
+            /\ WellFormed2a(new2a)
             /\ Send(new2a)
             /\ recent_msgs' = [recent_msgs EXCEPT ![a] = {new2a}]
             /\ prev_msg' = [prev_msg EXCEPT ![a] = new2a]
@@ -588,7 +602,7 @@ THEOREM NextDef == Next <=> NextTLA
       BY DEF proposer, ProposerSendAction, Send1a, Send
 <1>2. ASSUME NEW self \in SafeAcceptor
       PROVE safe_acceptor(self) <=> AcceptorProcessAction(self)
-      BY Zenon DEF safe_acceptor, AcceptorProcessAction, Process1a, Process1b, Process2a, Recv, Send
+      BY Zenon DEF safe_acceptor, AcceptorProcessAction, Process1a, Process1b, Process2a, Recv, Send, Assert
 <1>3. ASSUME NEW self \in Learner
       PROVE learner(self) <=> LearnerAction(self)
       BY Zenon DEF learner, LearnerAction, LearnerRecv, LearnerDecide, Recv
@@ -637,5 +651,5 @@ UniqueDecision ==
 
 =============================================================================
 \* Modification History
-\* Last modified Tue May 14 17:04:38 CEST 2024 by karbyshev
+\* Last modified Wed May 15 18:56:03 CEST 2024 by karbyshev
 \* Created Mon Jun 19 12:24:03 CEST 2022 by karbyshev
