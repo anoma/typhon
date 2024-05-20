@@ -75,26 +75,24 @@ Assert(P, str) == P
     \* 2a-message is _buried_ if there exists a quorum of acceptors that have seen
     \* 2a-messages with different values, the same learner, and higher ballot
     \* numbers.
-    Buried(a, x, y) == \* x : 2a, y : 1b
+    Buried(l, x, y) == \* x : 2a, y : 1b
         LET Q == { m \in Tran(y) :
                     \E z \in Tran(m) :
                         /\ z.type = "2a"
-                        /\ a \in z.lrn
+                        /\ l \in x.lrn
+                        /\ l \in z.lrn
                         /\ \A bx, bz \in Ballot :
                             B(x, bx) /\ B(z, bz) => bx < bz
                         /\ \A vx, vz \in Value :
                             V(x, vx) /\ V(z, vz) => vx # vz }
-        IN [lr |-> a, q |-> { m.acc : m \in Q }] \in TrustLive
+        IN [lr |-> l, q |-> { m.acc : m \in Q }] \in TrustLive
 
     \* Connected 2a messages and learners
     Con2as(l, x) == \* l : Learner, x : 1b
         { m \in Tran(x) :
             /\ m.type = "2a"
             /\ m.acc = x.acc
-            /\ \E a \in Learner :
-                /\ a \in m.lrn
-                /\ ~Buried(a, m, x)
-                /\ a \in Con(l, x) }
+            /\ \E beta \in Con(l, x) : ~Buried(beta, m, x) }
 
     \* Fresh 1b messages
     Fresh(l, x) == \* l : Learner, x : 1b
@@ -108,7 +106,9 @@ Assert(P, str) == P
                     /\ \A b \in Ballot : B(m, b) <=> B(x, b) }
         IN { m.acc : m \in Q }
 
-    ChainRef(m) == \A r \in m.ref : r.acc = m.acc <=> r = m.prev
+    ChainRef(m) ==
+        \/ m.prev = NoMessage
+        \/ m.prev \in m.ref /\ m.prev.acc = m.acc
 
     WellFormed1b(m) ==
         \A y \in Tran(m) :
@@ -122,12 +122,10 @@ Assert(P, str) == P
         /\ \E b \in Ballot : B(m, b) \* TODO prove it
         /\ ChainRef(m)
         /\ m.type = "1b" =>
-            /\ m.ref # {}
-            /\ (m.prev = NoMessage \/ m.prev \in m.ref)
+            /\ (\E r \in m.refs : r.type = "1a")
             /\ WellFormed1b(m)
         /\ m.type = "2a" =>
             /\ m.ref # {}
-            /\ (m.prev = NoMessage \/ m.prev \in m.ref)
             /\ WellFormed2a(m)
 
     Known2a(l, b, v) ==
@@ -262,7 +260,7 @@ Assert(P, str) == P
 }
 
 ****************************************************************************)
-\* BEGIN TRANSLATION (chksum(pcal) = "2e30c456" /\ chksum(tla) = "3fef9e01")
+\* BEGIN TRANSLATION (chksum(pcal) = "e34bd140" /\ chksum(tla) = "89878241")
 VARIABLES msgs, known_msgs, recent_msgs, prev_msg, decision, BVal
 
 (* define statement *)
@@ -325,26 +323,24 @@ Con(a, x) ==
 
 
 
-Buried(a, x, y) ==
+Buried(l, x, y) ==
     LET Q == { m \in Tran(y) :
                 \E z \in Tran(m) :
                     /\ z.type = "2a"
-                    /\ a \in z.lrn
+                    /\ l \in x.lrn
+                    /\ l \in z.lrn
                     /\ \A bx, bz \in Ballot :
                         B(x, bx) /\ B(z, bz) => bx < bz
                     /\ \A vx, vz \in Value :
                         V(x, vx) /\ V(z, vz) => vx # vz }
-    IN [lr |-> a, q |-> { m.acc : m \in Q }] \in TrustLive
+    IN [lr |-> l, q |-> { m.acc : m \in Q }] \in TrustLive
 
 
 Con2as(l, x) ==
     { m \in Tran(x) :
         /\ m.type = "2a"
         /\ m.acc = x.acc
-        /\ \E a \in Learner :
-            /\ a \in m.lrn
-            /\ ~Buried(a, m, x)
-            /\ a \in Con(l, x) }
+        /\ \E beta \in Con(l, x) : ~Buried(beta, m, x) }
 
 
 Fresh(l, x) ==
@@ -358,7 +354,9 @@ q(l, x) ==
                 /\ \A b \in Ballot : B(m, b) <=> B(x, b) }
     IN { m.acc : m \in Q }
 
-ChainRef(m) == \A r \in m.ref : r.acc = m.acc <=> r = m.prev
+ChainRef(m) ==
+    \/ m.prev = NoMessage
+    \/ m.prev \in m.ref /\ m.prev.acc = m.acc
 
 WellFormed1b(m) ==
     \A y \in Tran(m) :
@@ -372,12 +370,10 @@ WellFormed(m) ==
     /\ \E b \in Ballot : B(m, b)
     /\ ChainRef(m)
     /\ m.type = "1b" =>
-        /\ m.ref # {}
-        /\ (m.prev = NoMessage \/ m.prev \in m.ref)
+        /\ (\E r \in m.refs : r.type = "1a")
         /\ WellFormed1b(m)
     /\ m.type = "2a" =>
         /\ m.ref # {}
-        /\ (m.prev = NoMessage \/ m.prev \in m.ref)
         /\ WellFormed2a(m)
 
 Known2a(l, b, v) ==
@@ -420,7 +416,7 @@ safe_acceptor(self) == /\ \E m \in msgs:
                                                    prev |-> prev_msg[self],
                                                    ref |-> recent_msgs[self] \cup {m}] IN
                                        /\ Assert(new1b \in Message, 
-                                                 "Failure of assertion at line 166, column 7 of macro called at line 242, column 16.")
+                                                 "Failure of assertion at line 164, column 7 of macro called at line 240, column 16.")
                                        /\ \/ /\ WellFormed1b(new1b)
                                              /\ prev_msg' = [prev_msg EXCEPT ![self] = new1b]
                                              /\ recent_msgs' = [recent_msgs EXCEPT ![self] = {new1b}]
@@ -436,7 +432,7 @@ safe_acceptor(self) == /\ \E m \in msgs:
                                                      prev |-> prev_msg[self],
                                                      ref |-> recent_msgs[self] \cup {m}] IN
                                          /\ Assert(new2a \in Message, 
-                                                   "Failure of assertion at line 189, column 7 of macro called at line 243, column 16.")
+                                                   "Failure of assertion at line 187, column 7 of macro called at line 241, column 16.")
                                          /\ WellFormed2a(new2a)
                                          /\ prev_msg' = [prev_msg EXCEPT ![self] = new2a]
                                          /\ recent_msgs' = [recent_msgs EXCEPT ![self] = {new2a}]
@@ -653,5 +649,5 @@ UniqueDecision ==
 
 =============================================================================
 \* Modification History
-\* Last modified Wed May 15 23:49:56 CEST 2024 by karbyshev
+\* Last modified Mon May 20 15:47:34 CEST 2024 by karbyshev
 \* Created Mon Jun 19 12:24:03 CEST 2022 by karbyshev
