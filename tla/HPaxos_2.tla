@@ -1,4 +1,4 @@
--------------------------- MODULE HPaxos_chain_2a ---------------------------
+----------------------------- MODULE HPaxos_2 -------------------------------
 EXTENDS HQuorum, HLearnerGraph, HMessage, TLAPS
 
 Assert(P, str) == P
@@ -649,5 +649,5 @@ UniqueDecision ==
 
 =============================================================================
 \* Modification History
-\* Last modified Mon May 20 15:47:34 CEST 2024 by karbyshev
+\* Last modified Mon May 20 16:48:25 CEST 2024 by karbyshev
 \* Created Mon Jun 19 12:24:03 CEST 2022 by karbyshev
