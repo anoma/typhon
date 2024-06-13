@@ -59,9 +59,8 @@ EXTENDS
 (***************************************************************************)
 
 \* **************************************************************************
-\* We encode block headers and their components; for the sake of
-\* succint names, block headers are called simply blocks. The
-\* components of blocks are certificates, block digests, and the like,
+\* We encode certified vertices and their components.  The
+\* components of certified vertices are certificates, vertex digests, and the like,
 \* as used in Narwhal [N&T] and DAG-rider [DAG-R].  We consider
 \* batches to be atomic; the processing of individual transactions can
 \* be seen as a refinement.
@@ -85,7 +84,7 @@ ASSUME ExistenceOfBatches ==
 \* functions, hash collisions are in principle possible; this would
 \* lead to issues in the proofs.
 \* 
-\* Block digests are going to be modelled in yet a different way
+\* Vertex digests are going to be modelled in yet a different way
 \* (to make model checking possible at all).
 \* *************************************************************************
 
@@ -120,32 +119,32 @@ hash(b) == [batch |-> b]
 (***************************************************************************)
 
 (*
-Block digests serve to identify block (headers)s without including the
-whole block information, emulating “perfect” hashing.  "BlockDigest"
-is the encoding of the set of all such block digests; we exploit that
+Vertex digests serve to identify (certified) vertices without including the
+whole vertex information, emulating “perfect” hashing.  "VertexDigest"
+is the encoding of the set of all such vertex digests; we exploit that
 the set of all messages (sent by any validator) includes all relevant
-blocks. The type alias for block digests is "$blockDigest". Later, we
-shall define "fetchBlock", which retrieves the block that corresponds
+vertices. The type alias for vertex digests is "$vertexDigest". Later, we
+shall define "fetchVertex", which retrieves the vertex that corresponds
 to a digest, based on the set of sent messages.
  
 Note the following! 
 
-- "BlockDigest"s are “ideal” hashes (if correct).
+- "VertexDigest"s are “ideal” hashes (if correct).
 - For correctness, we have to ensure that, indeed, "digest(b)"
-  identifies a unique block `b`, retrievable via "fetchBlock".
+  identifies a unique vertex `b`, retrievable via "fetchVertex".
 *)
 
-(* $blockDigest: 
-     type alias for block digests
+(* $vertexDigest: 
+     type alias for vertex digests
 
---- blockDigest ---
-- creator: the creator of the “digested block”
+--- vertexDigest ---
+- creator: the creator of the “digested vertex”
 
-- rnd: the round of the “digested block”
+- rnd: the round of the “digested vertex”
 
-- nonce: fake validators might propose several blocks per round
+- nonce: fake validators might propose several vertices per round
 
-@typeAlias: blockDigest = {
+@typeAlias: vertexDigest = {
    creator: BYZ_VAL
    , 
    rnd:     Int
@@ -165,26 +164,26 @@ Nonce == Nat
 \* @type: Int;
 THENONCE == 0 \* coming soon ™
 
-\* "BlockDigestType":
-\*   an over-approximation of "BlockDigest", the set of block digests 
+\* "VertexDigestType":
+\*   an over-approximation of "VertexDigest", the set of vertex digests 
 \* 
-\* @type: Set($blockDigest);
-BlockDigestType == [
-    \* the creator of a block
+\* @type: Set($vertexDigest);
+VertexDigestType == [
+    \* the creator of a vertex
     creator: ByzValidator
     ,               
-    \* the round number of the block
+    \* the round number of the vertex
     rnd:     Nat
     ,               
-    \* a nonce, keeping track of spurious blocks beyond the first / zeroth
+    \* a nonce, keeping track of spurious vertices beyond the first / zeroth
     nonce:   Nat
 ]
 
 -----------------------------------------------------------------------------
 
 (***************************************************************************)
-(* "If a block is valid, the other validators store it and acknowledge it  *)
-(* by signing its _block digest_, _round number_, and _creator’s           *)
+(* "If a vertex is valid, the other validators store it and acknowledge it  *)
+(* by signing its _vertex digest_, _round number_, and _creator’s           *)
 (* identity_." [N&T]                                                       *)
 (***************************************************************************)
 
@@ -192,42 +191,42 @@ BlockDigestType == [
 In Doris, we deviate from the above/[N&T].
 
 - batch hashes are not acknowledged indivitually, but, instead
-- batch hashes are acknowledged jointly, as part of the “enclosing” block 
+- batch hashes are acknowledged jointly, as part of the “enclosing” vertex 
 
 *)
 
 (***************************************************************************)
 
-\* In most cases, acknowledging signatures of a block will 
+\* In most cases, acknowledging signatures of a vertex will 
 \* be issued by validators differing from the creator.
                                                                         
-\* We define the set "Ack" as the set of all block acknowledgements,   
+\* We define the set "Ack" as the set of all vertex acknowledgements,   
 \* which are in particular signed by validators.  A correct validator has  
-\* to store the block (or enough erasure coding segments) for later        
+\* to store the vertex (or enough erasure coding segments) for later        
 \* retrieval (until garbage collection and/or execution) and 
 \* also the referenced batches.                       
 
 (***************************************************************************)
 
-(* $ack: type alias for block acknowledgments 
+(* $ack: type alias for vertex acknowledgments 
 --- ack ---
-- digest: the digest of the acknowledged block
+- digest: the digest of the acknowledged vertex
 
 - sig: the signing validator
 ===
 @typeAlias: ack = {
-    digest : $blockDigest,
+    digest : $vertexDigest,
     sig :    BYZ_VAL
 };
 *)
 
 \* "AckType":
-\*   an over-approximation of the set of block acknowledgements
+\*   an over-approximation of the set of vertex acknowledgements
 \* 
 \* @type: Set($ack);
 AckType == [
-  \* the digest of the acknowledged block
-  digest : BlockDigestType, 
+  \* the digest of the acknowledged vertex
+  digest : VertexDigestType, 
   \* the signing validator
   sig :    ByzValidator 
 ]
@@ -235,9 +234,9 @@ AckType == [
 -----------------------------------------------------------------------------
 
 (***************************************************************************)
-(* “Once the creator gets 2f + 1 distinct acknowledgments for a block, it  *)
-(* combines them into a certificate of block availability, that includes   *)
-(* the block digest, current round, and creator identity.” [N&T]           *)
+(* “Once the creator gets 2f + 1 distinct acknowledgments for a vertex, it  *)
+(* combines them into a certificate of vertex availability, that includes   *)
+(* the vertex digest, current round, and creator identity.” [N&T]           *)
 (***************************************************************************)
 
 \* The type of such certificats are families of acks, which in turn can 
@@ -245,34 +244,34 @@ AckType == [
 
 (* $digestFamily: the type of certificate quorums (and also weak links)
 --- digestFamily ---
-This is “just” an (injective) function from validators to block digests; 
+This is “just” an (injective) function from validators to vertex digests; 
 every element of the domain can be taken to be a signer (by convention).
 ===
 @typeAlias: digestFamily = 
-  BYZ_VAL -> $blockDigest
+  BYZ_VAL -> $vertexDigest
 ;
 *)
 
 \* "AckQuorumType":
-\*   A quorum of block digests, where
-\*   q |-> d encodes that validator `q` has signed the block digest `d`
+\*   A quorum of vertex digests, where
+\*   q |-> d encodes that validator `q` has signed the vertex digest `d`
 \*
 \* @type: Set($digestFamily);
 AckQuorumType == 
   UNION (
      \* proper ack quorum
-     {Injection(Q, BlockDigestType) : Q \in ByzQuorum} 
+     {Injection(Q, VertexDigestType) : Q \in ByzQuorum} 
      \cup
-     \* and the empty ack (e.g., for genesis block)
-     {Injection({}, BlockDigestType)}
+     \* and the empty ack (e.g., for genesis vertex)
+     {Injection({}, VertexDigestType)}
   )
 
 \* "emptyQuorum":
-\*   the empty quroum (e.g., for the genesis block)
+\*   the empty quroum (e.g., for the genesis vertex)
 \* 
 \* @type: $digestFamily;
 emptyQuorum == 
-  CHOOSE f \in Injection({},BlockDigestType) : TRUE
+  CHOOSE f \in Injection({},VertexDigestType) : TRUE
 \* Here↑, we could also use Apalache's `Guess` instead of `CHOOSE`. 
 
 \* "emptyLinks":
@@ -286,17 +285,17 @@ emptyLinks ==
 CertificateOption == AckQuorumType 
 
 \* @type: Set($digestFamily);
-Certificate == CertificateOption \ Injection({}, BlockDigestType)
+Certificate == CertificateOption \ Injection({}, VertexDigestType)
 
 (***************************************************************************)
-(* According to [N&T], a valid block must                                  *)
+(* According to [N&T], a valid vertex must                                 *)
 (*                                                                         *)
 (* 1.  contain a valid signature from its creator;                         *)
 (*                                                                         *)
 (* 2.  be at the local round r of the ByzValidator checking it;            *)
 (*                                                                         *)
 (* 3.  be at round 1 (genesis), or contain certificates for                *)
-(*     at least 2f + 1 blocks of round r-1;                                *)
+(*     at least 2f + 1 vertices of round r-1;                              *)
 (*                                                                         *)
 (* 4.  be the first one received from the creator for round r .            *)
 (*                                                                         *)
@@ -306,7 +305,7 @@ Certificate == CertificateOption \ Injection({}, BlockDigestType)
 
 CONSTANT
   \* "BatchMax":
-  \*   the maximal number of batches in a block (for model checking)
+  \*   the maximal number of batches in a vertex (for model checking)
   \*
   \* @type: Int;
   BatchMax 
@@ -323,26 +322,26 @@ BatchMaxBoundedBatchSubsets ==
   ELSE {{}} \cup { Range(f) : f \in [ 1..BatchMax -> BatchHash ] }
 
 \* "SomeHxs":
-\*   the set of possible batch hashes in a block 
+\*   the set of possible batch hashes in a vertex 
 \* 
 \* @type: Set(Set($batchHash));
 SomeHxs == BatchMaxBoundedBatchSubsets
 
-(* $block: the type alias for a block 
---- block ---
+(* $vertex: the type alias for a vertex 
+--- vertex ---
 
-- creator : the block's creator
+- creator : the vertex's creator
 
-- rnd     : the round in which the block is proposed
+- rnd     : the round in which the vertex is proposed
 
-- bhxs    : the set of batch hashes in the block
+- bhxs    : the set of batch hashes in the vertex
 
 - cq      : the certificate quroum    
 
 - wl      : the weak links
 ===
 
-@typeAlias: block = {
+@typeAlias: vertex = {
     creator : BYZ_VAL,            
     rnd :     Int,                     
     bhxs :    Set($batchHash),                  
@@ -351,31 +350,31 @@ SomeHxs == BatchMaxBoundedBatchSubsets
 };
 *)
 
-\* "BlockType":
-\*   an over-approximation of the set of Blocks to consider, cf. "Block"
+\* "VertexType":
+\*   an over-approximation of the set of Vertices to consider, cf. "Vertex"
 \* 
-\* @type: Set($block);
-BlockType == [ 
-  \* the block proposer \& signer
+\* @type: Set($vertex);
+VertexType == [ 
+  \* the vertex proposer \& signer
   creator : ByzValidator, 
-  \* the round of the block proposal
+  \* the round of the vertex proposal
   rnd :     Nat, 
-  \* the batch hashes of the block
+  \* the batch hashes of the vertex
   bhxs :    SomeHxs, 
-  \* a CoA (unless genesis block)
+  \* a CoA (unless genesis vertex)
   cq :      CertificateOption, 
   \* weak links (coming soon ™)
-  wl :      [{} -> BlockDigestType] 
+  wl :      [{} -> VertexDigestType] 
 ]
 
 \* "digest":
-\*   the operator for constructing block digests 
+\*   the operator for constructing vertex digests 
 \* 
-\* @type: ($block) => $blockDigest;
-digest(block) == 
+\* @type: ($vertex) => $vertexDigest;
+digest(vertex) == 
   LET
-    \* @type: $block;
-    b == block
+    \* @type: $vertex;
+    b == vertex
   IN LET
     \* @type: BYZ_VAL;
     c == b.creator
@@ -384,11 +383,11 @@ digest(block) ==
     \* @type: Int;
     n == THENONCE
   IN
-    \* as we keep block proposals in the set of messages "msgs", 
+    \* as we keep vertex proposals in the set of messages "msgs", 
     \* we only need to keep the following information
     [creator |-> c, rnd |-> i, nonce |-> n]
     \* the nonce is only necessary for 
-    \* Byzantine validators to propose several blocks in a round
+    \* Byzantine validators to propose several vertices in a round
 
 \* end of "DATA STRUCTURES"
 -----------------------------------------------------------------------------
@@ -406,19 +405,19 @@ digest(block) ==
 \*   - "Batch" broadcast a batch, **from** a worker (to workers of the
 \*     same index).
                                                                          
-\*   - "Block" a block creator broadcasts a new block (header)               
+\*   - "Vertex" a vertex creator broadcasts a new vertex
                                                                          
-\*   - "Ack" acknowledgment *by* a Validator, having block availble          
+\*   - "Ack" acknowledgment *by* a Validator, having vertex available          
                                                                          
-\*   - "Cert" broadcasting a (block) certificate (by a creator)              
+\*   - "Cert" broadcasting a (vertex) certificate (by a creator)              
                                                                          
 \* We call a "mirror worker" a worker of the same index at a different
 \* validator.  We assume that clients send a transaction/batch only to
 \* one validator at a time, and only if the transaction gets orphaned,
 \* inclusion via a weak link is a desired possibility; thus, we "abuse"
-\* weak links for an additional link to the last proposed block.
+\* weak links for an additional link to the last proposed vertex.
   
-\* Correct validators make blocks of batches arriving at their workers,
+\* Correct validators make vertices of batches arriving at their workers,
 \* to be broadcast to other workers.
                                                                          
 \* We abstract away all worker-primary communication "inside" validators;
@@ -437,30 +436,30 @@ VARIABLE
 
      - from: the sending working
   
-   - Block: broadcast a block
+   - Vertex: broadcast a vertex
 
-     - block: the block being broadcast
+     - vertex: the vertex being broadcast
 
-     - creator: the creator (and sender) of the block
+     - creator: the creator (and sender) of the vertex
 
      - nonce: (Byzantine validators only)
 
 
-   - Ack: acknowledgment of block (including the batches)
+   - Ack: acknowledgment of vertex (including the batches)
     
      - ack: the actual acknowledgment information
 
      - by: the signer (and sender)
 
-   - Cert: the certificate of availability (broadcast by block creator)
+   - Cert: the certificate of availability (broadcast by vertex creator)
 
-     - digest: the digest of the certified block
+     - digest: the digest of the certified vertex
 
-     - creator: the block creator (and sender)
+     - creator: the vertex creator (and sender)
 
    - Commit: message "from" the consensus layer
 
-     - digest: the digest of the commited leader block
+     - digest: the digest of the commited leader vertex
 
    - Executed: (coming soon ™ -- execution layer singal)  
 
@@ -469,11 +468,11 @@ VARIABLE
    ===
    @typeAlias:msg = 
      Batch(     {batch : BATCH, from : $worker}                     )|
-     Block(     {block: $block, creator : BYZ_VAL, nonce: Int}      )| 
+     Vertex(     {vertex: $vertex, creator : BYZ_VAL, nonce: Int}      )| 
      Ack(       {ack : $ack, by : BYZ_VAL}                          )| 
-     Cert(      {digest : $blockDigest, creator : BYZ_VAL}          )|
-     Commit(    {digest : $blockDigest }                            )|
-     Executed(  {digest : $blockDigest }                            )|
+     Cert(      {digest : $vertexDigest, creator : BYZ_VAL}          )|
+     Commit(    {digest : $vertexDigest }                            )|
+     Executed(  {digest : $vertexDigest }                            )|
      Abort(NIL) ; 
   *)
   \* @type: Set($msg);
@@ -486,15 +485,15 @@ VARIABLE
 batchMsg(b, w) == 
   Variant("Batch", [ batch |-> b, from |-> w])
 
-\* Block():
-\*   creator produces a block and broadcasts it
+\* Vertex():
+\*   creator produces a vertex and broadcasts it
 \* 
-\* @type: ($block, BYZ_VAL, Int) => $msg;
-blockMsg(b, c, n) == 
-  Variant("Block", [block |-> b, creator |-> c, nonce |-> n])
+\* @type: ($vertex, BYZ_VAL, Int) => $msg;
+vertexMsg(b, c, n) == 
+  Variant("Vertex", [vertex |-> b, creator |-> c, nonce |-> n])
 
 \* Ack():
-\*   commmitment "by" a validator to have stored a block 
+\*   commmitment "by" a validator to have stored a vertex 
 \* 
 \* @type: ($ack, BYZ_VAL) => $msg;
 ackMsg(a, v) == 
@@ -504,14 +503,14 @@ ackMsg(a, v) ==
 \*   creator aggregates quorum of acks into a certificate 
 \*   and broadcasts it
 \* 
-\* @type: ($blockDigest, BYZ_VAL) => $msg;
+\* @type: ($vertexDigest, BYZ_VAL) => $msg;
 certMsg(d, c) == 
   Variant("Cert", [digest |-> d, creator |-> c]) 
 
 \* Commit():
-\*   a commit message commits a leader block (sent by the consensus layer)
+\*   a commit message commits a leader vertex (sent by the consensus layer)
 \*  
-\* @type: ($blockDigest) => $msg;
+\* @type: ($vertexDigest) => $msg;
 commitMsg(d) ==
   Variant("Commit", [digest |-> d])
 
@@ -535,11 +534,11 @@ msgsINIT ==
 (*                                                                         *)
 (* ② a worker specific pool of received client batches;                    *)
 (*                                                                         *)
-(* ③ a pool of batch hashes to be included in the next block;              *)
+(* ③ a pool of batch hashes to be included in the next vertex;              *)
 (*                                                                         *)
 (* ④ a local storage for (hashes of) batches;                              *)
 (*                                                                         *)
-(* ⑤ a local storage for (digests of) block headers                        *)
+(* ⑤ a local storage for (digests of) vertices                        *)
 (***************************************************************************)
 
 
@@ -561,7 +560,7 @@ VARIABLE
 batchPoolINIT == 
   \A w \in Worker : batchPool[w] = {}
 
-\* Primaries' pools of hashes for the next block (initially {}), cf. ③
+\* Primaries' pools of hashes for the next vertex (initially {}), cf. ③
 VARIABLE
   \* @type: BYZ_VAL -> Set($batchHash);
   nextHx
@@ -579,12 +578,12 @@ VARIABLE
 storedHxINIT == 
   \A v \in ByzValidator : storedHx[v] = {}
 
-\* Each ByzValidator has storage for blocks (initially {}), cf. ⑤ 
-\* with the following two different stages of knowing a block
+\* Each ByzValidator has storage for vertices (initially {}), cf. ⑤ 
+\* with the following two different stages of knowing a vertex
 AVL == FALSE 
 COA == TRUE
 VARIABLE
-  \* @type: BYZ_VAL -> Set(<<$block, Bool>>);
+  \* @type: BYZ_VAL -> Set(<<$vertex, Bool>>);
   storedBlx
 
 \* "assert" INIT => \A v \in ByzValidator : storedBlx[v] = {}
@@ -641,72 +640,72 @@ allBUTrndOf ==
 maxRound == 
   CHOOSE n \in Range(rndOf) : n+1 \notin Range(rndOf)
 
-\* "Block":
-\*   a smaller set than BlockType of currently relevant blocks
+\* "Vertex":
+\*   a smaller set than VertexType of currently relevant vertices
 \*  
-\* @type: Set($block);
-Block ==
-    { b \in BlockType : 
+\* @type: Set($vertex);
+Vertex ==
+    { b \in VertexType : 
             /\ b.rnd <= maxRound+1
             /\ \E n \in Nonce : 
-                    blockMsg(b, b.creator, n) \in msgs
+                    vertexMsg(b, b.creator, n) \in msgs
     }
 
-\* "BlockDigest":
-\*   the set of block digests based on Block
+\* "VertexDigest":
+\*   the set of vertex digests based on Vertex
 \* 
-\* @type: Set($blockDigest);
-BlockDigest == 
-  {digest(b) :  b \in Block}
+\* @type: Set($vertexDigest);
+VertexDigest == 
+  {digest(b) :  b \in Vertex}
 
-\* "proposedBlocksByValidatorInRound":
-\*   the set of blocks proposed by a validator in a given round
+\* "proposedVerticesByValidatorInRound":
+\*   the set of vertices proposed by a validator in a given round
 \*   
-\* @type: (BYZ_VAL, Int) => Set($block);
-proposedBlocksByValidatorInRound(validator, r) == 
+\* @type: (BYZ_VAL, Int) => Set($vertex);
+proposedVerticesByValidatorInRound(validator, r) == 
   LET
     c == validator
   IN
-  { b \in Block : 
+  { b \in Vertex : 
       /\ b.rnd = r
       /\ \E n \in Nonce : 
             LET
               \* @type: $msg;
-              m == blockMsg(b, c, n)
+              m == vertexMsg(b, c, n)
             IN
               m \in msgs
   }
   
-\* "proposedBlocksByValidator":
-\*   the set of blocks proposed by a validtor
+\* "proposedVerticesByValidator":
+\*   the set of vertices proposed by a validtor
 \*  
-\* @type: (BYZ_VAL) => Set($block);
-proposedBlocksByValidator(validator) == 
+\* @type: (BYZ_VAL) => Set($vertex);
+proposedVerticesByValidator(validator) == 
   LET
     c == validator
   IN
-  { b \in Block : 
+  { b \in Vertex : 
        \E n \in Nonce : 
           LET
             \* @type: $msg;
-            m == blockMsg(b, c, n)
+            m == vertexMsg(b, c, n)
           IN
             m \in msgs
   }
 
-\* "proposedBlocks":
-\*   the set of all currently proposed blocks
+\* "proposedVertices":
+\*   the set of all currently proposed vertices
 \*  
-\* @type: Set($block);
-proposedBlocks == 
-  UNION { proposedBlocksByValidator(c) : c \in ByzValidator } 
+\* @type: Set($vertex);
+proposedVertices == 
+  UNION { proposedVerticesByValidator(c) : c \in ByzValidator } 
 
-\* "proposedBlocksInRound":
-\*   the set of all blocks that were proposed for a given round
+\* "proposedVerticesInRound":
+\*   the set of all vertices that were proposed for a given round
 \* 
-\* @type: (Int) => Set($block);
-proposedBlocksInRound(r) == 
-   { b \in proposedBlocks : b.rnd = r }
+\* @type: (Int) => Set($vertex);
+proposedVerticesInRound(r) == 
+   { b \in proposedVertices : b.rnd = r }
 
 \* "allAckMsgs":
 \*   the set of all "Ack"-messages sent so far
@@ -725,11 +724,11 @@ allAcks ==
 \* "acksOfDigest":
 \*   the set of all acks for a given digest
 \* 
-\* @type: ($blockDigest) => Set($ack);
+\* @type: ($vertexDigest) => Set($ack);
 acksOfDigest(dgst) == 
   LET
     \* the digest of interest
-    \* @type: $blockDigest;
+    \* @type: $vertexDigest;
     d == dgst
   IN
     \* the set of 
@@ -756,37 +755,37 @@ acksOfDigest(dgst) ==
 (* - Batch broadcast "BatchBC" (message "Batch"):                          *)
 (*                                                                         *)
 (*   A worker broadcasts a                                                 *)
-(*   batch, stores it, and forwards it to its primary for block inclusion. *)
+(*   batch, stores it, and forwards it to its primary for vertex inclusion. *)
 (*                                                                         *)
 (* - Batch storing "StoreBatch" (NO message ):                             *)
 (*                                                                         *)
-(*   Reception of a batch, storing and hashing such that recieved blocks   *)
+(*   Reception of a batch, storing and hashing such that recieved vertices   *)
 (*   can be validated and acknowledged by the primary.                     *)
 (*                                                                         *)
-(* - Block production and broadcast "BlockBC" (message "Block"):           *)
+(* - Vertex production and broadcast "VertexBC" (message "Vertex"):           *)
 (*                                                                         *)
-(*   A primary builds a block from enough certificates of availability     *)
+(*   A primary builds a vertex from enough certificates of availability     *)
 (*   and batch hashes provided by its workers and broadcasts the           *)
-(*   block. "One primary integrates references to [batches] in Mempool     *)
-(*   primary blocks."  [N&T]                                               *)
+(*   vertex. "One primary integrates references to [batches] in Mempool     *)
+(*   primary vertices."  [N&T]                                               *)
 (*                                                                         *)
-(* - Block acknowledgement "Ack" (message "Ack")                           *)
+(* - Vertex acknowledgement "Ack" (message "Ack")                           *)
 (*                                                                         *)
-(*   Receive a block, check its validity, store it, & acknowledge it.      *)
+(*   Receive a vertex, check its validity, store it, & acknowledge it.      *)
 (*                                                                         *)
 (* - Certificate broadcats "CertBC" (message "Cert")                       *)
 (*                                                                         *)
-(*   Take an acknowledgement quorum of a proposed block, aggregate it      *)
+(*   Take an acknowledgement quorum of a proposed vertex, aggregate it      *)
 (*   into a ceritificate, and broadcast the certificate.                   *)
 (*                                                                         *)
-(* - Store a block certificate "StoreBlock" (NO message)                   *)
+(* - Store a vertex certificate "StoreVertex" (NO message)                   *)
 (*                                                                         *)
 (*   “Receive” a certificate of availability and store it.                 *)
 (*                                                                         *)
 (* - Advancing the local round 'AdvanceRound' (NO message)                 *)
 (*                                                                         *)
 (*   A validator moves to the next round,                                  *)
-(*   after receiving a quorum of block certificates.                       *)
+(*   after receiving a quorum of vertex certificates.                       *)
 (***************************************************************************)
 
 
@@ -873,11 +872,11 @@ StoreBatch(batch, worker) ==
   /\ UNCHANGED allBUTstoredHx 
 \* end of action "StoreBatch"
 
-\* "currentBlocksProduced" (auxiliary set):
-\*   the blocks produced by a certain validator that carry the nonce
+\* "currentVerticesProduced" (auxiliary set):
+\*   the vertices produced by a certain validator that carry the nonce
 \* 
-\* @type: (BYZ_VAL, Int) => Set($block);
-currentBlocksProduced(creator, nonce) == 
+\* @type: (BYZ_VAL, Int) => Set($vertex);
+currentVerticesProduced(creator, nonce) == 
   LET
     \* @type: BYZ_VAL;
     c == creator
@@ -885,46 +884,46 @@ currentBlocksProduced(creator, nonce) ==
     n == nonce
     \* @type: Set($msg);
     allBroadcastMessages == 
-      { m \in msgs : VariantTag(m) = "Block" } 
+      { m \in msgs : VariantTag(m) = "Vertex" } 
   IN LET
-    \* @type: Set({block: $block, creator : BYZ_VAL, nonce: Int});
+    \* @type: Set({vertex: $vertex, creator : BYZ_VAL, nonce: Int});
     data == 
-      { VariantGetUnsafe("Block", m) : m \in allBroadcastMessages } 
+      { VariantGetUnsafe("Vertex", m) : m \in allBroadcastMessages } 
   IN LET
-    \* @type: Set({block: $block, creator : BYZ_VAL, nonce: Int});
+    \* @type: Set({vertex: $vertex, creator : BYZ_VAL, nonce: Int});
     filteredData == 
       { x \in data : /\ x.creator = c
                      /\ x.nonce = n
       }
-  IN { x.block : x \in filteredData }
+  IN { x.vertex : x \in filteredData }
 
-\* "fetchBlock" (operator):
-\*    yields the block of the digest (or **should** raise an error),
+\* "fetchVertex" (operator):
+\*    yields the vertex of the digest (or **should** raise an error),
 \*    based on the messages sent (i.e., present in the variable "msg")
 \* 
-\* @type: $blockDigest => $block;
-fetchBlock(dgst) == 
+\* @type: $vertexDigest => $vertex;
+fetchVertex(dgst) == 
   LET
-    \* @type: Set($block);
-    allPossibleBlocks ==
-      currentBlocksProduced(dgst.creator, dgst.nonce)
+    \* @type: Set($vertex);
+    allPossibleVertices ==
+      currentVerticesProduced(dgst.creator, dgst.nonce)
   IN LET
-    \* @type: Set($block);
-    candidates == {c \in allPossibleBlocks : c.rnd = dgst.rnd}
+    \* @type: Set($vertex);
+    candidates == {c \in allPossibleVertices : c.rnd = dgst.rnd}
   IN
     \* extract the unique element (or error❓cf. SubSingletons.tla)
     extract(candidates) 
 
 
-\* ACTION GenesisBlockBC [instance of BlockBC]:
-\*   a validator produces a genesis block and broadcasts it
+\* ACTION GenesisVertexBC [instance of VertexBC]:
+\*   a validator produces a genesis vertex and broadcasts it
 \* 
 \* @typing: BYZ_VAL => Bool;
-GenesisBlockBC(validator) ==
+GenesisVertexBC(validator) ==
   LET
     \* @type: BYZ_VAL;
     v == validator
-    \* @type: $block;
+    \* @type: $vertex;
     b == [ creator |-> v,
            rnd |-> 1, 
            bhxs |-> nextHx[v],
@@ -937,24 +936,24 @@ GenesisBlockBC(validator) ==
   \* pre-condition
   /\ rndOf[v] = 1 \* validator has local round 1
   \* post-condition
-     \* send the block
-  /\ Send(blockMsg(b, v, THENONCE)) \* ¡msgs
+     \* send the vertex
+  /\ Send(vertexMsg(b, v, THENONCE)) \* ¡msgs
      \* empty v's nextHx (for validators)
   /\ nextHx' = \* ¡nextHx
           [nextHx EXCEPT ![v] = {}] 
-  /\ UNCHANGED allBUTmsgsNnextHx \* end of action "GenesisBlockBC"
+  /\ UNCHANGED allBUTmsgsNnextHx \* end of action "GenesisVertexBC"
 
-\* "hasBlockHashesStored" (auxiliary predicate):
+\* "hasVertexHashesStored" (auxiliary predicate):
 \*   predicate for checking the storage of hashes at a validator
 \*  
-\* @type: ($block, BYZ_VAL) => Bool;
-hasBlockHashesStored(block, val) ==
+\* @type: ($vertex, BYZ_VAL) => Bool;
+hasVertexHashesStored(vertex, val) ==
  \* we know all batches
-  block.bhxs \subseteq storedHx[val]
+  vertex.bhxs \subseteq storedHx[val]
 
 
 \* "checkCertificatesOfAvailability":
-\*   predicate for checking the storage of blocks of digests
+\*   predicate for checking the storage of vertices of digests
 \* 
 \* @type: ($digestFamily, BYZ_VAL) => Bool;
 checkCertificatesOfAvailability(certificate, validator) ==
@@ -966,22 +965,22 @@ checkCertificatesOfAvailability(certificate, validator) ==
   IN  
   \A d \in Range(c) : 
        LET
-         \* @type: $block;
-         b == fetchBlock(d)
+         \* @type: $vertex;
+         b == fetchVertex(d)
        IN  
-         \* block is known with a certificate
+         \* vertex is known with a certificate
          << b, COA >> \in storedBlx[v]  
 
-\* "validBlock":
+\* "validVertex":
 \*   predicate that checks whether a correct validator should 
-\*   consider a given block to be valid
+\*   consider a given vertex to be valid
 \* 
-\* @type: ($block, BYZ_VAL) => Bool;
-validBlock(block, validator) == 
+\* @type: ($vertex, BYZ_VAL) => Bool;
+validVertex(vertex, validator) == 
   LET 
-    \* the block in question
-    \* @type: $block;
-    b == block
+    \* the vertex in question
+    \* @type: $vertex;
+    b == vertex
     \* the validator checking the validity
     \* @type: BYZ_VAL;
     v == validator 
@@ -989,24 +988,24 @@ validBlock(block, validator) ==
      \* the round must be a positive natural number 
   /\ b.rnd > 0 \*
      \* batch hashes stored (always needed)
-  /\ hasBlockHashesStored(b, v)
-     \* and block references stored
+  /\ hasVertexHashesStored(b, v)
+     \* and vertex references stored
   /\ checkCertificatesOfAvailability(b.cq, v)
   /\ DOMAIN b.wl = {} 
 
 \* ACTION Ack:
-\*   Receive a block, check its validity, store it, acknowledge it.
+\*   Receive a vertex, check its validity, store it, acknowledge it.
 \*
 \* ¡msgs, ¡storedBlx
-\* @type: (BYZ_VAL, $block) => Bool;
-Ack(validator, block) == 
+\* @type: (BYZ_VAL, $vertex) => Bool;
+Ack(validator, vertex) == 
   LET
     \* @type: BYZ_VAL;
     v == validator
-    \* @type: $block; 
-    b == block 
+    \* @type: $vertex; 
+    b == vertex 
   IN LET
-    \* @type: $blockDigest;
+    \* @type: $vertexDigest;
     d == digest(b)
   IN LET
     \* @type: $ack;
@@ -1015,33 +1014,33 @@ Ack(validator, block) ==
   \* typing of v (for TLC)
   /\ v \in ByzValidator
   \* pre-condition:
-     \* check that block b was proposed
-  /\ b \in proposedBlocks 
+     \* check that vertex b was proposed
+  /\ b \in proposedVertices 
      \* check that b is valid (according to v)
-  /\ validBlock(b, v) \* 
+  /\ validVertex(b, v) \* 
      \* check that b is “new”
   /\ << b, AVL >> \notin storedBlx[v]
   /\ << b, COA >> \notin storedBlx[v]  
   \* post-condition:
      \* send the acknowledgement 
   /\ Send(ackMsg(a, v)) \* ¡msgs
-     \* store the block as "available" (but not certified)
+     \* store the vertex as "available" (but not certified)
   /\ storedBlx' = \* ¡storedBlx
        [storedBlx EXCEPT ![v] = @ \cup {<<b, AVL>>}] 
   /\ UNCHANGED allBUTmsgsNstoredBlx
 
 \* ACTION CertBC:
-\*   broadcast a certificate of availability of (the digest of) a block 
+\*   broadcast a certificate of availability of (the digest of) a vertex 
 \*  
-\* @type: ($blockDigest) => Bool;
+\* @type: ($vertexDigest) => Bool;
 CertBC(dgst) ==
   LET
-    \* the block digest to be certified
-    \* @type: $blockDigest;
+    \* the vertex digest to be certified
+    \* @type: $vertexDigest;
     d == dgst
   IN
   \* typing 
-  /\ dgst \in BlockDigest
+  /\ dgst \in VertexDigest
   \* pre-condition
      \* enough ack messages sent (by a quorum)
   /\ \E Q \in ByzQuorum : 
@@ -1058,45 +1057,45 @@ CertBC(dgst) ==
            IN Send(certMsg(d, theCreator)) \* ¡msgs
   /\ UNCHANGED allBUTmsgs
 
-\* ACTION StoreBlock:
-\*   store a block whose certificate was sent around  
+\* ACTION StoreVertex:
+\*   store a vertex whose certificate was sent around  
 \* 
-\* @type: ($block, BYZ_VAL) => Bool;
-StoreBlock(block, validator) ==
+\* @type: ($vertex, BYZ_VAL) => Bool;
+StoreVertex(vertex, validator) ==
   LET
-    \* @type: $block;
-    b == block
+    \* @type: $vertex;
+    b == vertex
     \* @type: BYZ_VAL;
     v == validator
   IN    
     \* type check TLC
-    /\ b \in Block
+    /\ b \in Vertex
     /\ v \in ByzValidator
     \* pre-condition
-       \* the validor has acknowledged and stored the block 
+       \* the validor has acknowledged and stored the vertex 
     /\ << b, AVL >> \in storedBlx[v]
     \* post-condition
-       \* store also the certificate of availability of the block
+       \* store also the certificate of availability of the vertex
     /\ storedBlx' = \* ¡storedBlx
          [storedBlx EXCEPT ![v] = @ \cup {<< b, COA >>}]
     /\ UNCHANGED allBUTstoredBlx   
 
-\* "preceedingBlocks":
-\*   the set of blocks referencable by a validator in the previous round
+\* "preceedingVertices":
+\*   the set of vertices referencable by a validator in the previous round
 \*   cf. \prec—the directly covers relation 
 \* 
-\* @type: (BYZ_VAL, Int) => Set($block);
-preceedingBlocks(v, r) == 
-      { b \in Block : 
+\* @type: (BYZ_VAL, Int) => Set($vertex);
+preceedingVertices(v, r) == 
+      { b \in Vertex : 
           /\ b.rnd = r - 1
           /\ << b, COA >> \in storedBlx[v]
       }
 
-\* ACTION AfterGenesisBlockBC [instance of BlockBC]:
-\*  a validator produces a block, after genesis, and broadcasts it
+\* ACTION AfterGenesisVertexBC [instance of VertexBC]:
+\*  a validator produces a vertex, after genesis, and broadcasts it
 \* 
 \* @typing: BYZ_VAL => Bool;
-AfterGenesisBlockBC(validator) ==
+AfterGenesisVertexBC(validator) ==
   LET
     \* @type: BYZ_VAL;
     v == validator   
@@ -1105,7 +1104,7 @@ AfterGenesisBlockBC(validator) ==
   IN LET
     \* @type: Set(BYZ_VAL);
     certifiedProposers == 
-      { b.creator : b \in preceedingBlocks(v,r) }
+      { b.creator : b \in preceedingVertices(v,r) }
   IN
   \* type check:
      \* it's a validator
@@ -1113,57 +1112,57 @@ AfterGenesisBlockBC(validator) ==
   \* pre-condition
      \* validator has advanced to a non-genesis round
   /\ rndOf[v] > 1 
-     \* no block proposed yet
-  /\ proposedBlocksByValidatorInRound(v, rndOf[v]) = {}
-     \* there exists a quorum of certified block in the previous round
+     \* no vertex proposed yet
+  /\ proposedVerticesByValidatorInRound(v, rndOf[v]) = {}
+     \* there exists a quorum of certified vertex in the previous round
   /\ \E Q \in ByzQuorum \cap SUBSET certifiedProposers : 
        LET 
-         \* @type: Set($block);
-         relevantBlocksByQ == 
-           { b \in preceedingBlocks(v,r) : b.creator \in Q }
+         \* @type: Set($vertex);
+         relevantVerticesByQ == 
+           { b \in preceedingVertices(v,r) : b.creator \in Q }
        IN LET
-         \* @type: $block;
-         theBlock == [
+         \* @type: $vertex;
+         theVertex == [
              creator |-> v, 
              rnd |-> rndOf[v],
              bhxs |-> nextHx[v],
              cq |-> [q \in Q |-> 
-                       digest(CHOOSE b \in preceedingBlocks(v,r) : b.creator = q)
+                       digest(CHOOSE b \in preceedingVertices(v,r) : b.creator = q)
                     ], 
              wl |-> emptyLinks
            ]
        IN 
        \* post-condition
-           \* send the block
-         /\ Send(blockMsg(theBlock, v, THENONCE)) \* ¡msgs
+           \* send the vertex
+         /\ Send(vertexMsg(theVertex, v, THENONCE)) \* ¡msgs
          \* empty v's nextHx (for validators)
          /\ nextHx' = \* ¡nextHx
               [nextHx EXCEPT ![v] = {}] 
-  /\ UNCHANGED allBUTmsgsNnextHx \* end of action "GenesisBlockBC"
+  /\ UNCHANGED allBUTmsgsNnextHx \* end of action "GenesisVertexBC"
 
-\* ACTION BlockBC:
-\*   the combination of the two cases of block production, viz.
-\*   - GenesisBlockBC
-\*   - AfterGenesisBlockBC
+\* ACTION VertexBC:
+\*   the combination of the two cases of vertex production, viz.
+\*   - GenesisVertexBC
+\*   - AfterGenesisVertexBC
 \*
 \* @typing: BYZ_VAL => Bool;
-BlockBC(validator) == 
-  \/ GenesisBlockBC(validator)
-  \/ AfterGenesisBlockBC(validator)
+VertexBC(validator) == 
+  \/ GenesisVertexBC(validator)
+  \/ AfterGenesisVertexBC(validator)
     
 \* AdvanceRound:
 \*   correct validators can increment their local round number 
-\*   as soon as they have a quorum of CoA for blocks of the previous round 
+\*   as soon as they have a quorum of CoA for vertices of the previous round 
 \*  
 \* @type: (BYZ_VAL) => Bool;
 AdvanceRound(validator) == 
   LET
     \* @type: Set(BYZ_VAL);
     X == 
-      {b.creator : b \in preceedingBlocks(validator, rndOf[validator]+1)}
+      {b.creator : b \in preceedingVertices(validator, rndOf[validator]+1)}
   IN 
   \* pre-condition:
-      \* enough block available
+      \* enough vertex available
   /\ \E Q \in ByzQuorum \cap SUBSET X : TRUE
   \* post-condition
   /\ rndOf' = [rndOf EXCEPT ![validator] = @ + 1]
@@ -1177,24 +1176,24 @@ AdvanceRound(validator) ==
 (* We define several auxiliary predicates and sets  *)
 
 \* "linksTo":
-\*   the relation of direct links between blocks 
-\*   (the blocks do not have to be proposed)
+\*   the relation of direct links between vertices 
+\*   (the vertices do not have to be proposed)
 \*
-\* @type: ($block, $block) => Bool;
+\* @type: ($vertex, $vertex) => Bool;
 linksTo(b, y) ==
   \* type checks
-  /\ b \in Block
-  /\ y \in Block
-  \* the certificate list of block b contains digest of y
+  /\ b \in Vertex
+  /\ y \in Vertex
+  \* the certificate list of vertex b contains digest of y
   /\ \E c \in Range(b.cq) : 
      LET 
-       \* @type: $block;
-       blockOfC == fetchBlock(c)
+       \* @type: $vertex;
+       vertexOfC == fetchVertex(c)
      IN 
-       blockOfC = y
+       vertexOfC = y
 
 \* checking whether a digest is certified via messages
-\* @type: ($blockDigest) => Bool;
+\* @type: ($vertexDigest) => Bool;
 IsCertifiedDigest(dgst) == 
   \E v \in ByzValidator : 
         \* the digest was sent by v in a certMessage and …
@@ -1207,18 +1206,18 @@ IsCertifiedDigest(dgst) ==
         IN 
           \E X \in ByzQuorum \cap SUBSET allSupporters : TRUE
 
-\* predicate for block certification
+\* predicate for vertex certification
 \* i.e., based msgs, there is a justified "Cert"-message 
-\* @type: ($block) => Bool;
-IsCertifiedBlock(b) ==
+\* @type: ($vertex) => Bool;
+IsCertifiedVertex(b) ==
   \* type check
-  /\ b \in Block
+  /\ b \in Vertex
   \* check the digest
   /\ IsCertifiedDigest(digest(b))
 
-\* the set of all blocks that are certified via 'IsCertifiedBlock'
-\* @type: Set($block);
-CertifiedBlocks == { b \in Block : IsCertifiedBlock(b) }
+\* the set of all vertices that are certified via 'IsCertifiedVertex'
+\* @type: Set($vertex);
+CertifiedVertices == { b \in Vertex : IsCertifiedVertex(b) }
 
 \* "IsProperCertQuorumAtRound":
 \*    what's a proper quorum of certificates in (local) round r?
@@ -1248,29 +1247,29 @@ IsProperCertQuorumAtRound(certificateQuorum, round) ==
 
 (***************************************************************************)
 (* Instead of the (pseudo-)random leader election of Tusk [N&T], we model  *)
-(* a non-deterministic choice of leader blocks in each _k_-th round for a  *)
-(* globally fixed _k_ > 0 with the additional guarantee that the block is  *)
+(* a non-deterministic choice of leader vertices in each _k_-th round for a  *)
+(* globally fixed _k_ > 0 with the additional guarantee that the vertex is  *)
 (* referenced by at least a weak quorum.                                   *)
 (***************************************************************************)
 
 \* hasSupport:
-\*   predicate that checks if a block is a commitable leader block
+\*   predicate that checks if a vertex is a commitable leader vertex
 \* 
-\* @type: ($block) => Bool;
+\* @type: ($vertex) => Bool;
 hasSupport(b) == 
      \* type check 
-  /\ b \in Block
+  /\ b \in Vertex
      \* 
   /\ \E W \in WeakQuorum : 
        \A w \in W : 
-            \E y \in Block :
+            \E y \in Vertex :
                  /\ y.creator = w
                  /\ << y, COA >> \in storedBlx[w]
                  /\ linksTo(y, b)
 
 CONSTANT
   \* ̈"WaveLength":
-  \*   the constant number of rounds between each leader block commitment
+  \*   the constant number of rounds between each leader vertex commitment
   \*
   \* @type: Int;
   WaveLength
@@ -1282,18 +1281,18 @@ ASSUME WaveLengthAssumption ==
 WaveLengthTimesNat == 
   { n \in Nat : \E i \in Nat : n = WaveLength * i }
 
-\* ACTION "CommitBlock":  
-\*   the action of commiting a block (by consensus)
+\* ACTION "CommitVertex":  
+\*   the action of commiting a vertex (by consensus)
 \* 
-\* @type: $block => Bool;
-CommitBlock(b) == 
+\* @type: $vertex => Bool;
+CommitVertex(b) == 
   \* type check
-  /\ b \in Block
+  /\ b \in Vertex
   \* pre-condition(s)
      \* proper round number
   /\ b.rnd \in WaveLengthTimesNat
-     \* not yet committed any block at the round
-  /\ ~\E y \in Block: 
+     \* not yet committed any vertex at the round
+  /\ ~\E y \in Vertex: 
            /\ commitMsg(digest(y)) \in msgs 
            /\ y.rnd = b.rnd                     
   \* enough support
@@ -1304,39 +1303,39 @@ CommitBlock(b) ==
 -----------------------------------------------------------------------------
 
 (***************************************************************************)
-(*                         COMMITTED BLOCK                                 *)
+(*                         COMMITTED VERTEX                                 *)
 (***************************************************************************)
  
 (***************************************************************************)
-(* We define when a block is commited, relative to the LeaderBlock         *)
-(* selection.  Later garbage collected blocks will remain commited.        *)
+(* We define when a vertex is commited, relative to the LeaderVertex         *)
+(* selection.  Later garbage collected vertices will remain commited.        *)
 (*                                                                         *)
 (* We take the following necessary (and sufficient) condition for          *)
-(* commitment of a leader block (e.g., if chosen as candidate leader       *)
-(* block):                                                                 *)
+(* commitment of a leader vertex (e.g., if chosen as candidate leader       *)
+(* vertex):                                                                 *)
 (*                                                                         *)
-(* 1.  There is a weak quorum of blocks, each of which                     *)
-(*   a) references the block via its certificate quorum and                *)
+(* 1.  There is a weak quorum of vertices, each of which                     *)
+(*   a) references the vertex via its certificate quorum and                *)
 (*   b) has itself obtained a certificate of availability (broadcast by    *)
 (*      its creator).                                                      *)
 (***************************************************************************)
 
-\* checks whether a leader block is a leader block
-\* @type: ($block) => Bool;
-IsCommitingLeaderBlock(b) == 
+\* checks whether a leader vertex is a leader vertex
+\* @type: ($vertex) => Bool;
+IsCommitingLeaderVertex(b) == 
   \* type check
-  /\ b \in Block
+  /\ b \in Vertex
   \* commit message was sent (by consensus layer)
   /\ commitMsg(digest(b)) \in msgs 
 
 
 (* (coming soon ™) 
-\* checking if a block is commited
+\* checking if a vertex is commited
 IsCommitted(b) ==
-  /\ b \in Block
-  /\ \/ IsCommitingLeaderBlock(b)
-     \/ \E z \in Block : 
-        /\ IsCommitingLeaderBlock(z)
+  /\ b \in Vertex
+  /\ \/ IsCommitingLeaderVertex(b)
+     \/ \E z \in Vertex : 
+        /\ IsCommitingLeaderVertex(z)
         /\ b \in {} \* CausalHistory(z)
 *)
 -----------------------------------------------------------------------------
@@ -1346,11 +1345,11 @@ IsCommitted(b) ==
 (***************************************************************************)
 
 (***************************************************************************)
-(* Gargabge collection marks a block as "orphaned", either if it is not    *)
-(* and never will be in the causal history of a leader block or if the     *)
-(* distance from its commiting leader block is too long where the          *)
-(* _commiting leader block_ of a block b is the leader block with the      *)
-(* least round number whose causal history contains the block b. *)
+(* Gargabge collection marks a vertex as "orphaned", either if it is not    *)
+(* and never will be in the causal history of a leader vertex or if the     *)
+(* distance from its commiting leader vertex is too long where the          *)
+(* _commiting leader vertex_ of a vertex b is the leader vertex with the      *)
+(* least round number whose causal history contains the vertex b. *)
 (***************************************************************************)
 
 \* coming soon ™
