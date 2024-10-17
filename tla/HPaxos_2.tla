@@ -64,13 +64,13 @@ Assert(P, str) == P
     Caught0(x) == { m.acc : m \in CaughtMsg0(x) }
 
     \* Connected
-    ConByQuorum(a, b, x, S) == \* a : Learner, b : Learner, x : 1b, S \in ByzQuorum
-        /\ [from |-> a, to |-> b, q |-> S] \in TrustSafe
+    ConByQuorum(alpha, beta, x, S) == \* a : Learner, b : Learner, x : 1b, S \in ByzQuorum
+        /\ [from |-> alpha, to |-> beta, q |-> S] \in TrustSafe
         /\ S \cap Caught(x) = {}
 
-    Con(a, x) == \* a : Learner, x : 1b
-        { b \in Learner :
-            \E S \in ByzQuorum : ConByQuorum(a, b, x, S) }
+    Con(alpha, x) == \* a : Learner, x : 1b
+        { beta \in Learner :
+            \E S \in ByzQuorum : ConByQuorum(alpha, beta, x, S) }
 
     \* 2a-message is _buried_ if there exists a quorum of acceptors that have seen
     \* 2a-messages with different values, the same learner, and higher ballot
@@ -96,14 +96,14 @@ Assert(P, str) == P
                 /\ ~Buried(beta, m, x) }
 
     \* Fresh 1b messages
-    Fresh(l, x) == \* l : Learner, x : 1b
-        \A m \in Con2as(l, x) : \A v \in Value : V(x, v) <=> V(m, v)
+    Fresh(alpha, x) == \* l : Learner, x : 1b
+        \A m \in Con2as(alpha, x) : \A v \in Value : V(x, v) <=> V(m, v)
 
     \* Quorum of messages referenced by 2a for a learner instance
-    q(l, x) == \* x : 2a
+    q(alpha, x) == \* x : 2a
         LET Q == { m \in Tran(x) :
                     /\ m.type = "1b"
-                    /\ Fresh(l, m)
+                    /\ Fresh(alpha, m)
                     /\ \A b \in Ballot : B(m, b) <=> B(x, b) }
         IN { m.acc : m \in Q }
 
@@ -129,16 +129,16 @@ Assert(P, str) == P
             /\ m.ref # {}
             /\ WellFormed2a(m)
 
-    Known2a(l, b, v) ==
-        { x \in known_msgs[l] :
+    Known2a(alpha, b, v) ==
+        { x \in known_msgs[alpha] :
             /\ x.type = "2a"
-            /\ l \in x.lrn
+            /\ alpha \in x.lrn
             /\ B(x, b)
             /\ V(x, v) }
 
-    ChosenIn(l, b, v) ==
-        \E S \in SUBSET Known2a(l, b, v) :
-            [lr |-> l, q |-> { m.acc : m \in S }] \in TrustLive
+    ChosenIn(alpha, b, v) ==
+        \E S \in SUBSET Known2a(alpha, b, v) :
+            [lr |-> alpha, q |-> { m.acc : m \in S }] \in TrustLive
   }
 
   macro Send(m) { msgs := msgs \cup {m} }
