@@ -75,24 +75,25 @@ Assert(P, str) == P
     \* 2a-message is _buried_ if there exists a quorum of acceptors that have seen
     \* 2a-messages with different values, the same learner, and higher ballot
     \* numbers.
-    Buried(l, x, y) == \* x : 2a, y : 1b
+    Buried(alpha, x, y) == \* x : 2a, y : 1b
         LET Q == { m \in Tran(y) :
                     \E z \in Tran(m) :
                         /\ z.type = "2a"
-                        /\ l \in x.lrn
-                        /\ l \in z.lrn
+                        /\ alpha \in z.lrn
                         /\ \A bx, bz \in Ballot :
                             B(x, bx) /\ B(z, bz) => bx < bz
                         /\ \A vx, vz \in Value :
                             V(x, vx) /\ V(z, vz) => vx # vz }
-        IN [lr |-> l, q |-> { m.acc : m \in Q }] \in TrustLive
+        IN [lr |-> alpha, q |-> { m.acc : m \in Q }] \in TrustLive
 
     \* Connected 2a messages and learners
-    Con2as(l, x) == \* l : Learner, x : 1b
+    Con2as(alpha, x) == \* alpha : Learner, x : 1b
         { m \in Tran(x) :
             /\ m.type = "2a"
             /\ m.acc = x.acc
-            /\ \E beta \in Con(l, x) : ~Buried(beta, m, x) }
+            /\ \E beta \in m.lrn :
+                /\ beta \in Con(alpha, x)
+                /\ ~Buried(beta, m, x) }
 
     \* Fresh 1b messages
     Fresh(l, x) == \* l : Learner, x : 1b
