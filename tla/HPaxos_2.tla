@@ -64,45 +64,46 @@ Assert(P, str) == P
     Caught0(x) == { m.acc : m \in CaughtMsg0(x) }
 
     \* Connected
-    ConByQuorum(a, b, x, S) == \* a : Learner, b : Learner, x : 1b, S \in ByzQuorum
-        /\ [from |-> a, to |-> b, q |-> S] \in TrustSafe
+    ConByQuorum(alpha, beta, x, S) == \* a : Learner, b : Learner, x : 1b, S \in ByzQuorum
+        /\ [from |-> alpha, to |-> beta, q |-> S] \in TrustSafe
         /\ S \cap Caught(x) = {}
 
-    Con(a, x) == \* a : Learner, x : 1b
-        { b \in Learner :
-            \E S \in ByzQuorum : ConByQuorum(a, b, x, S) }
+    Con(alpha, x) == \* a : Learner, x : 1b
+        { beta \in Learner :
+            \E S \in ByzQuorum : ConByQuorum(alpha, beta, x, S) }
 
     \* 2a-message is _buried_ if there exists a quorum of acceptors that have seen
     \* 2a-messages with different values, the same learner, and higher ballot
     \* numbers.
-    Buried(l, x, y) == \* x : 2a, y : 1b
+    Buried(alpha, x, y) == \* x : 2a, y : 1b
         LET Q == { m \in Tran(y) :
                     \E z \in Tran(m) :
                         /\ z.type = "2a"
-                        /\ l \in x.lrn
-                        /\ l \in z.lrn
+                        /\ alpha \in z.lrn
                         /\ \A bx, bz \in Ballot :
                             B(x, bx) /\ B(z, bz) => bx < bz
                         /\ \A vx, vz \in Value :
                             V(x, vx) /\ V(z, vz) => vx # vz }
-        IN [lr |-> l, q |-> { m.acc : m \in Q }] \in TrustLive
+        IN [lr |-> alpha, q |-> { m.acc : m \in Q }] \in TrustLive
 
     \* Connected 2a messages and learners
-    Con2as(l, x) == \* l : Learner, x : 1b
+    Con2as(alpha, x) == \* alpha : Learner, x : 1b
         { m \in Tran(x) :
             /\ m.type = "2a"
             /\ m.acc = x.acc
-            /\ \E beta \in Con(l, x) : ~Buried(beta, m, x) }
+            /\ \E beta \in m.lrn :
+                /\ beta \in Con(alpha, x)
+                /\ ~Buried(beta, m, x) }
 
     \* Fresh 1b messages
-    Fresh(l, x) == \* l : Learner, x : 1b
-        \A m \in Con2as(l, x) : \A v \in Value : V(x, v) <=> V(m, v)
+    Fresh(alpha, x) == \* l : Learner, x : 1b
+        \A m \in Con2as(alpha, x) : \A v \in Value : V(x, v) <=> V(m, v)
 
     \* Quorum of messages referenced by 2a for a learner instance
-    q(l, x) == \* x : 2a
+    q(alpha, x) == \* x : 2a
         LET Q == { m \in Tran(x) :
                     /\ m.type = "1b"
-                    /\ Fresh(l, m)
+                    /\ Fresh(alpha, m)
                     /\ \A b \in Ballot : B(m, b) <=> B(x, b) }
         IN { m.acc : m \in Q }
 
@@ -128,16 +129,16 @@ Assert(P, str) == P
             /\ m.ref # {}
             /\ WellFormed2a(m)
 
-    Known2a(l, b, v) ==
-        { x \in known_msgs[l] :
+    Known2a(alpha, b, v) ==
+        { x \in known_msgs[alpha] :
             /\ x.type = "2a"
-            /\ l \in x.lrn
+            /\ alpha \in x.lrn
             /\ B(x, b)
             /\ V(x, v) }
 
-    ChosenIn(l, b, v) ==
-        \E S \in SUBSET Known2a(l, b, v) :
-            [lr |-> l, q |-> { m.acc : m \in S }] \in TrustLive
+    ChosenIn(alpha, b, v) ==
+        \E S \in SUBSET Known2a(alpha, b, v) :
+            [lr |-> alpha, q |-> { m.acc : m \in S }] \in TrustLive
   }
 
   macro Send(m) { msgs := msgs \cup {m} }
@@ -260,7 +261,7 @@ Assert(P, str) == P
 }
 
 ****************************************************************************)
-\* BEGIN TRANSLATION (chksum(pcal) = "e34bd140" /\ chksum(tla) = "89878241")
+\* BEGIN TRANSLATION (chksum(pcal) = "9e1717ee" /\ chksum(tla) = "cb6db31d")
 VARIABLES msgs, known_msgs, recent_msgs, prev_msg, decision, BVal
 
 (* define statement *)
@@ -312,45 +313,46 @@ CaughtMsg0(x) ==
 Caught0(x) == { m.acc : m \in CaughtMsg0(x) }
 
 
-ConByQuorum(a, b, x, S) ==
-    /\ [from |-> a, to |-> b, q |-> S] \in TrustSafe
+ConByQuorum(alpha, beta, x, S) ==
+    /\ [from |-> alpha, to |-> beta, q |-> S] \in TrustSafe
     /\ S \cap Caught(x) = {}
 
-Con(a, x) ==
-    { b \in Learner :
-        \E S \in ByzQuorum : ConByQuorum(a, b, x, S) }
+Con(alpha, x) ==
+    { beta \in Learner :
+        \E S \in ByzQuorum : ConByQuorum(alpha, beta, x, S) }
 
 
 
 
-Buried(l, x, y) ==
+Buried(alpha, x, y) ==
     LET Q == { m \in Tran(y) :
                 \E z \in Tran(m) :
                     /\ z.type = "2a"
-                    /\ l \in x.lrn
-                    /\ l \in z.lrn
+                    /\ alpha \in z.lrn
                     /\ \A bx, bz \in Ballot :
                         B(x, bx) /\ B(z, bz) => bx < bz
                     /\ \A vx, vz \in Value :
                         V(x, vx) /\ V(z, vz) => vx # vz }
-    IN [lr |-> l, q |-> { m.acc : m \in Q }] \in TrustLive
+    IN [lr |-> alpha, q |-> { m.acc : m \in Q }] \in TrustLive
 
 
-Con2as(l, x) ==
+Con2as(alpha, x) ==
     { m \in Tran(x) :
         /\ m.type = "2a"
         /\ m.acc = x.acc
-        /\ \E beta \in Con(l, x) : ~Buried(beta, m, x) }
+        /\ \E beta \in m.lrn :
+            /\ beta \in Con(alpha, x)
+            /\ ~Buried(beta, m, x) }
 
 
-Fresh(l, x) ==
-    \A m \in Con2as(l, x) : \A v \in Value : V(x, v) <=> V(m, v)
+Fresh(alpha, x) ==
+    \A m \in Con2as(alpha, x) : \A v \in Value : V(x, v) <=> V(m, v)
 
 
-q(l, x) ==
+q(alpha, x) ==
     LET Q == { m \in Tran(x) :
                 /\ m.type = "1b"
-                /\ Fresh(l, m)
+                /\ Fresh(alpha, m)
                 /\ \A b \in Ballot : B(m, b) <=> B(x, b) }
     IN { m.acc : m \in Q }
 
@@ -376,16 +378,16 @@ WellFormed(m) ==
         /\ m.ref # {}
         /\ WellFormed2a(m)
 
-Known2a(l, b, v) ==
-    { x \in known_msgs[l] :
+Known2a(alpha, b, v) ==
+    { x \in known_msgs[alpha] :
         /\ x.type = "2a"
-        /\ l \in x.lrn
+        /\ alpha \in x.lrn
         /\ B(x, b)
         /\ V(x, v) }
 
-ChosenIn(l, b, v) ==
-    \E S \in SUBSET Known2a(l, b, v) :
-        [lr |-> l, q |-> { m.acc : m \in S }] \in TrustLive
+ChosenIn(alpha, b, v) ==
+    \E S \in SUBSET Known2a(alpha, b, v) :
+        [lr |-> alpha, q |-> { m.acc : m \in S }] \in TrustLive
 
 
 vars == << msgs, known_msgs, recent_msgs, prev_msg, decision, BVal >>
@@ -416,7 +418,7 @@ safe_acceptor(self) == /\ \E m \in msgs:
                                                    prev |-> prev_msg[self],
                                                    ref |-> recent_msgs[self] \cup {m}] IN
                                        /\ Assert(new1b \in Message, 
-                                                 "Failure of assertion at line 164, column 7 of macro called at line 240, column 16.")
+                                                 "Failure of assertion at line 165, column 7 of macro called at line 241, column 16.")
                                        /\ \/ /\ WellFormed1b(new1b)
                                              /\ prev_msg' = [prev_msg EXCEPT ![self] = new1b]
                                              /\ recent_msgs' = [recent_msgs EXCEPT ![self] = {new1b}]
@@ -432,7 +434,7 @@ safe_acceptor(self) == /\ \E m \in msgs:
                                                      prev |-> prev_msg[self],
                                                      ref |-> recent_msgs[self] \cup {m}] IN
                                          /\ Assert(new2a \in Message, 
-                                                   "Failure of assertion at line 187, column 7 of macro called at line 241, column 16.")
+                                                   "Failure of assertion at line 188, column 7 of macro called at line 242, column 16.")
                                          /\ WellFormed2a(new2a)
                                          /\ prev_msg' = [prev_msg EXCEPT ![self] = new2a]
                                          /\ recent_msgs' = [recent_msgs EXCEPT ![self] = {new2a}]
@@ -649,5 +651,5 @@ UniqueDecision ==
 
 =============================================================================
 \* Modification History
-\* Last modified Mon May 20 16:48:25 CEST 2024 by karbyshev
+\* Last modified Thu Oct 17 21:33:39 CEST 2024 by karbyshev
 \* Created Mon Jun 19 12:24:03 CEST 2022 by karbyshev
