@@ -283,16 +283,19 @@ PROOF
                       prev |-> prev_msg[acc],
                       ref |-> recent_msgs[acc] \cup {m1b}] IN
         /\ new2a \in Message
-        /\ Send(new2a)
-        /\ recent_msgs' = [recent_msgs EXCEPT ![acc] = {new2a}]
-        /\ prev_msg' = [prev_msg EXCEPT ![acc] = new2a]
+        /\ \/ /\ WellFormed2a(new2a)
+              /\ Send(new2a)
+              /\ recent_msgs' = [recent_msgs EXCEPT ![acc] = {new2a}]
+              /\ prev_msg' = [prev_msg EXCEPT ![acc] = new2a]
+           \/ /\ ~WellFormed2a(new2a)
+              /\ recent_msgs' = [recent_msgs EXCEPT ![acc] = recent_msgs[acc] \cup {m1b}]
         BY Zenon
     <4> DEFINE new2a == [type |-> "2a", lrn |-> ll, acc |-> acc,
                          prev |-> prev_msg[acc],
                          ref  |-> recent_msgs[acc] \cup {m1b}]
     <4> new2a \in Message
         OBVIOUS
-    <4> QED BY Zenon DEF TypeOK
+    <4> QED BY Isa DEF TypeOK
   <2> QED BY DEF TypeOK, Send
 <1>4. CASE \E a \in SafeAcceptor : \E m \in msgs : Process2a(a, m)
   <2> PICK acc \in SafeAcceptor, msg \in msgs : Process2a(acc, msg)
@@ -478,9 +481,12 @@ PROOF
       LET new2a == [type |-> "2a", lrn |-> ll, acc |-> acc,
                     prev |-> prev_msg[acc],
                     ref |-> recent_msgs[acc] \cup {m1b}] IN
-      recent_msgs' = [recent_msgs EXCEPT ![acc] = {new2a}]
+      \/ /\ WellFormed2a(new2a)
+         /\ recent_msgs' = [recent_msgs EXCEPT ![acc] = {new2a}]
+      \/ /\ ~WellFormed2a(new2a)
+         /\ recent_msgs' = [recent_msgs EXCEPT ![acc] = recent_msgs[acc] \cup {m1b}]
       BY Zenon DEF TypeOK
-  <2> QED BY Zenon DEF RecentMsgsSpec1, Recv, Send, SentBy, TypeOK
+  <2> QED BY DEF RecentMsgsSpec1, Recv, Send, SentBy, TypeOK
 <1>4. CASE \E a \in SafeAcceptor : \E m \in msgs : Process2a(a, m)
   <2> PICK acc \in SafeAcceptor, m2a \in msgs : Process2a(acc, m2a)
       BY <1>4
@@ -591,23 +597,30 @@ PROOF
                       prev |-> prev_msg[acc],
                       ref |-> recent_msgs[acc] \cup {m1b}] IN
         /\ new2a \in Message
-        /\ Send(new2a)
-        /\ prev_msg' = [prev_msg EXCEPT ![acc] = new2a]
+        /\ \/ /\ WellFormed2a(new2a)
+              /\ Send(new2a)
+              /\ prev_msg' = [prev_msg EXCEPT ![acc] = new2a]
+           \/ /\ ~WellFormed2a(new2a)
+              /\ UNCHANGED << prev_msg, msgs >>
       BY Zenon
   <2> DEFINE new2a == [type |-> "2a", lrn |-> ll, acc |-> acc,
                        prev |-> prev_msg[acc],
                        ref |-> recent_msgs[acc] \cup {m1b}]
   <2> new2a \in Message
       OBVIOUS
-  <2> prev_msg' = [prev_msg EXCEPT ![acc] = new2a]
-      BY Zenon
-  <2> new2a \in msgs'
-      BY Zenon DEF Send
-  <2> new2a.acc = acc
+  <2> CASE WellFormed2a(new2a)
+    <3> prev_msg' = [prev_msg EXCEPT ![acc] = new2a]
+        BY Zenon
+    <3> new2a \in msgs'
+        BY Zenon DEF Send
+    <3> new2a.acc = acc
       OBVIOUS
-  <2> CASE acc # A
-      BY NoMessageIsNotAMessage DEF SentBy, Send, TypeOK
-  <2> QED BY Zenon, NoMessageIsNotAMessage DEF SentBy, Send, TypeOK
+    <3> CASE acc # A
+        BY NoMessageIsNotAMessage DEF SentBy, Send, TypeOK
+    <3> QED BY Zenon, NoMessageIsNotAMessage DEF SentBy, Send, TypeOK
+  <2> CASE ~WellFormed2a(new2a)
+      BY DEF SentBy
+  <2> QED OBVIOUS
 <1>4. CASE \E a \in SafeAcceptor : \E m \in msgs : Process2a(a, m)
   <2> PICK acc \in SafeAcceptor, msg \in msgs : Process2a(acc, msg)
       BY <1>4
@@ -700,9 +713,13 @@ PROOF
                     prev |-> prev_msg[acc],
                     ref |-> recent_msgs[acc] \cup {m1b}] IN
       /\ new2a \in Message
-      /\ Send(new2a)
-      /\ prev_msg' = [prev_msg EXCEPT ![acc] = new2a]
-      /\ recent_msgs' = [recent_msgs EXCEPT ![acc] = {new2a}]
+      /\ \/ /\ WellFormed2a(new2a)
+            /\ Send(new2a)
+            /\ prev_msg' = [prev_msg EXCEPT ![acc] = new2a]
+            /\ recent_msgs' = [recent_msgs EXCEPT ![acc] = {new2a}]
+         \/ /\ ~WellFormed2a(new2a)
+            /\ recent_msgs' = [recent_msgs EXCEPT ![acc] = recent_msgs[acc] \cup {m1b}]
+            /\ UNCHANGED << prev_msg, msgs >> 
       BY Zenon
   <2> DEFINE new2a == [type |-> "2a", lrn |-> ll, acc |-> acc,
                        prev |-> prev_msg[acc],
@@ -710,6 +727,7 @@ PROOF
   <2> new2a \in Message
       OBVIOUS
   <2> CASE acc = A
+    <3> CASE WellFormed2a(new2a)
       <4> msgs' = msgs \cup {new2a}
           BY DEF Send
       <4> new2a # NoMessage
@@ -728,8 +746,11 @@ PROOF
           BY DEF TypeOK
       <4> HIDE DEF new2a
       <4> QED BY PrevTran_trans, PrevTran_refl DEF SafeAcceptorPrevSpec1      
+    <3> CASE ~WellFormed2a(new2a)
+      <4> QED BY DEF SentBy, TypeOK
+    <3> QED OBVIOUS
   <2> CASE acc # A
-      BY DEF SentBy, Send
+      BY DEF SentBy, Send, TypeOK
   <2> QED OBVIOUS
 <1>4. CASE \E a \in SafeAcceptor :
             \E m \in msgs : Process2a(a, m)
@@ -1774,5 +1795,5 @@ PROOF BY PTL, FullSafetyInvariantInit, FullSafetyInvariantNext, NextDef
 
 =============================================================================
 \* Modification History
-\* Last modified Mon May 20 16:58:53 CEST 2024 by karbyshev
+\* Last modified Wed Oct 23 16:34:18 CEST 2024 by karbyshev
 \* Created Tue Jun 20 00:28:26 CEST 2023 by karbyshev
