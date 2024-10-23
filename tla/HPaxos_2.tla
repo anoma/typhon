@@ -186,10 +186,16 @@ Assert(P, str) == P
                    ref |-> recent_msgs[self] \cup {m}])
     {
       assert new2a \in Message ;
-      when WellFormed2a(new2a) ;
-      prev_msg[self] := new2a ;
-      recent_msgs[self] := {new2a} ;
-      Send(new2a)
+      either {
+        when WellFormed2a(new2a) ;
+        prev_msg[self] := new2a ;
+        recent_msgs[self] := {new2a} ;
+        Send(new2a)
+      }
+      or {
+        when ~WellFormed2a(new2a) ;
+        recent_msgs[self] := recent_msgs[self] \cup {m}
+      }
     }
   }
 
@@ -261,7 +267,7 @@ Assert(P, str) == P
 }
 
 ****************************************************************************)
-\* BEGIN TRANSLATION (chksum(pcal) = "9e1717ee" /\ chksum(tla) = "cb6db31d")
+\* BEGIN TRANSLATION (chksum(pcal) = "9035fd33" /\ chksum(tla) = "429b3302")
 VARIABLES msgs, known_msgs, recent_msgs, prev_msg, decision, BVal
 
 (* define statement *)
@@ -418,7 +424,7 @@ safe_acceptor(self) == /\ \E m \in msgs:
                                                    prev |-> prev_msg[self],
                                                    ref |-> recent_msgs[self] \cup {m}] IN
                                        /\ Assert(new1b \in Message, 
-                                                 "Failure of assertion at line 165, column 7 of macro called at line 241, column 16.")
+                                                 "Failure of assertion at line 165, column 7 of macro called at line 247, column 16.")
                                        /\ \/ /\ WellFormed1b(new1b)
                                              /\ prev_msg' = [prev_msg EXCEPT ![self] = new1b]
                                              /\ recent_msgs' = [recent_msgs EXCEPT ![self] = {new1b}]
@@ -434,11 +440,14 @@ safe_acceptor(self) == /\ \E m \in msgs:
                                                      prev |-> prev_msg[self],
                                                      ref |-> recent_msgs[self] \cup {m}] IN
                                          /\ Assert(new2a \in Message, 
-                                                   "Failure of assertion at line 188, column 7 of macro called at line 242, column 16.")
-                                         /\ WellFormed2a(new2a)
-                                         /\ prev_msg' = [prev_msg EXCEPT ![self] = new2a]
-                                         /\ recent_msgs' = [recent_msgs EXCEPT ![self] = {new2a}]
-                                         /\ msgs' = (msgs \cup {new2a})
+                                                   "Failure of assertion at line 188, column 7 of macro called at line 248, column 16.")
+                                         /\ \/ /\ WellFormed2a(new2a)
+                                               /\ prev_msg' = [prev_msg EXCEPT ![self] = new2a]
+                                               /\ recent_msgs' = [recent_msgs EXCEPT ![self] = {new2a}]
+                                               /\ msgs' = (msgs \cup {new2a})
+                                            \/ /\ ~WellFormed2a(new2a)
+                                               /\ recent_msgs' = [recent_msgs EXCEPT ![self] = recent_msgs[self] \cup {m}]
+                                               /\ UNCHANGED <<msgs, prev_msg>>
                                \/ /\ m.type = "2a"
                                   /\ recent_msgs' = [recent_msgs EXCEPT ![self] = recent_msgs[self] \cup {m}]
                                   /\ UNCHANGED <<msgs, prev_msg>>
@@ -514,14 +523,17 @@ Process1b(a, m) ==
     /\ Recv(a, m)
     /\ WellFormed(m)
     /\ \E LL \in SUBSET Learner :
-            LET new2a == [type |-> "2a", lrn |-> LL, acc |-> a,
-                          prev |-> prev_msg[a],
-                          ref |-> recent_msgs[a] \cup {m}] IN
-            /\ new2a \in Message
-            /\ WellFormed2a(new2a)
-            /\ Send(new2a)
-            /\ recent_msgs' = [recent_msgs EXCEPT ![a] = {new2a}]
-            /\ prev_msg' = [prev_msg EXCEPT ![a] = new2a]
+        LET new2a == [type |-> "2a", lrn |-> LL, acc |-> a,
+                      prev |-> prev_msg[a],
+                      ref |-> recent_msgs[a] \cup {m}] IN
+        /\ new2a \in Message
+        /\ \/ /\ WellFormed2a(new2a)
+              /\ prev_msg' = [prev_msg EXCEPT ![a] = new2a]
+              /\ recent_msgs' = [recent_msgs EXCEPT ![a] = {new2a}]
+              /\ Send(new2a)
+           \/ /\ ~WellFormed2a(new2a)
+              /\ recent_msgs' = [recent_msgs EXCEPT ![a] = recent_msgs[a] \cup {m}]
+              /\ UNCHANGED << msgs, prev_msg >>
     /\ UNCHANGED decision
     /\ UNCHANGED BVal
 
@@ -651,5 +663,5 @@ UniqueDecision ==
 
 =============================================================================
 \* Modification History
-\* Last modified Thu Oct 17 21:33:39 CEST 2024 by karbyshev
+\* Last modified Tue Oct 22 23:38:41 CEST 2024 by karbyshev
 \* Created Mon Jun 19 12:24:03 CEST 2022 by karbyshev
