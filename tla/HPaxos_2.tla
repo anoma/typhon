@@ -72,19 +72,17 @@ Assert(P, str) == P
         { beta \in Learner :
             \E S \in ByzQuorum : ConByQuorum(alpha, beta, x, S) }
 
-    \* 2a-message is _buried_ if there exists a quorum of acceptors that have seen
-    \* 2a-messages with different values, the same learner, and higher ballot
-    \* numbers.
+    \* 2a-message is _buried_ if there exists another 2a-messages with
+    \* a higher ballot number, a different value, and related to the
+    \* given learner value.
     Buried(alpha, x, y) == \* x : 2a, y : 1b
-        LET Q == { m \in Tran(y) :
-                    \E z \in Tran(m) :
-                        /\ z.type = "2a"
-                        /\ alpha \in z.lrn
-                        /\ \A bx, bz \in Ballot :
-                            B(x, bx) /\ B(z, bz) => bx < bz
-                        /\ \A vx, vz \in Value :
-                            V(x, vx) /\ V(z, vz) => vx # vz }
-        IN [lr |-> alpha, q |-> { m.acc : m \in Q }] \in TrustLive
+        \E z \in Tran(y) :
+            /\ z.type = "2a"
+            /\ alpha \in z.lrn
+            /\ \A bx, bz \in Ballot :
+                B(x, bx) /\ B(z, bz) => bx < bz
+            /\ \A vx, vz \in Value :
+                V(x, vx) /\ V(z, vz) => vx # vz
 
     \* Connected 2a messages and learners
     Con2as(alpha, x) == \* alpha : Learner, x : 1b
@@ -267,7 +265,7 @@ Assert(P, str) == P
 }
 
 ****************************************************************************)
-\* BEGIN TRANSLATION (chksum(pcal) = "9035fd33" /\ chksum(tla) = "429b3302")
+\* BEGIN TRANSLATION (chksum(pcal) = "56826717" /\ chksum(tla) = "9bc87110")
 VARIABLES msgs, known_msgs, recent_msgs, prev_msg, decision, BVal
 
 (* define statement *)
@@ -331,15 +329,13 @@ Con(alpha, x) ==
 
 
 Buried(alpha, x, y) ==
-    LET Q == { m \in Tran(y) :
-                \E z \in Tran(m) :
-                    /\ z.type = "2a"
-                    /\ alpha \in z.lrn
-                    /\ \A bx, bz \in Ballot :
-                        B(x, bx) /\ B(z, bz) => bx < bz
-                    /\ \A vx, vz \in Value :
-                        V(x, vx) /\ V(z, vz) => vx # vz }
-    IN [lr |-> alpha, q |-> { m.acc : m \in Q }] \in TrustLive
+    \E z \in Tran(y) :
+        /\ z.type = "2a"
+        /\ alpha \in z.lrn
+        /\ \A bx, bz \in Ballot :
+            B(x, bx) /\ B(z, bz) => bx < bz
+        /\ \A vx, vz \in Value :
+            V(x, vx) /\ V(z, vz) => vx # vz
 
 
 Con2as(alpha, x) ==
@@ -424,7 +420,7 @@ safe_acceptor(self) == /\ \E m \in msgs:
                                                    prev |-> prev_msg[self],
                                                    ref |-> recent_msgs[self] \cup {m}] IN
                                        /\ Assert(new1b \in Message, 
-                                                 "Failure of assertion at line 165, column 7 of macro called at line 247, column 16.")
+                                                 "Failure of assertion at line 163, column 7 of macro called at line 245, column 16.")
                                        /\ \/ /\ WellFormed1b(new1b)
                                              /\ prev_msg' = [prev_msg EXCEPT ![self] = new1b]
                                              /\ recent_msgs' = [recent_msgs EXCEPT ![self] = {new1b}]
@@ -440,7 +436,7 @@ safe_acceptor(self) == /\ \E m \in msgs:
                                                      prev |-> prev_msg[self],
                                                      ref |-> recent_msgs[self] \cup {m}] IN
                                          /\ Assert(new2a \in Message, 
-                                                   "Failure of assertion at line 188, column 7 of macro called at line 248, column 16.")
+                                                   "Failure of assertion at line 186, column 7 of macro called at line 246, column 16.")
                                          /\ \/ /\ WellFormed2a(new2a)
                                                /\ prev_msg' = [prev_msg EXCEPT ![self] = new2a]
                                                /\ recent_msgs' = [recent_msgs EXCEPT ![self] = {new2a}]
@@ -663,5 +659,5 @@ UniqueDecision ==
 
 =============================================================================
 \* Modification History
-\* Last modified Tue Oct 22 23:38:41 CEST 2024 by karbyshev
+\* Last modified Thu Nov 07 13:45:57 CET 2024 by karbyshev
 \* Created Mon Jun 19 12:24:03 CEST 2022 by karbyshev
