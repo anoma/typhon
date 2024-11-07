@@ -39,7 +39,7 @@ Assert(P, str) == P
 
     \* The acceptor is _caught_ in a message x if the transitive references of x
     \* include evidence such as two different messages both signed by the acceptor,
-    \* which have equal previous messges.
+    \* which have equal previous messages.
     CaughtMsg(x) ==
         { m \in Tran(x) :
             /\ m.type # "1a"
