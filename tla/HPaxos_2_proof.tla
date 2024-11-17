@@ -1465,20 +1465,6 @@ PROOF
         BY V_def, V_func DEF TypeOK
     <3> QED BY V_func
   <2>16. CASE Buried(L1, m2a, m1b)
-    <3> DEFINE Q == { m \in Tran(m1b) :
-                        \E z \in Tran(m) :
-                            /\ z.type = "2a"
-                            /\ L1 \in z.lrn
-                            /\ \A bx, bz \in Ballot :
-                                B(m2a, bx) /\ B(z, bz) => bx < bz
-                            /\ \A vx, vz \in Value :
-                                V(m2a, vx) /\ V(z, vz) => vx # vz }
-    <3> [lr |-> L1, q |-> { m.acc : m \in Q }] \in TrustLive
-        BY <2>16 DEF Buried
-    <3> { m.acc : m \in Q } \in ByzQuorum
-        BY TrustLiveAssumption, Zenon
-    <3>3. PICK m0 \in { m.acc : m \in Q } : TRUE
-        BY EntaglementTrustLiveNonEmpty, Zenon
     <3> PICK r \in Tran(m1b) :
             /\ r.type = "2a"
             /\ L1 \in r.lrn
@@ -1486,7 +1472,7 @@ PROOF
                 B(m2a, b2a) /\ B(r, br) => b2a < br
             /\ \A v2a, vr \in Value :
                 V(m2a, v2a) /\ V(r, vr) => v2a # vr
-        BY <3>3, Tran_trans, BQAssumption
+        BY <2>16 DEF Buried
     <3> <<L1, L1>> \in Ent
         BY EntanglementSelf
     <3> r \in known_msgs[L0]
@@ -1795,5 +1781,5 @@ PROOF BY PTL, FullSafetyInvariantInit, FullSafetyInvariantNext, NextDef
 
 =============================================================================
 \* Modification History
-\* Last modified Wed Oct 23 16:34:18 CEST 2024 by karbyshev
+\* Last modified Thu Nov 07 13:46:56 CET 2024 by karbyshev
 \* Created Tue Jun 20 00:28:26 CEST 2023 by karbyshev
