@@ -1,7 +1,6 @@
 ------------------------------ MODULE HMessage ------------------------------
 EXTENDS Naturals, FiniteSets, Functions, HQuorum, HLearner
 
-
 CONSTANT LastBallot
 ASSUME LastBallot \in Nat
 
@@ -30,19 +29,16 @@ FINSUBSET(S, R) == { Range(seq) : seq \in [R -> S] }
 NoMessage == [ type |-> "null" ]
 
 MessageRec0 ==
-    [ type : {"1a"}, bal : Ballot, prev : {NoMessage}, ref : {{}} ]
+    [ type : {"proposer"}, bal : Ballot, prev : {NoMessage}, ref : {{}} ]
 
 MessageRec1(M, n) ==
     M \cup
-    [ type : {"1b"},
+    [ type : {"acceptor"},
       acc : Acceptor,
       prev : M \cup {NoMessage},
-      ref : FINSUBSET(M, RefCardinality) ] \cup
-    [ type : {"2a"},
-      lrn : SUBSET Learner,
-      acc : Acceptor,
-      prev : M \cup {NoMessage},
-      ref : FINSUBSET(M, RefCardinality) ]
+      ref : FINSUBSET(M, RefCardinality),
+      lrn : SUBSET Learner
+    ]
 
 MessageRec[n \in Nat] ==
     IF n = 0
@@ -55,6 +51,22 @@ ASSUME MaxMessageDepth \in Nat
 MessageDepthRange == Nat
 
 Message == UNION { MessageRec[n] : n \in MessageDepthRange }
+
+-----------------------------------------------------------------------------
+(* Message types *)
+
+Proposal(m) == m.type = "proposer"
+NonProposal(m) == m.type = "acceptor"
+
+OneA(m) == m.type = "proposer"
+
+OneB(m) ==
+    /\ m.type = "acceptor"
+    /\ \E r \in m.ref : OneA(r)
+
+TwoA(m) ==
+    /\ m.type = "acceptor"
+    /\ \A r \in m.ref : ~OneA(r)
 
 -----------------------------------------------------------------------------
 (* Transitive references *)
@@ -94,5 +106,5 @@ PrevTran(m) == UNION {PrevTranBound[n][m] : n \in PrevTranDepthRange}
 
 =============================================================================
 \* Modification History
-\* Last modified Tue May 14 16:44:16 CEST 2024 by karbyshev
+\* Last modified Thu Nov 21 13:24:55 CET 2024 by karbyshev
 \* Created Tue May 14 16:39:44 CEST 2024 by karbyshev

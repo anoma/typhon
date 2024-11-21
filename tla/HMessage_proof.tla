@@ -103,7 +103,7 @@ PROOF
 <1> DEFINE P(m) == MessageRec[m] # {}
 <1> SUFFICES ASSUME NEW j \in Nat PROVE P(j) OBVIOUS
 <1>0. P(0)
-  <2> [type |-> "1a", bal |-> 0, prev |-> NoMessage, ref |-> {}] \in MessageRec[0]
+  <2> [type |-> "proposer", bal |-> 0, prev |-> NoMessage, ref |-> {}] \in MessageRec[0]
       BY MessageRec_eq0 DEF MessageRec0, Ballot
   <2> QED OBVIOUS
 <1>1. ASSUME NEW m \in Nat, P(m) PROVE P(m+1)
@@ -144,14 +144,14 @@ LEMMA Message_nontriv == Message # {}
 PROOF BY MessageRec_nontriv DEF Message, MessageDepthRange
 
 LEMMA Message_1a_ref ==
-    \A m \in Message : m.type = "1a" <=> m.ref = {}
+    \A m \in Message : m.type = "proposer" <=> m.ref = {}
 PROOF
-<1> DEFINE P(j) == \A mm \in MessageRec[j] : mm.type = "1a" <=> mm.ref = {}
+<1> DEFINE P(j) == \A mm \in MessageRec[j] : mm.type = "proposer" <=> mm.ref = {}
 <1> SUFFICES ASSUME NEW j \in Nat PROVE P(j) BY DEF Message, MessageDepthRange
 <1>0. P(0) BY MessageRec_eq0 DEF MessageRec0
 <1>1. ASSUME NEW m \in Nat, P(m) PROVE P(m+1)
   <2> SUFFICES ASSUME NEW mm \in MessageRec[m+1]
-               PROVE  mm.type = "1a" <=> mm.ref = {}
+               PROVE  mm.type = "proposer" <=> mm.ref = {}
       BY DEF Message
   <2>3. QED BY <1>1, MessageRec_eq1, MessageRec_nontriv, FinSubset_sub_nontriv,
                RefCardinalitySpec DEF MessageRec1
@@ -232,79 +232,71 @@ PROOF
 <1>2. HIDE DEF P
 <1>3. QED BY <1>0, <1>1, NatInduction, Isa
 
-LEMMA MessageTypeSpec ==
+LEMMA MessageSpec ==
     ASSUME NEW m \in Message
-    PROVE \/ /\ m.type = "1a"
+    PROVE \/ /\ m.type = "proposer"
              /\ m.bal \in Ballot
              /\ m.prev = NoMessage
              /\ m.ref = {}
-          \/ /\ m.type = "1b"
+          \/ /\ m.type = "acceptor"
              /\ m.acc \in Acceptor
              /\ m.prev \in Message \cup {NoMessage}
              /\ m.ref # {}
              /\ m.ref \in SUBSET Message
-          \/ /\ m.type = "2a"
              /\ m.lrn \in SUBSET Learner
-             /\ m.acc \in Acceptor
-             /\ m.prev \in Message \cup {NoMessage}
-             /\ m.ref # {}
-             /\ m.ref \in SUBSET Message
 PROOF
 <1> DEFINE P(n) ==
         \A x \in MessageRec[n] :
-            \/ /\ x.type = "1a"
+            \/ /\ x.type = "proposer"
                /\ x.bal \in Ballot
                /\ x.prev = NoMessage
                /\ x.ref = {}
-            \/ /\ x.type = "1b"
+            \/ /\ x.type = "acceptor"
                /\ x.acc \in Acceptor
                /\ x.prev \in Message \cup {NoMessage}
                /\ x.ref # {}
                /\ x.ref \in SUBSET Message
-            \/ /\ x.type = "2a"
                /\ x.lrn \in SUBSET Learner
-               /\ x.acc \in Acceptor
-               /\ x.prev \in Message \cup {NoMessage}
-               /\ x.ref # {}
-               /\ x.ref \in SUBSET Message
 <1> SUFFICES ASSUME NEW j \in Nat PROVE P(j) BY Message_spec
 <1>0. P(0) BY MessageRec_eq0 DEF MessageRec0
 <1>1. ASSUME NEW k \in Nat, P(k) PROVE P(k + 1)
   <2> SUFFICES ASSUME NEW x \in MessageRec[k + 1]
-               PROVE  \/ /\ x.type = "1a"
+               PROVE  \/ /\ x.type = "proposer"
                          /\ x.bal \in Ballot
                          /\ x.prev = NoMessage
                          /\ x.ref = {}
-                      \/ /\ x.type = "1b"
+                      \/ /\ x.type = "acceptor"
                          /\ x.acc \in Acceptor
                          /\ x.prev \in Message \cup {NoMessage}
                          /\ x.ref # {}
                          /\ x.ref \in SUBSET Message
-                      \/ /\ x.type = "2a"
                          /\ x.lrn \in SUBSET Learner
-                         /\ x.acc \in Acceptor
-                         /\ x.prev \in Message \cup {NoMessage}
-                         /\ x.ref # {}
-                         /\ x.ref \in SUBSET Message
       OBVIOUS
   <2>1. CASE x \in MessageRec[k]
         BY <1>1, <2>1
-  <2>2. CASE x \in [ type : {"1b"},
-                     acc : Acceptor,
-                     prev : MessageRec[k] \cup {NoMessage},
-                     ref : FINSUBSET(MessageRec[k], RefCardinality) ]
-        BY <2>2, Message_spec, MessageRec_nontriv, FinSubset_sub,
-           FinSubset_sub_nontriv, RefCardinalitySpec
-  <2>3. CASE x \in [ type : {"2a"},
+  <2>3. CASE x \in [ type : {"acceptor"},
                      lrn : SUBSET Learner,
                      acc : Acceptor,
                      prev : MessageRec[k] \cup {NoMessage},
                      ref : FINSUBSET(MessageRec[k], RefCardinality) ]
         BY <2>3, Message_spec, MessageRec_nontriv, FinSubset_sub,
            FinSubset_sub_nontriv, RefCardinalitySpec
-  <2> QED BY <1>1, <2>1, <2>2, <2>3, MessageRec_eq1 DEF MessageRec1
+  <2> QED BY <1>1, <2>1, <2>3, MessageRec_eq1 DEF MessageRec1
 <1>2. HIDE DEF P
 <1>3. QED BY <1>0, <1>1, NatInduction, Isa
+
+LEMMA MessageTypeSpec ==
+    ASSUME NEW m \in Message
+    PROVE \/ /\  OneA(m)
+             /\ ~OneB(m)
+             /\ ~TwoA(m)
+          \/ /\ ~OneA(m)
+             /\  OneB(m)
+             /\ ~TwoA(m)
+          \/ /\ ~OneA(m)
+             /\ ~OneB(m)
+             /\  TwoA(m)
+PROOF BY MessageSpec DEF OneA, OneB, TwoA
 
 -----------------------------------------------------------------------------
 (* Transitive references *)
@@ -353,7 +345,7 @@ PROOF
     <3> CASE x # m
       <4> PICK r \in m.ref : x \in TranBound[n-1][r]
           BY TranBound_eq1, Isa
-      <4> QED BY Tran_spec, MessageTypeSpec
+      <4> QED BY Tran_spec, MessageSpec
     <3> QED OBVIOUS
   <2> QED OBVIOUS
 <1>2. {m} \cup UNION {Tran(r) : r \in m.ref} \subseteq Tran(m)
@@ -364,7 +356,7 @@ PROOF
     <3> PICK r \in m.ref : x \in Tran(r)
         OBVIOUS
     <3> PICK n \in Nat : x \in TranBound[n][r]
-        BY Tran_spec, MessageTypeSpec
+        BY Tran_spec, MessageSpec
     <3> (n + 1) - 1 = n OBVIOUS
     <3> x \in TranBound[n+1][m]
         BY TranBound_eq1, Isa
@@ -373,9 +365,9 @@ PROOF
 <1> QED BY <1>1, <1>2
 
 LEMMA Tran_1a ==
-    ASSUME NEW m \in Message, m.type = "1a"
+    ASSUME NEW m \in Message, OneA(m)
     PROVE  Tran(m) = {m}
-PROOF BY Tran_eq, MessageTypeSpec
+PROOF BY Tran_eq, MessageSpec DEF OneA
 
 LEMMA TranBound_Message ==
     ASSUME NEW m1 \in Message,
@@ -634,7 +626,7 @@ PROOF
           BY PrevTranBound_eq1, Isa
       <4> x \in PrevTranBound[n-1][m.prev]
           BY PrevTranBound_eq1, Isa
-      <4> QED BY PrevTran_spec, MessageTypeSpec
+      <4> QED BY PrevTran_spec, MessageSpec
     <3> QED OBVIOUS
   <2> QED OBVIOUS
 <1>2. ({m} \cup IF m.prev = NoMessage THEN {} ELSE PrevTran(m.prev)) \subseteq PrevTran(m)
@@ -647,7 +639,7 @@ PROOF
     <3> x \in PrevTran(m.prev)
         OBVIOUS
     <3> PICK n \in Nat : x \in PrevTranBound[n][m.prev]
-        BY PrevTran_spec, MessageTypeSpec
+        BY PrevTran_spec, MessageSpec
     <3> (n + 1) - 1 = n OBVIOUS
     <3> x \in PrevTranBound[n+1][m]
         BY PrevTranBound_eq1, Isa
@@ -658,7 +650,7 @@ PROOF
 LEMMA PrevTran_1a ==
     ASSUME NEW m \in Message, m.type = "1a"
     PROVE  PrevTran(m) = {m}
-PROOF BY PrevTran_eq, MessageTypeSpec
+PROOF BY PrevTran_eq, MessageSpec
 
 LEMMA PrevTranBound_Message ==
     ASSUME NEW m1 \in Message,
@@ -804,5 +796,5 @@ PROOF BY Message_prev_PrevTranBound1, Zenon
 
 =============================================================================
 \* Modification History
-\* Last modified Tue May 14 17:05:05 CEST 2024 by karbyshev
+\* Last modified Thu Nov 21 14:42:45 CET 2024 by karbyshev
 \* Created Tue May 14 16:44:53 CEST 2024 by karbyshev
