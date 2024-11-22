@@ -103,7 +103,7 @@ PROOF
 <1> DEFINE P(m) == MessageRec[m] # {}
 <1> SUFFICES ASSUME NEW j \in Nat PROVE P(j) OBVIOUS
 <1>0. P(0)
-  <2> [type |-> "proposer", bal |-> 0, prev |-> NoMessage, ref |-> {}] \in MessageRec[0]
+  <2> [type |-> "proposer", bal |-> 0, prev |-> NoMessage, refs |-> {}] \in MessageRec[0]
       BY MessageRec_eq0 DEF MessageRec0, Ballot
   <2> QED OBVIOUS
 <1>1. ASSUME NEW m \in Nat, P(m) PROVE P(m+1)
@@ -113,20 +113,20 @@ PROOF
 
 LEMMA MessageRec_ref0 ==
     ASSUME NEW m \in MessageRec[0]
-    PROVE  m.ref = {}
+    PROVE  m.refs = {}
 PROOF BY MessageRec_eq0 DEF MessageRec0
 
 LEMMA MessageRec_ref1 ==
     ASSUME NEW n \in Nat, n # 0
-    PROVE  \A m \in MessageRec[n] : m.ref \subseteq MessageRec[n-1]
+    PROVE  \A m \in MessageRec[n] : m.refs \subseteq MessageRec[n-1]
 PROOF
 <1> DEFINE P(j) == j # 0 =>
-                \A mm \in MessageRec[j] : mm.ref \subseteq MessageRec[j-1]
+                \A mm \in MessageRec[j] : mm.refs \subseteq MessageRec[j-1]
 <1> SUFFICES ASSUME NEW j \in Nat PROVE P(j) OBVIOUS
 <1>0. P(0) OBVIOUS
 <1>1. ASSUME NEW m \in Nat, P(m) PROVE P(m+1)
   <2> SUFFICES ASSUME NEW mm \in MessageRec[m+1]
-               PROVE  mm.ref \subseteq MessageRec[m]
+               PROVE  mm.refs \subseteq MessageRec[m]
       OBVIOUS
   <2>1. CASE m = 0
         BY <2>1, MessageRec_eq1, MessageRec_ref0, FinSubset_sub,
@@ -144,14 +144,14 @@ LEMMA Message_nontriv == Message # {}
 PROOF BY MessageRec_nontriv DEF Message, MessageDepthRange
 
 LEMMA Message_1a_ref ==
-    \A m \in Message : m.type = "proposer" <=> m.ref = {}
+    \A m \in Message : m.type = "proposer" <=> m.refs = {}
 PROOF
-<1> DEFINE P(j) == \A mm \in MessageRec[j] : mm.type = "proposer" <=> mm.ref = {}
+<1> DEFINE P(j) == \A mm \in MessageRec[j] : mm.type = "proposer" <=> mm.refs = {}
 <1> SUFFICES ASSUME NEW j \in Nat PROVE P(j) BY DEF Message, MessageDepthRange
 <1>0. P(0) BY MessageRec_eq0 DEF MessageRec0
 <1>1. ASSUME NEW m \in Nat, P(m) PROVE P(m+1)
   <2> SUFFICES ASSUME NEW mm \in MessageRec[m+1]
-               PROVE  mm.type = "proposer" <=> mm.ref = {}
+               PROVE  mm.type = "proposer" <=> mm.refs = {}
       BY DEF Message
   <2>3. QED BY <1>1, MessageRec_eq1, MessageRec_nontriv, FinSubset_sub_nontriv,
                RefCardinalitySpec DEF MessageRec1
@@ -160,7 +160,7 @@ PROOF
 
 LEMMA Message_ref ==
     ASSUME NEW m \in Message
-    PROVE  m.ref \subseteq Message
+    PROVE  m.refs \subseteq Message
 PROOF BY MessageRec_ref0, MessageRec_ref1, Message_spec DEF MessageDepthRange
 
 LEMMA Message_prev ==
@@ -204,15 +204,15 @@ PROOF
 
 LEMMA Message_ref_acyclic ==
     ASSUME NEW m \in Message
-    PROVE  m \notin m.ref
+    PROVE  m \notin m.refs
 PROOF
 <1>0. PICK n \in Nat :
         /\ m \in MessageRec[n]
         /\ \A k \in 0 .. n-1 : m \notin MessageRec[k]
       BY MessageRec_min
 <1>1. CASE n = 0 BY <1>0, <1>1, MessageRec_eq0 DEF MessageRec0
-<1>2. CASE n # 0 /\ m \in m.ref
-  <2>1. m.ref \in SUBSET MessageRec[n-1]
+<1>2. CASE n # 0 /\ m \in m.refs
+  <2>1. m.refs \in SUBSET MessageRec[n-1]
         BY <1>0, <1>2, MessageRec_eq1, MessageRec_ref1, FinSubset_sub, MaxRefCardinalityAssumption
         DEF MessageRec1, RefCardinality
   <2>10. QED BY <2>1, <1>0, <1>2
@@ -237,26 +237,26 @@ LEMMA MessageSpec ==
     PROVE \/ /\ m.type = "proposer"
              /\ m.bal \in Ballot
              /\ m.prev = NoMessage
-             /\ m.ref = {}
+             /\ m.refs = {}
           \/ /\ m.type = "acceptor"
              /\ m.acc \in Acceptor
              /\ m.prev \in Message \cup {NoMessage}
-             /\ m.ref # {}
-             /\ m.ref \in SUBSET Message
-             /\ m.lrn \in SUBSET Learner
+             /\ m.refs # {}
+             /\ m.refs \in SUBSET Message
+             /\ m.lrns \in SUBSET Learner
 PROOF
 <1> DEFINE P(n) ==
         \A x \in MessageRec[n] :
             \/ /\ x.type = "proposer"
                /\ x.bal \in Ballot
                /\ x.prev = NoMessage
-               /\ x.ref = {}
+               /\ x.refs = {}
             \/ /\ x.type = "acceptor"
                /\ x.acc \in Acceptor
                /\ x.prev \in Message \cup {NoMessage}
-               /\ x.ref # {}
-               /\ x.ref \in SUBSET Message
-               /\ x.lrn \in SUBSET Learner
+               /\ x.refs # {}
+               /\ x.refs \in SUBSET Message
+               /\ x.lrns \in SUBSET Learner
 <1> SUFFICES ASSUME NEW j \in Nat PROVE P(j) BY Message_spec
 <1>0. P(0) BY MessageRec_eq0 DEF MessageRec0
 <1>1. ASSUME NEW k \in Nat, P(k) PROVE P(k + 1)
@@ -264,21 +264,21 @@ PROOF
                PROVE  \/ /\ x.type = "proposer"
                          /\ x.bal \in Ballot
                          /\ x.prev = NoMessage
-                         /\ x.ref = {}
+                         /\ x.refs = {}
                       \/ /\ x.type = "acceptor"
                          /\ x.acc \in Acceptor
                          /\ x.prev \in Message \cup {NoMessage}
-                         /\ x.ref # {}
-                         /\ x.ref \in SUBSET Message
-                         /\ x.lrn \in SUBSET Learner
+                         /\ x.refs # {}
+                         /\ x.refs \in SUBSET Message
+                         /\ x.lrns \in SUBSET Learner
       OBVIOUS
   <2>1. CASE x \in MessageRec[k]
         BY <1>1, <2>1
   <2>3. CASE x \in [ type : {"acceptor"},
-                     lrn : SUBSET Learner,
+                     lrns : SUBSET Learner,
                      acc : Acceptor,
                      prev : MessageRec[k] \cup {NoMessage},
-                     ref : FINSUBSET(MessageRec[k], RefCardinality) ]
+                     refs : FINSUBSET(MessageRec[k], RefCardinality) ]
         BY <2>3, Message_spec, MessageRec_nontriv, FinSubset_sub,
            FinSubset_sub_nontriv, RefCardinalitySpec
   <2> QED BY <1>1, <2>1, <2>3, MessageRec_eq1 DEF MessageRec1
@@ -322,7 +322,7 @@ PROOF BY TranBound_def DEF TranBound0
 LEMMA TranBound_eq1 ==
     ASSUME NEW n \in Nat, n # 0
     PROVE  TranBound[n] =
-            [m \in Message |-> {m} \cup UNION {TranBound[n-1][r] : r \in m.ref}]
+            [m \in Message |-> {m} \cup UNION {TranBound[n-1][r] : r \in m.refs}]
 PROOF BY TranBound_def, Zenon DEF TranBound1
 
 LEMMA Tran_refl ==
@@ -331,11 +331,11 @@ PROOF BY TranBound_eq0 DEF Tran, TranDepthRange, MessageDepthRange
 
 LEMMA Tran_eq ==
     ASSUME NEW m \in Message
-    PROVE  Tran(m) = {m} \cup UNION { Tran(r) : r \in m.ref }
+    PROVE  Tran(m) = {m} \cup UNION { Tran(r) : r \in m.refs }
 PROOF
-<1>1. Tran(m) \subseteq {m} \cup UNION {Tran(r) : r \in m.ref}
+<1>1. Tran(m) \subseteq {m} \cup UNION {Tran(r) : r \in m.refs}
   <2> SUFFICES ASSUME NEW x \in Tran(m)
-               PROVE  x \in {m} \cup UNION {Tran(r) : r \in m.ref}
+               PROVE  x \in {m} \cup UNION {Tran(r) : r \in m.refs}
       OBVIOUS
   <2> PICK n \in Nat : x \in TranBound[n][m]
       BY Tran_spec
@@ -343,17 +343,17 @@ PROOF
       BY TranBound_eq0
   <2> CASE n # 0
     <3> CASE x # m
-      <4> PICK r \in m.ref : x \in TranBound[n-1][r]
+      <4> PICK r \in m.refs : x \in TranBound[n-1][r]
           BY TranBound_eq1, Isa
       <4> QED BY Tran_spec, MessageSpec
     <3> QED OBVIOUS
   <2> QED OBVIOUS
-<1>2. {m} \cup UNION {Tran(r) : r \in m.ref} \subseteq Tran(m)
-  <2> SUFFICES ASSUME NEW x \in {m} \cup UNION {Tran(r) : r \in m.ref}
+<1>2. {m} \cup UNION {Tran(r) : r \in m.refs} \subseteq Tran(m)
+  <2> SUFFICES ASSUME NEW x \in {m} \cup UNION {Tran(r) : r \in m.refs}
                PROVE  x \in Tran(m)
       OBVIOUS
   <2> CASE x # m
-    <3> PICK r \in m.ref : x \in Tran(r)
+    <3> PICK r \in m.refs : x \in Tran(r)
         OBVIOUS
     <3> PICK n \in Nat : x \in TranBound[n][r]
         BY Tran_spec, MessageSpec
@@ -381,7 +381,7 @@ PROOF
   <2> SUFFICES ASSUME NEW x \in Message
                PROVE TranBound[k + 1][x] \in SUBSET Message
       OBVIOUS
-  <2> SUFFICES ASSUME NEW r \in x.ref
+  <2> SUFFICES ASSUME NEW r \in x.refs
                PROVE TranBound[k][r] \in SUBSET Message
       BY TranBound_eq1, Isa
   <2>2. r \in Message BY Message_ref
@@ -407,8 +407,8 @@ PROOF
                PROVE TranBound[k+1][mm] \subseteq TranBound[(k+1)+1][mm]
       OBVIOUS
   <2>1. SUFFICES
-        UNION {TranBound[k][r] : r \in mm.ref} \subseteq
-        UNION {TranBound[k+1][r] : r \in mm.ref}
+        UNION {TranBound[k][r] : r \in mm.refs} \subseteq
+        UNION {TranBound[k+1][r] : r \in mm.refs}
         BY TranBound_eq1, Isa
   <2>6. QED BY <1>1, Message_ref
 <1>2. HIDE DEF P
@@ -429,9 +429,9 @@ PROOF
 
 LEMMA Message_ref_TranBound1 ==
     ASSUME NEW m1 \in Message
-    PROVE  m1.ref \in SUBSET TranBound[1][m1]
+    PROVE  m1.refs \in SUBSET TranBound[1][m1]
 PROOF
-<1> SUFFICES ASSUME NEW x \in m1.ref PROVE x \in TranBound[1][m1]
+<1> SUFFICES ASSUME NEW x \in m1.refs PROVE x \in TranBound[1][m1]
     OBVIOUS
 <1> x \in Message BY Message_ref
 <1> QED BY TranBound_eq1, TranBound_eq0, Isa
@@ -457,8 +457,8 @@ PROOF
                  PROVE  z \in TranBound[n + 1 + k][x]
         OBVIOUS
   <2>2. CASE y = x BY <2>2, TranBound_monotone
-  <2>3. CASE y \in UNION {TranBound[n][r] : r \in x.ref}
-    <3>0. PICK r \in x.ref : y \in TranBound[n][r] BY <2>3
+  <2>3. CASE y \in UNION {TranBound[n][r] : r \in x.refs}
+    <3>0. PICK r \in x.refs : y \in TranBound[n][r] BY <2>3
     <3>1. r \in Message BY Message_ref
     <3>2. z \in TranBound[n + k][r] BY <3>0, <3>1, <1>3
     <3>5. QED BY <3>0, <3>2, TranBound_eq1, Isa
@@ -477,7 +477,7 @@ PROOF
 
 LEMMA Message_ref_Tran ==
     ASSUME NEW m \in Message
-    PROVE  m.ref \subseteq Tran(m)
+    PROVE  m.refs \subseteq Tran(m)
 PROOF BY Message_ref_TranBound1, Zenon
       DEF Tran, TranDepthRange, MessageDepthRange
 
@@ -490,7 +490,7 @@ PROOF
 <1> m2 \in Message BY Tran_Message
 <1>1. CASE k = 0 BY TranBound_eq0, <1>1
 <1>2. CASE k # 0
-  <2>1. CASE m2 \in UNION { TranBound[k - 1][r] : r \in m1.ref }
+  <2>1. CASE m2 \in UNION { TranBound[k - 1][r] : r \in m1.refs }
         BY <2>1, MessageRec_eq0 DEF MessageRec0
   <2>2. QED BY Isa, TranBound_eq1, <1>2, <2>1
 <1>3. QED BY <1>1, <1>2
@@ -516,8 +516,8 @@ PROOF
       BY MessageRec0_Tran DEF Tran, TranDepthRange, MessageDepthRange
   <2> x \in Message BY Message_spec
   <2>1. CASE y = x BY <2>1
-  <2>2. CASE y \in UNION { TranBound[m][r] : r \in x.ref }
-    <3>1. PICK r \in x.ref : y \in TranBound[m][r] BY <2>2
+  <2>2. CASE y \in UNION { TranBound[m][r] : r \in x.refs }
+    <3>1. PICK r \in x.refs : y \in TranBound[m][r] BY <2>2
     <3>3. r \in MessageRec[k - 1] BY MessageRec_ref1
     <3>4. y \in MessageRec[k - 1] BY <3>3, <3>1, <1>1
     <3>5. QED BY <3>4, MessageRec_monotone
@@ -526,13 +526,13 @@ PROOF
 <1>3. QED BY <1>0, <1>1, NatInduction, Isa
 
 LEMMA Tran_ref_acyclic ==
-    ASSUME NEW m \in Message, NEW r \in m.ref
+    ASSUME NEW m \in Message, NEW r \in m.refs
     PROVE  m \notin Tran(r)
 PROOF
 <1> r \in Message BY Message_ref
 <1> SUFFICES ASSUME NEW n \in Nat,
                     NEW x \in Message,
-                    NEW y \in x.ref, x \in Tran(y)
+                    NEW y \in x.refs, x \in Tran(y)
              PROVE  x \in MessageRec[n] => FALSE
     BY DEF Message, MessageDepthRange
 <1>0. PICK k \in Nat : /\ x \in MessageRec[k]
@@ -553,8 +553,8 @@ PROOF
 <1> PICK n \in Nat : m2 \in TranBound[n][m1] BY Tran_spec
 <1> SUFFICES ASSUME n # 0 PROVE m1 = m2 BY TranBound_eq0
 <1>1. CASE m1 = m2 BY <1>1
-<1>2. CASE m2 \in UNION { TranBound[n - 1][r] : r \in m1.ref }
-  <2> PICK r \in m1.ref : m2 \in TranBound[n - 1][r] BY <1>2
+<1>2. CASE m2 \in UNION { TranBound[n - 1][r] : r \in m1.refs }
+  <2> PICK r \in m1.refs : m2 \in TranBound[n - 1][r] BY <1>2
   <2> r \in Message BY Message_ref
   <2> m2 \in Tran(r) BY Tran_spec
   <2>1. m1 \in Tran(r) BY Tran_trans
@@ -796,5 +796,5 @@ PROOF BY Message_prev_PrevTranBound1, Zenon
 
 =============================================================================
 \* Modification History
-\* Last modified Thu Nov 21 14:42:45 CET 2024 by karbyshev
+\* Last modified Fri Nov 22 20:53:09 CET 2024 by karbyshev
 \* Created Tue May 14 16:44:53 CEST 2024 by karbyshev

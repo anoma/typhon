@@ -219,7 +219,7 @@ MsgsSafeAcceptorSpec3 ==
 MsgsSafeAcceptorPrevRefSpec ==
     \A A \in SafeAcceptor :
         \A m \in SentBy(A) :
-            m.prev # NoMessage => m.prev \in m.ref
+            m.prev # NoMessage => m.prev \in m.refs
 
 MsgsSafeAcceptorPrevTranSpec ==
     \A A \in SafeAcceptor :
@@ -245,7 +245,7 @@ PROOF
 <1>1. CASE \E p \in Proposer : ProposerAction(p)
   <2> PICK p \in Proposer, bal \in Ballot : SendProposal(bal)
       BY <1>1 DEF ProposerAction
-  <2> [type |-> "proposer", bal |-> bal, prev |-> NoMessage, ref |-> {}] \in Message
+  <2> [type |-> "proposer", bal |-> bal, prev |-> NoMessage, refs |-> {}] \in Message
       BY Message_spec, MessageRec_eq0 DEF MessageRec0
   <2> QED BY Zenon DEF SendProposal, Send, TypeOK
 <1>3. CASE \E a \in SafeAcceptor : \E m \in msgs : Process(a, m)
@@ -263,8 +263,8 @@ PROOF
         LET new == [type |-> "acceptor",
                     acc |-> acc,
                     prev |-> prev_msg[acc],
-                    ref |-> recent_msgs[acc] \cup {m1b},
-                    lrn |-> ll] IN
+                    refs |-> recent_msgs[acc] \cup {m1b},
+                    lrns |-> ll] IN
         /\ new \in Message
         /\ \/ /\ WellFormed(new)
               /\ Send(new)
@@ -276,8 +276,8 @@ PROOF
     <4> DEFINE new == [type |-> "acceptor",
                        acc |-> acc,
                        prev |-> prev_msg[acc],
-                       ref |-> recent_msgs[acc] \cup {m1b},
-                       lrn |-> ll]
+                       refs |-> recent_msgs[acc] \cup {m1b},
+                       lrns |-> ll]
     <4> new \in Message
         OBVIOUS
     <4> QED BY Isa DEF TypeOK
@@ -412,8 +412,8 @@ PROOF
       LET new == [type |-> "acceptor",
                   acc |-> acc,
                   prev |-> prev_msg[acc],
-                  ref |-> recent_msgs[acc] \cup {m},
-                  lrn |-> ll] IN
+                  refs |-> recent_msgs[acc] \cup {m},
+                  lrns |-> ll] IN
       \/ /\ WellFormed(new)
          /\ recent_msgs' = [recent_msgs EXCEPT ![acc] = {new}]
       \/ /\ ~WellFormed(new)
@@ -495,8 +495,8 @@ PROOF
         LET new == [type |-> "acceptor",
                     acc |-> acc,
                     prev |-> prev_msg[acc],
-                    ref |-> recent_msgs[acc] \cup {m},
-                    lrn |-> ll] IN
+                    refs |-> recent_msgs[acc] \cup {m},
+                    lrns |-> ll] IN
         /\ new \in Message
         /\ \/ /\ WellFormed(new)
               /\ Send(new)
@@ -508,8 +508,8 @@ PROOF
   <2> DEFINE new == [type |-> "acceptor",
                      acc |-> acc,
                      prev |-> prev_msg[acc],
-                     ref |-> recent_msgs[acc] \cup {m},
-                     lrn |-> ll]
+                     refs |-> recent_msgs[acc] \cup {m},
+                     lrns |-> ll]
   <2> new \in Message
       OBVIOUS
   <2> CASE WellFormed(new)
@@ -571,8 +571,8 @@ PROOF
       LET new == [type |-> "acceptor",
                   acc |-> acc,
                   prev |-> prev_msg[acc],
-                  ref |-> recent_msgs[acc] \cup {m},
-                  lrn |-> ll] IN
+                  refs |-> recent_msgs[acc] \cup {m},
+                  lrns |-> ll] IN
       /\ new \in Message
       /\ \/ /\ WellFormed(new)
             /\ Send(new)
@@ -586,8 +586,8 @@ PROOF
   <2> DEFINE new == [type |-> "acceptor",
                      acc |-> acc,
                      prev |-> prev_msg[acc],
-                     ref |-> recent_msgs[acc] \cup {m},
-                     lrn |-> ll]
+                     refs |-> recent_msgs[acc] \cup {m},
+                     lrns |-> ll]
   <2> new \in Message
       OBVIOUS
   <2> CASE acc = A
@@ -670,8 +670,8 @@ PROOF
         LET new == [type |-> "acceptor",
                     acc |-> acc,
                     prev |-> prev_msg[acc],
-                    ref |-> recent_msgs[acc] \cup {m},
-                    lrn |-> ll] IN
+                    refs |-> recent_msgs[acc] \cup {m},
+                    lrns |-> ll] IN
         new \in Message
         BY Zenon DEF TypeOK
     <3> QED BY DEF Send, Recv
@@ -777,8 +777,8 @@ PROOF
       LET new2a == [type |-> "acceptor",
                     acc |-> acc,
                     prev |-> prev_msg[acc],
-                    ref |-> recent_msgs[acc] \cup {msg},
-                    lrn |-> ll] IN
+                    refs |-> recent_msgs[acc] \cup {msg},
+                    lrns |-> ll] IN
       /\ new2a \in Message
       /\ Send(new2a)
       /\ prev_msg' = [prev_msg EXCEPT ![acc] = new2a]
@@ -786,8 +786,8 @@ PROOF
   <2> DEFINE new2a == [type |-> "acceptor",
                        acc |-> acc,
                        prev |-> prev_msg[acc],
-                       ref |-> recent_msgs[acc] \cup {msg},
-                       lrn |-> ll]
+                       refs |-> recent_msgs[acc] \cup {msg},
+                       lrns |-> ll]
   <2> m2 = new2a BY DEF Send
   <2> m2 \in Message BY DEF TypeOK
   <2> \A m \in SentBy(A) : m \in PrevTran(prev_msg[A])
@@ -848,23 +848,23 @@ PROOF
       LET new == [type |-> "acceptor",
                   acc |-> acc,
                   prev |-> prev_msg[acc],
-                  ref |-> recent_msgs[acc] \cup {msg},
-                  lrn |-> ll] IN
+                  refs |-> recent_msgs[acc] \cup {msg},
+                  lrns |-> ll] IN
       /\ Send(new)
       /\ prev_msg' = [prev_msg EXCEPT ![acc] = new]
       BY Zenon DEF TypeOK
   <2> DEFINE new == [type |-> "acceptor",
                      acc |-> acc,
                      prev |-> prev_msg[acc],
-                     ref |-> recent_msgs[acc] \cup {msg},
-                     lrn |-> ll]
+                     refs |-> recent_msgs[acc] \cup {msg},
+                     lrns |-> ll]
   <2> m2 = new
       BY DEF Send, TypeOK
   <2> acc = A
       BY DEF Send, SentBy, TypeOK
   <2> prev_msg[A] \in Message
       BY DEF TypeOK
-  <2> prev_msg[A] \in m1.ref
+  <2> prev_msg[A] \in m1.refs
       BY DEF MsgsSafeAcceptorPrevRefSpec, SentBy, OneA
   <2> m1 \notin Tran(prev_msg[A])
       BY Tran_ref_acyclic
@@ -899,7 +899,7 @@ PROOF
                     NEW mm \in msgs', mm \notin msgs,
                     mm.acc = A, mm.type # "proposer",
                     mm.prev # NoMessage
-             PROVE  mm.prev \in mm.ref
+             PROVE  mm.prev \in mm.refs
     BY DEF MsgsSafeAcceptorPrevRefSpec, SentBy, Send, OneA
 <1> A \in Acceptor BY DEF Acceptor
 <1> USE DEF MsgsSafeAcceptorPrevRefSpec
@@ -916,16 +916,16 @@ PROOF
       LET new == [type |-> "acceptor",
                   acc |-> acc,
                   prev |-> prev_msg[acc],
-                  ref |-> recent_msgs[acc] \cup {msg},
-                  lrn |-> ll] IN
+                  refs |-> recent_msgs[acc] \cup {msg},
+                  lrns |-> ll] IN
       /\ Send(new)
       /\ prev_msg' = [prev_msg EXCEPT ![acc] = new]
       BY Zenon DEF TypeOK
   <2> DEFINE new == [type |-> "acceptor",
                      acc |-> acc,
                      prev |-> prev_msg[acc],
-                     ref |-> recent_msgs[acc] \cup {msg},
-                     lrn |-> ll]
+                     refs |-> recent_msgs[acc] \cup {msg},
+                     lrns |-> ll]
   <2> mm = new
       BY DEF Send, TypeOK
   <2> QED BY DEF SafeAcceptorPrevSpec2, Recv, SentBy, Send, TypeOK
@@ -974,16 +974,16 @@ PROOF
       LET new == [type |-> "acceptor",
                   acc |-> acc,
                   prev |-> prev_msg[acc],
-                  ref |-> recent_msgs[acc] \cup {msg},
-                  lrn |-> ll] IN
+                  refs |-> recent_msgs[acc] \cup {msg},
+                  lrns |-> ll] IN
       /\ Send(new)
       /\ prev_msg' = [prev_msg EXCEPT ![acc] = new]
       BY Zenon DEF TypeOK
   <2> DEFINE new == [type |-> "acceptor",
                      acc |-> acc,
                      prev |-> prev_msg[acc],
-                     ref |-> recent_msgs[acc] \cup {msg},
-                     lrn |-> ll]
+                     refs |-> recent_msgs[acc] \cup {msg},
+                     lrns |-> ll]
   <2> m1 = new
       BY DEF Send, TypeOK
   <2> new.prev = prev_msg[acc]
@@ -1061,7 +1061,7 @@ HeterogeneousSpec(bal) ==
             ChosenIn(L1, B1, V1) =>
             \A M \in known_msgs[L0] :
                 TwoA(M) /\
-                L2 \in M.lrn /\
+                L2 \in M.lrns /\
                 B(M, bal) /\
                 B1 < bal /\
                 V(M, V2) =>
@@ -1099,7 +1099,7 @@ PROOF
                       <<L1, L2>> \in Ent,
                       ChosenIn(L1, B1, V1),
                       TwoA(M),
-                      L2 \in M.lrn,
+                      L2 \in M.lrns,
                       B(M, bal),
                       B1 < bal,
                       V(M, V2)
@@ -1142,7 +1142,7 @@ PROOF
     <3> QED BY QuorumIntersection, BQAssumption, Isa
   <2> TwoA(m2a)
       BY <2>8 DEF Known2a
-  <2> L1 \in m2a.lrn
+  <2> L1 \in m2a.lrns
       BY <2>8 DEF Known2a
   <2> m2a \in msgs
       OBVIOUS
@@ -1192,7 +1192,7 @@ PROOF
   <2>16. CASE Buried(L1, m2a, m1b)
     <3> PICK r \in Tran(m1b) :
             /\ TwoA(r)
-            /\ L1 \in r.lrn
+            /\ L1 \in r.lrns
             /\ \A b2a, br \in Ballot :
                 B(m2a, b2a) /\ B(r, br) => b2a < br
             /\ \A v2a, vr \in Value :
@@ -1281,7 +1281,7 @@ PROOF
     BY EntaglementTrustLiveNonEmpty, Zenon
 <1> PICK M \in known_msgs[L2] :
         /\ TwoA(M)
-        /\ L2 \in M.lrn
+        /\ L2 \in M.lrns
         /\ B(M, B2)
         /\ V(M, V2)
     BY DEF Known2a
@@ -1502,5 +1502,5 @@ PROOF BY PTL, FullSafetyInvariantInit, FullSafetyInvariantNext, NextDef
 
 =============================================================================
 \* Modification History
-\* Last modified Fri Nov 22 11:25:32 CET 2024 by karbyshev
+\* Last modified Fri Nov 22 21:00:16 CET 2024 by karbyshev
 \* Created Tue Jun 20 00:28:26 CEST 2023 by karbyshev
