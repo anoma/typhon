@@ -322,7 +322,7 @@ PROOF
 LEMMA WellFormed_monotone ==
     ASSUME NEW m \in Message, WellFormed(m), BVal' = BVal
     PROVE WellFormed(m)'
-PROOF BY Isa DEF WellFormed, WellFormed1b, WellFormed2a, q, Fresh, Con2as, Buried, V
+PROOF BY Isa DEF WellFormed, WellFormed1b, q, Fresh, Con2as, Buried, V
 
 LEMMA KnownMsgMonotone ==
     TypeOK /\ NextTLA =>
@@ -1110,7 +1110,7 @@ PROOF
   <2> M \in Message
       BY <2>1 DEF TypeOK
   <2>3. [lr |-> L2, q |-> q(L2, M)] \in TrustLive
-      BY <2>1, IsaM("blast") DEF WellFormed, WellFormed2a
+      BY <2>1, IsaM("blast") DEF WellFormed
   <2> DEFINE Q2 == { m \in Tran(M) :
                         /\ OneB(m)
                         /\ Fresh(L2, m)
@@ -1426,7 +1426,7 @@ PROOF BY DEF TypeOK, vars
 
 LEMMA KnownMsgsSpecStutter ==
     KnownMsgsSpec /\ vars = vars' => KnownMsgsSpec'
-PROOF BY Isa DEF KnownMsgsSpec, vars, WellFormed, WellFormed1b, WellFormed2a,
+PROOF BY Isa DEF KnownMsgsSpec, vars, WellFormed, WellFormed1b,
                  SameBallot, q, Fresh, Con, ConByQuorum, Con2as, Buried,
                  V, B, Get1a, SameBallot, ChainRef, KnownRefs,
                  Caught, CaughtMsg
@@ -1502,5 +1502,5 @@ PROOF BY PTL, FullSafetyInvariantInit, FullSafetyInvariantNext, NextDef
 
 =============================================================================
 \* Modification History
-\* Last modified Thu Nov 21 14:29:56 CET 2024 by karbyshev
+\* Last modified Fri Nov 22 11:25:32 CET 2024 by karbyshev
 \* Created Tue Jun 20 00:28:26 CEST 2023 by karbyshev

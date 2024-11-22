@@ -3,6 +3,8 @@ EXTENDS HQuorum, HLearnerGraph, HMessage, TLAPS
 
 Assert(P, str) == P
 
+CONSTANT WellFormed2a(_)
+
 -----------------------------------------------------------------------------
 (* Algorithm specification *)
 
@@ -113,9 +115,6 @@ Assert(P, str) == P
         \A y \in Tran(m) :
             m # y /\ SameBallot(m, y) => y.type = "proposer"
 
-    WellFormed2a(m) ==
-        m.lrn = { l \in Learner : [lr |-> l, q |-> q(l, m)] \in TrustLive }
-
     WellFormed(m) ==
         /\ m \in Message
         /\ \E b \in Ballot : B(m, b) \* TODO prove it
@@ -123,6 +122,9 @@ Assert(P, str) == P
         /\ OneB(m) => WellFormed1b(m)
         /\ TwoA(m) =>
             /\ m.ref # {}
+            \* Since the message structure embodies the learner values in our formalization,
+            \* we must validate the correctness of these values.
+            /\ m.lrn = { l \in Learner : [lr |-> l, q |-> q(l, m)] \in TrustLive }
             /\ WellFormed2a(m)
 
     Known2a(alpha, b, v) ==
@@ -223,7 +225,7 @@ Assert(P, str) == P
 }
 
 ****************************************************************************)
-\* BEGIN TRANSLATION (chksum(pcal) = "b753cea2" /\ chksum(tla) = "3533306c")
+\* BEGIN TRANSLATION (chksum(pcal) = "cfa34d8d" /\ chksum(tla) = "bf44f634")
 VARIABLES msgs, known_msgs, recent_msgs, prev_msg, decision, BVal
 
 (* define statement *)
@@ -324,9 +326,6 @@ WellFormed1b(m) ==
     \A y \in Tran(m) :
         m # y /\ SameBallot(m, y) => y.type = "proposer"
 
-WellFormed2a(m) ==
-    m.lrn = { l \in Learner : [lr |-> l, q |-> q(l, m)] \in TrustLive }
-
 WellFormed(m) ==
     /\ m \in Message
     /\ \E b \in Ballot : B(m, b)
@@ -334,6 +333,9 @@ WellFormed(m) ==
     /\ OneB(m) => WellFormed1b(m)
     /\ TwoA(m) =>
         /\ m.ref # {}
+
+
+        /\ m.lrn = { l \in Learner : [lr |-> l, q |-> q(l, m)] \in TrustLive }
         /\ WellFormed2a(m)
 
 Known2a(alpha, b, v) ==
@@ -376,8 +378,8 @@ safe_acceptor(self) == /\ \E m \in msgs:
                                              prev |-> prev_msg[self],
                                              ref |-> recent_msgs[self] \cup {m},
                                              lrn |-> LL] IN
-                                   /\ Assert(new \in Message,
-                                             "Failure of assertion at line 160, column 7 of macro called at line 206, column 9.")
+                                   /\ Assert(new \in Message, 
+                                             "Failure of assertion at line 162, column 7 of macro called at line 208, column 9.")
                                    /\ \/ /\ WellFormed(new)
                                          /\ prev_msg' = [prev_msg EXCEPT ![self] = new]
                                          /\ recent_msgs' = [recent_msgs EXCEPT ![self] = {new}]
@@ -556,5 +558,5 @@ UniqueDecision ==
 
 =============================================================================
 \* Modification History
-\* Last modified Thu Nov 21 14:49:45 CET 2024 by karbyshev
+\* Last modified Fri Nov 22 11:43:05 CET 2024 by karbyshev
 \* Created Mon Jun 19 12:24:03 CEST 2022 by karbyshev
