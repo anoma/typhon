@@ -29,15 +29,15 @@ FINSUBSET(S, R) == { Range(seq) : seq \in [R -> S] }
 NoMessage == [ type |-> "null" ]
 
 MessageRec0 ==
-    [ type : {"proposer"}, bal : Ballot, prev : {NoMessage}, ref : {{}} ]
+    [ type : {"proposer"}, bal : Ballot, prev : {NoMessage}, refs : {{}} ]
 
 MessageRec1(M, n) ==
     M \cup
     [ type : {"acceptor"},
       acc : Acceptor,
       prev : M \cup {NoMessage},
-      ref : FINSUBSET(M, RefCardinality),
-      lrn : SUBSET Learner
+      refs : FINSUBSET(M, RefCardinality),
+      lrns : SUBSET Learner
     ]
 
 MessageRec[n \in Nat] ==
@@ -62,11 +62,11 @@ OneA(m) == m.type = "proposer"
 
 OneB(m) ==
     /\ m.type = "acceptor"
-    /\ \E r \in m.ref : OneA(r)
+    /\ \E r \in m.refs : OneA(r)
 
 TwoA(m) ==
     /\ m.type = "acceptor"
-    /\ \A r \in m.ref : ~OneA(r)
+    /\ \A r \in m.refs : ~OneA(r)
 
 -----------------------------------------------------------------------------
 (* Transitive references *)
@@ -74,7 +74,7 @@ TwoA(m) ==
 \* Bounded transitive references
 TranBound0 == [m \in Message |-> {m}]
 TranBound1(tr, n) ==
-    [m \in Message |-> {m} \cup UNION {tr[r] : r \in m.ref}]
+    [m \in Message |-> {m} \cup UNION {tr[r] : r \in m.refs}]
 
 TranBound[n \in Nat] ==
     IF n = 0
@@ -106,5 +106,5 @@ PrevTran(m) == UNION {PrevTranBound[n][m] : n \in PrevTranDepthRange}
 
 =============================================================================
 \* Modification History
-\* Last modified Thu Nov 21 13:24:55 CET 2024 by karbyshev
+\* Last modified Fri Nov 22 20:52:10 CET 2024 by karbyshev
 \* Created Tue May 14 16:39:44 CEST 2024 by karbyshev

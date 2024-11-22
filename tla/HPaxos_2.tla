@@ -37,7 +37,7 @@ CONSTANT WellFormed2a(_)
 \*        /\ \A x \in known_msgs[a] :
 \*            \A b \in Ballot : B(x, b) => b =< mbal
 
-    KnownRefs(a, m) == \A r \in m.ref : r \in known_msgs[a]
+    KnownRefs(a, m) == \A r \in m.refs : r \in known_msgs[a]
 
     \* The acceptor is _caught_ in a message x if the transitive references of x
     \* include evidence such as two different messages both signed by the acceptor,
@@ -80,7 +80,7 @@ CONSTANT WellFormed2a(_)
     Buried(alpha, x, y) == \* x : 2a, y : 1b
         \E z \in Tran(y) :
             /\ TwoA(z)
-            /\ alpha \in z.lrn
+            /\ alpha \in z.lrns
             /\ \A bx, bz \in Ballot :
                 B(x, bx) /\ B(z, bz) => bx < bz
             /\ \A vx, vz \in Value :
@@ -91,7 +91,7 @@ CONSTANT WellFormed2a(_)
         { m \in Tran(x) :
             /\ TwoA(m)
             /\ m.acc = x.acc
-            /\ \E beta \in m.lrn :
+            /\ \E beta \in m.lrns :
                 /\ beta \in Con(alpha, x)
                 /\ ~Buried(beta, m, x) }
 
@@ -109,7 +109,7 @@ CONSTANT WellFormed2a(_)
 
     ChainRef(m) ==
         \/ m.prev = NoMessage
-        \/ m.prev \in m.ref /\ m.prev.acc = m.acc
+        \/ m.prev \in m.refs /\ m.prev.acc = m.acc
 
     WellFormed1b(m) ==
         \A y \in Tran(m) :
@@ -121,16 +121,16 @@ CONSTANT WellFormed2a(_)
         /\ ChainRef(m)
         /\ OneB(m) => WellFormed1b(m)
         /\ TwoA(m) =>
-            /\ m.ref # {}
+            /\ m.refs # {}
             \* Since the message structure embodies the learner values in our formalization,
             \* we must validate the correctness of these values.
-            /\ m.lrn = { l \in Learner : [lr |-> l, q |-> q(l, m)] \in TrustLive }
+            /\ m.lrns = { l \in Learner : [lr |-> l, q |-> q(l, m)] \in TrustLive }
             /\ WellFormed2a(m)
 
     Known2a(alpha, b, v) ==
         { x \in known_msgs[alpha] :
             /\ TwoA(x)
-            /\ alpha \in x.lrn
+            /\ alpha \in x.lrns
             /\ B(x, b)
             /\ V(x, v) }
 
@@ -142,7 +142,7 @@ CONSTANT WellFormed2a(_)
   macro Send(m) { msgs := msgs \cup {m} }
 
   macro SendProposal(b) {
-    Send([type |-> "proposer", bal |-> b, prev |-> NoMessage, ref |-> {}])
+    Send([type |-> "proposer", bal |-> b, prev |-> NoMessage, refs |-> {}])
   }
 
   macro Receive(m) {
@@ -156,8 +156,8 @@ CONSTANT WellFormed2a(_)
           new = [type |-> "acceptor",
                  acc |-> self,
                  prev |-> prev_msg[self],
-                 ref |-> recent_msgs[self] \cup {m},
-                 lrn |-> LL])
+                 refs |-> recent_msgs[self] \cup {m},
+                 lrns |-> LL])
     {
       assert new \in Message ;
       either {
@@ -177,7 +177,7 @@ CONSTANT WellFormed2a(_)
   macro FakeSendControlMessage() {
     with (fin \in FINSUBSET(msgs, RefCardinality),
           LL \in SUBSET Learner,
-          msg = [type |-> "acceptor", acc |-> self, ref |-> fin, lrn |-> LL])
+          msg = [type |-> "acceptor", acc |-> self, refs |-> fin, lrns |-> LL])
     {
       when WellFormed(msg) ;
       Send(msg)
@@ -225,7 +225,7 @@ CONSTANT WellFormed2a(_)
 }
 
 ****************************************************************************)
-\* BEGIN TRANSLATION (chksum(pcal) = "cfa34d8d" /\ chksum(tla) = "bf44f634")
+\* BEGIN TRANSLATION (chksum(pcal) = "71812e9f" /\ chksum(tla) = "f217c7c2")
 VARIABLES msgs, known_msgs, recent_msgs, prev_msg, decision, BVal
 
 (* define statement *)
@@ -248,7 +248,7 @@ SameBallot(x, y) ==
 
 
 
-KnownRefs(a, m) == \A r \in m.ref : r \in known_msgs[a]
+KnownRefs(a, m) == \A r \in m.refs : r \in known_msgs[a]
 
 
 
@@ -291,7 +291,7 @@ Con(alpha, x) ==
 Buried(alpha, x, y) ==
     \E z \in Tran(y) :
         /\ TwoA(z)
-        /\ alpha \in z.lrn
+        /\ alpha \in z.lrns
         /\ \A bx, bz \in Ballot :
             B(x, bx) /\ B(z, bz) => bx < bz
         /\ \A vx, vz \in Value :
@@ -302,7 +302,7 @@ Con2as(alpha, x) ==
     { m \in Tran(x) :
         /\ TwoA(m)
         /\ m.acc = x.acc
-        /\ \E beta \in m.lrn :
+        /\ \E beta \in m.lrns :
             /\ beta \in Con(alpha, x)
             /\ ~Buried(beta, m, x) }
 
@@ -320,7 +320,7 @@ q(alpha, x) ==
 
 ChainRef(m) ==
     \/ m.prev = NoMessage
-    \/ m.prev \in m.ref /\ m.prev.acc = m.acc
+    \/ m.prev \in m.refs /\ m.prev.acc = m.acc
 
 WellFormed1b(m) ==
     \A y \in Tran(m) :
@@ -332,16 +332,16 @@ WellFormed(m) ==
     /\ ChainRef(m)
     /\ OneB(m) => WellFormed1b(m)
     /\ TwoA(m) =>
-        /\ m.ref # {}
+        /\ m.refs # {}
 
 
-        /\ m.lrn = { l \in Learner : [lr |-> l, q |-> q(l, m)] \in TrustLive }
+        /\ m.lrns = { l \in Learner : [lr |-> l, q |-> q(l, m)] \in TrustLive }
         /\ WellFormed2a(m)
 
 Known2a(alpha, b, v) ==
     { x \in known_msgs[alpha] :
         /\ TwoA(x)
-        /\ alpha \in x.lrn
+        /\ alpha \in x.lrns
         /\ B(x, b)
         /\ V(x, v) }
 
@@ -363,7 +363,7 @@ Init == (* Global variables *)
         /\ BVal \in [Ballot -> Value]
 
 proposer(self) == /\ \E b \in Ballot:
-                       msgs' = (msgs \cup {([type |-> "proposer", bal |-> b, prev |-> NoMessage, ref |-> {}])})
+                       msgs' = (msgs \cup {([type |-> "proposer", bal |-> b, prev |-> NoMessage, refs |-> {}])})
                   /\ UNCHANGED << known_msgs, recent_msgs, prev_msg, decision, 
                                   BVal >>
 
@@ -376,8 +376,8 @@ safe_acceptor(self) == /\ \E m \in msgs:
                                  LET new == [type |-> "acceptor",
                                              acc |-> self,
                                              prev |-> prev_msg[self],
-                                             ref |-> recent_msgs[self] \cup {m},
-                                             lrn |-> LL] IN
+                                             refs |-> recent_msgs[self] \cup {m},
+                                             lrns |-> LL] IN
                                    /\ Assert(new \in Message, 
                                              "Failure of assertion at line 162, column 7 of macro called at line 208, column 9.")
                                    /\ \/ /\ WellFormed(new)
@@ -405,7 +405,7 @@ learner(self) == /\ \/ /\ \E m \in msgs:
 
 fake_acceptor(self) == /\ \E fin \in FINSUBSET(msgs, RefCardinality):
                             \E LL \in SUBSET Learner:
-                              LET msg == [type |-> "acceptor", acc |-> self, ref |-> fin, lrn |-> LL] IN
+                              LET msg == [type |-> "acceptor", acc |-> self, refs |-> fin, lrns |-> LL] IN
                                 /\ WellFormed(msg)
                                 /\ msgs' = (msgs \cup {msg})
                        /\ UNCHANGED << known_msgs, recent_msgs, prev_msg, 
@@ -429,7 +429,7 @@ Recv(a, m) ==
     /\ known_msgs' = [known_msgs EXCEPT ![a] = known_msgs[a] \cup {m}]
 
 SendProposal(b) ==
-    /\ Send([type |-> "proposer", bal |-> b, prev |-> NoMessage, ref |-> {}])
+    /\ Send([type |-> "proposer", bal |-> b, prev |-> NoMessage, refs |-> {}])
     /\ UNCHANGED << known_msgs, recent_msgs, prev_msg >>
     /\ UNCHANGED decision
     /\ UNCHANGED BVal
@@ -441,8 +441,8 @@ Process(a, m) ==
         LET new == [type |-> "acceptor",
                     acc |-> a,
                     prev |-> prev_msg[a],
-                    ref |-> recent_msgs[a] \cup {m},
-                    lrn |-> LL] IN
+                    refs |-> recent_msgs[a] \cup {m},
+                    lrns |-> LL] IN
         /\ new \in Message
         /\ \/ /\ WellFormed(new)
               /\ prev_msg' = [prev_msg EXCEPT ![a] = new]
@@ -464,7 +464,7 @@ SafeAcceptorAction(a) ==
 FakeSendControlMessage(a) ==
     /\ \E fin \in FINSUBSET(msgs, RefCardinality) :
         \E LL \in SUBSET Learner :
-            LET new == [type |-> "acceptor", acc |-> a, ref |-> fin, lrn |-> LL] IN
+            LET new == [type |-> "acceptor", acc |-> a, refs |-> fin, lrns |-> LL] IN
             /\ WellFormed(new)
             /\ Send(new)
     /\ UNCHANGED << known_msgs, recent_msgs, prev_msg  >>
@@ -558,5 +558,5 @@ UniqueDecision ==
 
 =============================================================================
 \* Modification History
-\* Last modified Fri Nov 22 11:43:05 CET 2024 by karbyshev
+\* Last modified Fri Nov 22 20:57:30 CET 2024 by karbyshev
 \* Created Mon Jun 19 12:24:03 CEST 2022 by karbyshev
