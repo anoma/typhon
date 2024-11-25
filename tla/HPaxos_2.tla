@@ -41,20 +41,8 @@ CONSTANT WellFormed2a(_)
 
     \* The acceptor is _caught_ in a message x if the transitive references of x
     \* include evidence such as two different messages both signed by the acceptor,
-    \* which have equal previous messages.
+    \* which have equal previous messages (which may equal the NonMessage).
     CaughtMsg(x) ==
-        { m \in Tran(x) :
-            /\ m.type = "acceptor"
-            /\ \E m1 \in Tran(x) :
-                /\ m1.type = "acceptor"
-                /\ m.acc = m1.acc
-                /\ m # m1
-                /\ m \notin PrevTran(m1)
-                /\ m1 \notin PrevTran(m) }
-
-    Caught(x) == { m.acc : m \in CaughtMsg(x) }
-
-    CaughtMsg0(x) ==
         { m \in Tran(x) :
             /\ m.type = "acceptor"
             /\ \E m1 \in Tran(x) :
@@ -63,7 +51,7 @@ CONSTANT WellFormed2a(_)
                 /\ m # m1
                 /\ m.prev = m1.prev }
 
-    Caught0(x) == { m.acc : m \in CaughtMsg0(x) }
+    Caught(x) == { m.acc : m \in CaughtMsg(x) }
 
     \* Connected
     ConByQuorum(alpha, beta, x, S) == \* alpha : Learner, beta : Learner, x : 1b, S \in ByzQuorum
@@ -225,7 +213,7 @@ CONSTANT WellFormed2a(_)
 }
 
 ****************************************************************************)
-\* BEGIN TRANSLATION (chksum(pcal) = "71812e9f" /\ chksum(tla) = "f217c7c2")
+\* BEGIN TRANSLATION (chksum(pcal) = "c07d66a2" /\ chksum(tla) = "dc25c029")
 VARIABLES msgs, known_msgs, recent_msgs, prev_msg, decision, BVal
 
 (* define statement *)
@@ -260,21 +248,9 @@ CaughtMsg(x) ==
             /\ m1.type = "acceptor"
             /\ m.acc = m1.acc
             /\ m # m1
-            /\ m \notin PrevTran(m1)
-            /\ m1 \notin PrevTran(m) }
-
-Caught(x) == { m.acc : m \in CaughtMsg(x) }
-
-CaughtMsg0(x) ==
-    { m \in Tran(x) :
-        /\ m.type = "acceptor"
-        /\ \E m1 \in Tran(x) :
-            /\ m1.type = "acceptor"
-            /\ m.acc = m1.acc
-            /\ m # m1
             /\ m.prev = m1.prev }
 
-Caught0(x) == { m.acc : m \in CaughtMsg0(x) }
+Caught(x) == { m.acc : m \in CaughtMsg(x) }
 
 
 ConByQuorum(alpha, beta, x, S) ==
@@ -379,7 +355,7 @@ safe_acceptor(self) == /\ \E m \in msgs:
                                              refs |-> recent_msgs[self] \cup {m},
                                              lrns |-> LL] IN
                                    /\ Assert(new \in Message, 
-                                             "Failure of assertion at line 162, column 7 of macro called at line 208, column 9.")
+                                             "Failure of assertion at line 150, column 7 of macro called at line 196, column 9.")
                                    /\ \/ /\ WellFormed(new)
                                          /\ prev_msg' = [prev_msg EXCEPT ![self] = new]
                                          /\ recent_msgs' = [recent_msgs EXCEPT ![self] = {new}]
@@ -558,5 +534,5 @@ UniqueDecision ==
 
 =============================================================================
 \* Modification History
-\* Last modified Fri Nov 22 20:57:30 CET 2024 by karbyshev
+\* Last modified Mon Nov 25 16:02:54 CET 2024 by karbyshev
 \* Created Mon Jun 19 12:24:03 CEST 2022 by karbyshev

@@ -8,12 +8,6 @@ LEMMA CaughtMsgSpec ==
            /\ \A X \in CaughtMsg(M) : X.type # "proposer"
 BY Tran_Message DEF CaughtMsg
 
-LEMMA CaughtMsgEffSpec ==
-    ASSUME NEW M \in Message
-    PROVE  /\ CaughtMsg0(M) \in SUBSET Message
-           /\ \A X \in CaughtMsg0(M) : X.type # "proposer"
-BY Tran_Message DEF CaughtMsg0
-
 -----------------------------------------------------------------------------
 (* Facts about Get1a, B and V relations *)
 
@@ -190,11 +184,6 @@ CaughtSpec ==
     \A AL \in SafeAcceptor \cup Learner :
         \A M \in known_msgs[AL] :
             Caught(M) \cap SafeAcceptor = {}
-
-CaughtEffSpec ==
-    \A AL \in SafeAcceptor \cup Learner :
-        \A M \in known_msgs[AL] :
-            Caught0(M) \cap SafeAcceptor = {}
 
 DecisionSpec ==
     \A L \in Learner : \A BB \in Ballot : \A VV \in Value :
@@ -1007,17 +996,10 @@ PROOF
         DEF NextTLA, SafeAcceptorAction, FakeAcceptorAction
 
 LEMMA MsgsSafeAcceptorSpecImpliesCaughtSpec ==
-    ASSUME TypeOK, KnownMsgsSpec, MsgsSafeAcceptorPrevTranLinearSpec
+    ASSUME TypeOK, KnownMsgsSpec, MsgsSafeAcceptorSpec3
     PROVE  CaughtSpec
 PROOF BY MessageSpec
-      DEF MsgsSafeAcceptorPrevTranLinearSpec, CaughtSpec, Caught, CaughtMsg,
-      KnownMsgsSpec, SentBy, OneA, TypeOK
-
-LEMMA MsgsSafeAcceptorSpecImpliesCaughtEffSpec ==
-    ASSUME TypeOK, KnownMsgsSpec, MsgsSafeAcceptorSpec3
-    PROVE  CaughtEffSpec
-PROOF BY MessageSpec
-      DEF MsgsSafeAcceptorSpec3, CaughtEffSpec, Caught0, CaughtMsg0,
+      DEF MsgsSafeAcceptorSpec3, CaughtSpec, Caught, CaughtMsg,
           KnownMsgsSpec, SentBy, OneA, TypeOK
 
 LEMMA QuorumIntersection ==
@@ -1502,5 +1484,5 @@ PROOF BY PTL, FullSafetyInvariantInit, FullSafetyInvariantNext, NextDef
 
 =============================================================================
 \* Modification History
-\* Last modified Fri Nov 22 21:00:16 CET 2024 by karbyshev
+\* Last modified Mon Nov 25 16:11:45 CET 2024 by karbyshev
 \* Created Tue Jun 20 00:28:26 CEST 2023 by karbyshev
