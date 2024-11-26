@@ -9,8 +9,7 @@ This consistency is a key safety properry of the algorithm.
 
 To simplify the formalization and avoid the complications of dealing with
 mutually recursive definitions in TLA+, we assume that the protocol messages
-explicitely convey information about their types (1a, 1b or 2a), as well as a
-list of learner values for 2a-messages.
+explicitely convey learner values.
 Consequently, we adjust the definition of well-formed messages to ensure that
 the conveyed information is valid.
 
