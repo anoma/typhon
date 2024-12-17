@@ -63,7 +63,7 @@ PROOF
 <1> DEFINE P(m) == MessageRec[m] # {}
 <1> SUFFICES ASSUME NEW j \in Nat PROVE P(j) OBVIOUS
 <1>0. P(0)
-  <2> [type |-> "proposer", bal |-> 0, prev |-> NoMessage, refs |-> {}] \in MessageRec[0]
+  <2> [type |-> "1a", bal |-> 0, prev |-> NoMessage, refs |-> {}] \in MessageRec[0]
       BY MessageRec_eq0 DEF MessageRec0, Ballot
   <2> QED OBVIOUS
 <1>1. ASSUME NEW m \in Nat, P(m) PROVE P(m+1)
@@ -104,14 +104,14 @@ LEMMA Message_nontriv == Message # {}
 PROOF BY MessageRec_nontriv DEF Message, MessageDepthRange
 
 LEMMA Message_1a_ref ==
-    \A m \in Message : m.type = "proposer" <=> m.refs = {}
+    \A m \in Message : OneA(m) <=> m.refs = {}
 PROOF
-<1> DEFINE P(j) == \A mm \in MessageRec[j] : mm.type = "proposer" <=> mm.refs = {}
-<1> SUFFICES ASSUME NEW j \in Nat PROVE P(j) BY DEF Message, MessageDepthRange
+<1> DEFINE P(j) == \A mm \in MessageRec[j] : mm.type = "1a" <=> mm.refs = {}
+<1> SUFFICES ASSUME NEW j \in Nat PROVE P(j) BY DEF Message, MessageDepthRange, OneA
 <1>0. P(0) BY MessageRec_eq0 DEF MessageRec0
 <1>1. ASSUME NEW m \in Nat, P(m) PROVE P(m+1)
   <2> SUFFICES ASSUME NEW mm \in MessageRec[m+1]
-               PROVE  mm.type = "proposer" <=> mm.refs = {}
+               PROVE  mm.type = "1a" <=> mm.refs = {}
       BY DEF Message
   <2>3. QED BY <1>1, MessageRec_eq1, MessageRec_nontriv, FinSubset_sub_nontriv,
                RefCardinalitySpec DEF MessageRec1
@@ -194,11 +194,13 @@ PROOF
 
 LEMMA MessageSpec ==
     ASSUME NEW m \in Message
-    PROVE \/ /\ m.type = "proposer"
+    PROVE \/ /\ m.type = "1a"
              /\ m.bal \in Ballot
              /\ m.prev = NoMessage
              /\ m.refs = {}
-          \/ /\ m.type = "acceptor"
+          \/ /\ \/ m.type = "1b"
+                \/ m.type = "2a"
+                \/ m.type = "2b"
              /\ m.acc \in Acceptor
              /\ m.prev \in Message \cup {NoMessage}
              /\ m.refs # {}
@@ -207,11 +209,13 @@ LEMMA MessageSpec ==
 PROOF
 <1> DEFINE P(n) ==
         \A x \in MessageRec[n] :
-            \/ /\ x.type = "proposer"
+            \/ /\ x.type = "1a"
                /\ x.bal \in Ballot
                /\ x.prev = NoMessage
                /\ x.refs = {}
-            \/ /\ x.type = "acceptor"
+            \/ /\ \/ x.type = "1b"
+                  \/ x.type = "2a"
+                  \/ x.type = "2b"
                /\ x.acc \in Acceptor
                /\ x.prev \in Message \cup {NoMessage}
                /\ x.refs # {}
@@ -221,11 +225,13 @@ PROOF
 <1>0. P(0) BY MessageRec_eq0 DEF MessageRec0
 <1>1. ASSUME NEW k \in Nat, P(k) PROVE P(k + 1)
   <2> SUFFICES ASSUME NEW x \in MessageRec[k + 1]
-               PROVE  \/ /\ x.type = "proposer"
+               PROVE  \/ /\ x.type = "1a"
                          /\ x.bal \in Ballot
                          /\ x.prev = NoMessage
                          /\ x.refs = {}
-                      \/ /\ x.type = "acceptor"
+                      \/ /\ \/ x.type = "1b"
+                            \/ x.type = "2a"
+                            \/ x.type = "2b"
                          /\ x.acc \in Acceptor
                          /\ x.prev \in Message \cup {NoMessage}
                          /\ x.refs # {}
@@ -234,13 +240,14 @@ PROOF
       OBVIOUS
   <2>1. CASE x \in MessageRec[k]
         BY <1>1, <2>1
-  <2>3. CASE x \in [ type : {"acceptor"},
-                     lrns : SUBSET Learner,
+  <2>3. CASE x \in [ type : {"1b", "2a", "2b"},
                      acc : Acceptor,
                      prev : MessageRec[k] \cup {NoMessage},
-                     refs : FINSUBSET(MessageRec[k], RefCardinality) ]
-        BY <2>3, Message_spec, MessageRec_nontriv, FinSubset_sub,
-           FinSubset_sub_nontriv, RefCardinalitySpec
+                     refs : FINSUBSET(MessageRec[k], RefCardinality),
+                     lrns : SUBSET Learner ]
+    BY <2>3, Message_spec, MessageRec_nontriv,
+       FinSubset_sub, FinSubset_sub_nontriv,
+       RefCardinalitySpec
   <2> QED BY <1>1, <2>1, <2>3, MessageRec_eq1 DEF MessageRec1
 <1>2. HIDE DEF P
 <1>3. QED BY <1>0, <1>1, NatInduction, Isa
@@ -250,13 +257,20 @@ LEMMA MessageTypeSpec ==
     PROVE \/ /\  OneA(m)
              /\ ~OneB(m)
              /\ ~TwoA(m)
+             /\ ~TwoB(m)
           \/ /\ ~OneA(m)
              /\  OneB(m)
              /\ ~TwoA(m)
+             /\ ~TwoB(m)
           \/ /\ ~OneA(m)
              /\ ~OneB(m)
              /\  TwoA(m)
-PROOF BY MessageSpec DEF OneA, OneB, TwoA
+             /\ ~TwoB(m)
+          \/ /\ ~OneA(m)
+             /\ ~OneB(m)
+             /\ ~TwoA(m)
+             /\  TwoB(m)
+PROOF BY MessageSpec DEF OneA, OneB, TwoA, TwoB
 
 -----------------------------------------------------------------------------
 (* Transitive references *)
@@ -756,5 +770,5 @@ PROOF BY Message_prev_PrevTranBound1, Zenon
 
 =============================================================================
 \* Modification History
-\* Last modified Mon Dec 09 16:10:10 CET 2024 by karbyshev
+\* Last modified Tue Dec 17 19:11:44 CET 2024 by karbyshev
 \* Created Tue May 14 16:44:53 CEST 2024 by karbyshev
