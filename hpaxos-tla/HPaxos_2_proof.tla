@@ -1,5 +1,5 @@
 -------------------------- MODULE HPaxos_2_proof ----------------------------
-EXTENDS HPaxos_2, Sequences, HMessage_proof, TLAPS
+EXTENDS HPaxos_2, Sequences, HMessage_proof, HLearnerGraph_proof, TLAPS
 
 -----------------------------------------------------------------------------
 LEMMA CaughtMsgSpec ==
@@ -1484,5 +1484,5 @@ PROOF BY PTL, FullSafetyInvariantInit, FullSafetyInvariantNext, NextDef
 
 =============================================================================
 \* Modification History
-\* Last modified Mon Nov 25 16:11:45 CET 2024 by karbyshev
+\* Last modified Mon Dec 09 16:10:41 CET 2024 by karbyshev
 \* Created Tue Jun 20 00:28:26 CEST 2023 by karbyshev
