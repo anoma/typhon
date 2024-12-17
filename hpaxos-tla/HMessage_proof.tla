@@ -272,6 +272,14 @@ LEMMA MessageTypeSpec ==
              /\  TwoB(m)
 PROOF BY MessageSpec DEF OneA, OneB, TwoA, TwoB
 
+LEMMA MessageNonProposalSpec ==
+    ASSUME NEW m \in Message,
+           ~Proposal(m)
+    PROVE  \/ OneB(m)
+           \/ TwoA(m)
+           \/ TwoB(m)
+PROOF BY MessageTypeSpec DEF Proposal, OneA
+
 -----------------------------------------------------------------------------
 (* Transitive references *)
 
@@ -770,5 +778,5 @@ PROOF BY Message_prev_PrevTranBound1, Zenon
 
 =============================================================================
 \* Modification History
-\* Last modified Tue Dec 17 19:11:44 CET 2024 by karbyshev
+\* Last modified Tue Dec 17 19:23:14 CET 2024 by karbyshev
 \* Created Tue May 14 16:44:53 CEST 2024 by karbyshev
