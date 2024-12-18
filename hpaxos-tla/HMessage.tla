@@ -29,11 +29,11 @@ FINSUBSET(S, R) == { Range(seq) : seq \in [R -> S] }
 NoMessage == [ type |-> "null" ]
 
 MessageRec0 ==
-    [ type : {"proposer"}, bal : Ballot, prev : {NoMessage}, refs : {{}} ]
+    [ type : {"1a"}, bal : Ballot, prev : {NoMessage}, refs : {{}} ]
 
 MessageRec1(M, n) ==
     M \cup
-    [ type : {"acceptor"},
+    [ type : {"1b", "2a", "2b"},
       acc : Acceptor,
       prev : M \cup {NoMessage},
       refs : FINSUBSET(M, RefCardinality),
@@ -55,18 +55,15 @@ Message == UNION { MessageRec[n] : n \in MessageDepthRange }
 -----------------------------------------------------------------------------
 (* Message types *)
 
-Proposal(m) == m.type = "proposer"
-NonProposal(m) == m.type = "acceptor"
+Proposal(m) == m.type = "1a"
 
-OneA(m) == m.type = "proposer"
+OneA(m) == m.type = "1a"
 
-OneB(m) ==
-    /\ m.type = "acceptor"
-    /\ \E r \in m.refs : OneA(r)
+OneB(m) == m.type = "1b"
 
-TwoA(m) ==
-    /\ m.type = "acceptor"
-    /\ \A r \in m.refs : ~OneA(r)
+TwoA(m) == m.type = "2a"
+
+TwoB(m) == m.type = "2b"
 
 -----------------------------------------------------------------------------
 (* Transitive references *)
@@ -106,5 +103,5 @@ PrevTran(m) == UNION {PrevTranBound[n][m] : n \in PrevTranDepthRange}
 
 =============================================================================
 \* Modification History
-\* Last modified Fri Nov 22 20:52:10 CET 2024 by karbyshev
+\* Last modified Tue Dec 17 17:59:35 CET 2024 by karbyshev
 \* Created Tue May 14 16:39:44 CEST 2024 by karbyshev
