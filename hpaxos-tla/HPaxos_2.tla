@@ -479,7 +479,7 @@ Recv(a, m) ==
     /\ known_msgs' = [known_msgs EXCEPT ![a] = known_msgs[a] \cup {m}]
 
 SendProposal(b) ==
-    /\ Send([type |-> "proposer", bal |-> b, prev |-> NoMessage, refs |-> {}])
+    /\ Send([type |-> "1a", bal |-> b, prev |-> NoMessage, refs |-> {}])
     /\ UNCHANGED << known_msgs, recent_msgs, prev_msg >>
     /\ UNCHANGED decision
     /\ UNCHANGED BVal
@@ -488,18 +488,24 @@ Process(a, m) ==
     /\ Recv(a, m)
     /\ WellFormed(m)
     /\ \E LL \in SUBSET Learner :
-        LET new == [type |-> "acceptor",
-                    acc |-> a,
+       \E T \in {"1b", "2a", "2b"} :
+        LET new == [type |-> T,
+                    acc  |-> a,
                     prev |-> prev_msg[a],
                     refs |-> recent_msgs[a] \cup {m},
                     lrns |-> LL] IN
         /\ new \in Message
-        /\ \/ /\ WellFormed(new)
+        /\ \/ /\ ReplyType(m, T)
+              /\ WellFormed(new)
               /\ prev_msg' = [prev_msg EXCEPT ![a] = new]
               /\ recent_msgs' = [recent_msgs EXCEPT ![a] = {new}]
               /\ Send(new)
-           \/ /\ ~WellFormed(new)
+           \/ /\ ReplyType(m, T)
+              /\ ~WellFormed(new)
               /\ ~OneA(m)
+              /\ recent_msgs' = [recent_msgs EXCEPT ![a] = recent_msgs[a] \cup {m}]
+              /\ UNCHANGED << msgs, prev_msg >>
+           \/ /\ TwoB(m)
               /\ recent_msgs' = [recent_msgs EXCEPT ![a] = recent_msgs[a] \cup {m}]
               /\ UNCHANGED << msgs, prev_msg >>
     /\ UNCHANGED decision
@@ -514,7 +520,8 @@ SafeAcceptorAction(a) ==
 FakeSendControlMessage(a) ==
     /\ \E fin \in FINSUBSET(msgs, RefCardinality) :
         \E LL \in SUBSET Learner :
-            LET new == [type |-> "acceptor", acc |-> a, refs |-> fin, lrns |-> LL] IN
+        \E T \in {"1b", "2a", "2b"} :
+            LET new == [type |-> T, acc |-> a, refs |-> fin, lrns |-> LL] IN
             /\ WellFormed(new)
             /\ Send(new)
     /\ UNCHANGED << known_msgs, recent_msgs, prev_msg  >>
@@ -608,5 +615,5 @@ UniqueDecision ==
 
 =============================================================================
 \* Modification History
-\* Last modified Wed Dec 18 17:38:41 CET 2024 by karbyshev
+\* Last modified Thu Dec 19 23:41:24 CET 2024 by karbyshev
 \* Created Mon Jun 19 12:24:03 CEST 2022 by karbyshev
